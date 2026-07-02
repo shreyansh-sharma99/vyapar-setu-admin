@@ -1,0 +1,297 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Tailwind v4: map semantic tokens to CSS variables ── */
+@theme {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --radius-md: var(--radius);
+}
+
+:root {
+  /* ── Your existing VS design tokens ── */
+  --vs-bg-primary: #ffffff;
+  --vs-bg-secondary: #f8fafc;
+  --vs-border: #e2e8f0;
+  --vs-border-subtle: #f1f5f9;
+  --vs-text-primary: #1e293b;
+  --vs-text-secondary: #64748b;
+  --vs-text-sidebar: #64748b;
+  --vs-text-sidebar-icon: #94a3b8;
+  --vs-input-bg: #f8fafc;
+  --vs-input-border: #e2e8f0;
+  --vs-btn-hover: #f1f5f9;
+  --vs-drop-bg: #ffffff;
+  --vs-drop-hover: #f8fafc;
+  --vs-drop-border: #e2e8f0;
+  --vs-active-bg: #eef2ff;
+  --vs-active-text: #4f46e5;
+  --vs-active-icon: #4f46e5;
+  --vs-border-sidebar-line: #c7d2fe;
+  --vs-page-bg: #f1f5f9;
+
+  /* ── Additional semantic tokens ── */
+  --vs-header-icon: #64748b;              /* header action icon color */
+  --vs-heading: #4f46e5;                  /* page h1 heading */
+  --vs-logout-text: #f43f5e;             /* logout link text */
+  --vs-logout-hover-bg: rgba(244,63,94,0.10); /* logout hover background */
+  /* Notification icon bubble backgrounds */
+  --vs-notif-bg-blue: #eff6ff;
+  --vs-notif-bg-green: #f0fdf4;
+  /* Dashboard stat icon bubble backgrounds */
+  --vs-stat-bg-indigo: #eef2ff;
+  --vs-stat-bg-emerald: #ecfdf5;
+  --vs-stat-bg-blue: #eff6ff;
+  --vs-stat-bg-rose: #fff1f2;
+
+  /* ── shadcn/ui semantic tokens (light mode) ── */
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 243 75% 59%;        /* indigo-500 #6366f1 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;      /* red-500 */
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 243 75% 59%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  /* ── Your existing VS design tokens (dark) ── */
+  --vs-bg-primary: #0f172a;
+  --vs-bg-secondary: #1e293b;
+  --vs-border: #1e293b;
+  --vs-border-subtle: #1e293b;
+  --vs-text-primary: #f1f5f9;
+  --vs-text-secondary: #94a3b8;
+  --vs-text-sidebar: #ffffff;
+  --vs-text-sidebar-icon: #ffffff;
+  --vs-input-bg: #1e293b;
+  --vs-input-border: #334155;
+  --vs-btn-hover: #1e293b;
+  --vs-drop-bg: #1e293b;
+  --vs-drop-hover: #334155;
+  --vs-drop-border: #334155;
+  --vs-active-bg: rgba(99, 102, 241, 0.12);
+  --vs-active-text: #818cf8;
+  --vs-active-icon: #818cf8;
+  --vs-border-sidebar-line: #4338ca;
+  --vs-page-bg: #020617;
+
+  /* ── Additional semantic tokens (dark) ── */
+  --vs-header-icon: #ffffff;
+  --vs-heading: #ffffff;
+  --vs-logout-text: #ffffff;
+  --vs-logout-hover-bg: #ef4444;         /* red-500 solid in dark */
+  --vs-notif-bg-blue: rgba(59,130,246,0.12);
+  --vs-notif-bg-green: rgba(16,185,129,0.12);
+  --vs-stat-bg-indigo: rgba(99,102,241,0.12);
+  --vs-stat-bg-emerald: rgba(16,185,129,0.12);
+  --vs-stat-bg-blue: rgba(59,130,246,0.12);
+  --vs-stat-bg-rose: rgba(244,63,94,0.12);
+
+  /* ── shadcn/ui semantic tokens (dark mode) ── */
+  --background: 222 47% 4%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 8%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 8%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 243 75% 65%;        /* indigo-400 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 217 33% 17%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 217 33% 17%;
+  --input: 217 33% 17%;
+  --ring: 243 75% 65%;
+}
+
+/* ============================================
+   CoreUI / Bootstrap Conflict Resets
+============================================ */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  background-color: transparent;
+  color: inherit;
+  border-color: inherit;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  color: #fff !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Autofill fixes for dark mode */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover, 
+.dark input:-webkit-autofill:focus, 
+.dark input:-webkit-autofill:active {
+  -webkit-text-fill-color: #fff !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Only reset truly unstyled/icon buttons — NOT Tailwind-styled ones */
+button:not([class]) {
+  background-color: transparent;
+  color: inherit;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:not([class]):focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* CoreUI card overrides */
+.card {
+  --cui-card-border-color: transparent !important;
+  --cui-card-bg: transparent !important;
+  border: none !important;
+  background-color: transparent !important;
+  border-radius: 0.75rem !important;
+}
+
+.row {
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+}
+
+[class*="col-"],
+.col {
+  padding-right: 0.75rem !important;
+  padding-left: 0.75rem !important;
+}
+
+/* ============================================
+   Custom Scrollbar
+============================================ */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-flow {
+  background-size: 200% auto;
+  animation: gradient-flow 4s linear infinite;
+}
+
+/* ============================================
+   Modal Animations
+   ============================================ */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes scaleIn {
+  from { transform: scale(0.95) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes scaleOut {
+  from { transform: scale(1) translateY(0); opacity: 1; }
+  to { transform: scale(0.95) translateY(10px); opacity: 0; }
+}
+
+.modal-backdrop-enter {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+.modal-backdrop-exit {
+  animation: fadeOut 0.2s ease-in forwards;
+}
+.modal-content-enter {
+  animation: scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.modal-content-exit {
+  animation: scaleOut 0.2s ease-in forwards;
+}
