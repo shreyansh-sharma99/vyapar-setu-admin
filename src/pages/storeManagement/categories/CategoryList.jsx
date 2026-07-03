@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Image as ImageIcon } from 'lucide-react';
 import { encryptData } from '@/utility/crypto';
 import Button from '@/components/inputs/Button';
-import Table from '@/components/table/table';
+import Table from '@/components/table/Table';
 import {
   getCategories,
   deleteCategory,

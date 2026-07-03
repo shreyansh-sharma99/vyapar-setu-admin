@@ -12,6 +12,7 @@ import { createCustomer, resetCustomerStatus } from './services/customerSlice';
 
 export default function CreateCustomer() {
   const dispatch = useDispatch();
+  
   const navigate = useNavigate();
 
   const { loading, error, success } = useSelector((state) => state.customer);
