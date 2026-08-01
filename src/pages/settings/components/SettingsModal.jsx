@@ -7,7 +7,7 @@ import { Input } from '@/components/inputs/Input';
 import { fetchSettings, updateSettings } from '../services/settingsSlice';
 import Switch from '@/components/inputs/Switch';
 import { Label } from '@/components/inputs/Label';
-import Loader from '@/components/loader/loader';
+import Loader from '@/components/loader/Loader';
 import { formatDateWithTiming } from '@/utility/dateTiming';
 
 export default function SettingsModal({ isOpen, onClose }) {
