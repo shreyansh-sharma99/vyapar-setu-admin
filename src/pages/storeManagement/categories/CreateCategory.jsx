@@ -8,10 +8,7 @@ import { Input } from '@/components/inputs/Input';
 import Button from '@/components/inputs/Button';
 import Card from '@/components/breadCrumbs/Card';
 import FileInput from '@/components/inputs/FileInput';
-import {
-  createCategory,
-  resetCategoryStatus,
-} from './services/categorySlice';
+import { createCategory, resetCategoryStatus } from './services/categorySlice';
 
 export default function CreateCategory() {
   const dispatch = useDispatch();

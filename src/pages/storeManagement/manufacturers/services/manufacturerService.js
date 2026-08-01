@@ -1,7 +1,7 @@
 import apiClient from '@/utility/Http';
 
-export const getManufacturersApi = async () => {
-  const response = await apiClient.get('/manufacturers');
+export const getManufacturersApi = async (params) => {
+  const response = await apiClient.get('/manufacturers', { params });
   return response.data;
 };
 

@@ -12,7 +12,6 @@ import { createCustomer, resetCustomerStatus } from './services/customerSlice';
 
 export default function CreateCustomer() {
   const dispatch = useDispatch();
-  
   const navigate = useNavigate();
 
   const { loading, error, success } = useSelector((state) => state.customer);
@@ -25,6 +24,10 @@ export default function CreateCustomer() {
       email: '',
       phone: '',
       status: 'active',
+      gstin: '',
+      stateCode: '',
+      creditLimit: 0,
+      openingBalance: 0,
       address: {
         type: 'home',
         street: '',
@@ -80,6 +83,10 @@ export default function CreateCustomer() {
       lastName: data.lastName,
       email: data.email,
       phone: data.phone,
+      gstin: data.gstin || '',
+      stateCode: data.stateCode || '',
+      creditLimit: Number(data.creditLimit) || 0,
+      openingBalance: Number(data.openingBalance) || 0,
       status: 'active',
       addresses: [
         {
@@ -165,6 +172,79 @@ export default function CreateCustomer() {
                 />
                 {errors.phone && (
                   <span className="text-xs text-red-500 mt-1 block">{errors.phone.message}</span>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="gstin">GSTIN</Label>
+                <Input
+                  id="gstin"
+                  type="text"
+                  placeholder="e.g. 07AAQCP3629R1ZF"
+                  error={errors.gstin}
+                  {...register('gstin', {
+                    validate: value => !value || /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[0-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(value) || 'Invalid GSTIN format',
+                    onChange: (e) => {
+                      const val = e.target.value.toUpperCase();
+                      setValue('gstin', val);
+                      if (val.length >= 2) {
+                        const code = val.substring(0, 2);
+                        if (/^\d{2}$/.test(code)) {
+                          setValue('stateCode', code);
+                        }
+                      }
+                    }
+                  })}
+                />
+                {errors.gstin && (
+                  <span className="text-xs text-red-500 mt-1 block">{errors.gstin.message}</span>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="stateCode">State Code</Label>
+                <Input
+                  id="stateCode"
+                  type="text"
+                  placeholder="e.g. 07"
+                  maxLength={2}
+                  error={errors.stateCode}
+                  {...register('stateCode', {
+                    validate: value => !value || /^\d{2}$/.test(value) || 'State code must be 2 digits',
+                  })}
+                />
+                {errors.stateCode && (
+                  <span className="text-xs text-red-500 mt-1 block">{errors.stateCode.message}</span>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="creditLimit">Credit Limit</Label>
+                <Input
+                  id="creditLimit"
+                  type="number"
+                  placeholder="e.g. 50000"
+                  error={errors.creditLimit}
+                  {...register('creditLimit', {
+                    min: { value: 0, message: 'Credit limit cannot be negative' }
+                  })}
+                />
+                {errors.creditLimit && (
+                  <span className="text-xs text-red-500 mt-1 block">{errors.creditLimit.message}</span>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="openingBalance">Opening Balance</Label>
+                <Input
+                  id="openingBalance"
+                  type="number"
+                  placeholder="e.g. 0"
+                  error={errors.openingBalance}
+                  {...register('openingBalance')}
+                />
+                {errors.openingBalance && (
+                  <span className="text-xs text-red-500 mt-1 block">{errors.openingBalance.message}</span>
                 )}
               </div>
 

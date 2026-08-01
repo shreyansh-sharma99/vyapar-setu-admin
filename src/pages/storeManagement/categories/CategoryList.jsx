@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Image as ImageIcon } from 'lucide-react';
 import { encryptData } from '@/utility/crypto';
+import { formatDateWithTiming } from '@/utility/dateTiming';
 import Button from '@/components/inputs/Button';
 import Table from '@/components/table/Table';
 import {
@@ -19,9 +20,13 @@ export default function CategoryList() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const { categories, loading, toast: reduxToast } = useSelector((state) => state.category);
+  const { categories, pagination, loading, toast: reduxToast } = useSelector((state) => state.category);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, categoryId: null });
   const [toasts, setToasts] = useState([]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sort, setSort] = useState('createdAt');
+  const [order, setOrder] = useState('desc');
 
   const showToast = (message, color = 'success') => {
     const id = Date.now();
@@ -32,7 +37,7 @@ export default function CategoryList() {
   };
 
   useEffect(() => {
-    dispatch(getCategories());
+    dispatch(getCategories({ page: 1, limit: 10, sort, order, search: '' }));
   }, [dispatch]);
 
   useEffect(() => {
@@ -70,6 +75,36 @@ export default function CategoryList() {
     dispatch(changeCategoryStatus({ categoryId: item._id, status: newStatus }));
   };
 
+  const handleViewClick = (item) => {
+    const encryptedId = encodeURIComponent(encryptData(item._id));
+    navigate(`/categories/view/${encryptedId}`);
+  };
+
+  const handlePageChange = (page) => {
+    dispatch(getCategories({ page, limit: pagination.limit, sort, order, search: searchTerm }));
+  };
+
+  const handlePageSizeChange = (limit) => {
+    dispatch(getCategories({ page: 1, limit, sort, order, search: searchTerm }));
+  };
+
+  const handleSortChange = (sortConfig) => {
+    const newSort = sortConfig.key || 'createdAt';
+    const newOrder = sortConfig.direction || 'desc';
+    setSort(newSort);
+    setOrder(newOrder);
+    dispatch(getCategories({ page: 1, limit: pagination.limit, sort: newSort, order: newOrder, search: searchTerm }));
+  };
+
+  const handleSearchClick = () => {
+    dispatch(getCategories({ page: 1, limit: pagination.limit, sort, order, search: searchTerm }));
+  };
+
+  const handleSearchClear = () => {
+    setSearchTerm('');
+    dispatch(getCategories({ page: 1, limit: pagination.limit, sort, order, search: '' }));
+  };
+
   const headers = [
     {
       label: 'Image',
@@ -99,15 +134,35 @@ export default function CategoryList() {
       render: (item) => {
         const isActive = item.status === 'active';
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-            isActive
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-              : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
-          }`}>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isActive
+            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+            : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
+            }`}>
             {isActive ? 'Active' : 'Inactive'}
           </span>
         );
       },
+      value: 'checked'
+    },
+    {
+      label: 'Created By',
+      key: 'createdBy',
+      sortable: true,
+      render: (item) => <span>{item.createdBy?.name || '—'}</span>,
+      value: 'checked'
+    },
+    {
+      label: 'Updated By',
+      key: 'updatedBy',
+      sortable: true,
+      render: (item) => <span>{item.updatedBy?.name || '—'}</span>,
+      value: 'checked'
+    },
+    {
+      label: 'Date',
+      key: 'createdAt',
+      sortable: true,
+      render: (item) => <span>{formatDateWithTiming(item.createdAt)}</span>,
       value: 'checked'
     }
   ];
@@ -123,8 +178,20 @@ export default function CategoryList() {
           emptyMessage="No categories found. Click 'Add New Category' to create one."
           onEdit={handleEditClick}
           onDelete={handleDeleteClick}
+          onView={handleViewClick}
           onToggle={handleStatusToggle}
           toggleField="status"
+          currentPage={pagination?.currentPage || 1}
+          pageSize={pagination?.limit || 10}
+          totalRows={pagination?.totalItems || 0}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          sortConfig={{ key: sort, direction: order }}
+          onSortChange={handleSortChange}
+          searchTerm={searchTerm}
+          onSearchTermChange={setSearchTerm}
+          onSearchClick={handleSearchClick}
+          onSearchClear={handleSearchClear}
           actions={
             <Button
               className="!h-10"

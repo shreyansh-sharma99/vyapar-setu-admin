@@ -8,7 +8,6 @@ import {
   CTableDataCell,
 } from '@coreui/react';
 import {
-  Loader2,
   ChevronDown,
   Search,
   X,
@@ -20,10 +19,10 @@ import {
   Edit2,
   Trash2,
   Eye,
-  ToggleLeft,
   Image as ImageIcon,
 } from 'lucide-react';
 import Switch from '@/components/inputs/Switch';
+import Loader from '@/components/loader/loader';
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -68,12 +67,12 @@ function TruncatedCell({ value }) {
 
 function RowActions({ item, onEdit, onDelete, onView, onToggle, toggleField = 'isActive' }) {
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div className="flex items-center justify-center gap-0">
       {onView && (
         <button
           type="button"
           onClick={() => onView(item)}
-          className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors cursor-pointer"
+          className="p-1 rounded text-blue-800 hover:text-blue-700 transition-colors cursor-pointer"
           title="View"
         >
           <Eye className="w-4 h-4" />
@@ -83,7 +82,7 @@ function RowActions({ item, onEdit, onDelete, onView, onToggle, toggleField = 'i
         <button
           type="button"
           onClick={() => onEdit(item)}
-          className="p-2 rounded-lg text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors cursor-pointer"
+          className="p-1 rounded text-blue-800 hover:text-blue-700 transition-colors cursor-pointer"
           title="Edit"
         >
           <Edit2 className="w-4 h-4" />
@@ -93,17 +92,20 @@ function RowActions({ item, onEdit, onDelete, onView, onToggle, toggleField = 'i
         <button
           type="button"
           onClick={() => onDelete(item)}
-          className="p-2 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+          className="p-1 rounded text-red-800 hover:text-red-700 transition-colors cursor-pointer"
           title="Delete"
         >
           <Trash2 className="w-4 h-4" />
         </button>
       )}
       {onToggle && (
-        <Switch
-          checked={item[toggleField] === true || item[toggleField] === 'active'}
-          onChange={(val) => onToggle(item, val)}
-        />
+        <div className="flex items-center ml-1">
+          <Switch
+            size="sm"
+            checked={item[toggleField] === true || item[toggleField] === 'active'}
+            onChange={(val) => onToggle(item, val)}
+          />
+        </div>
       )}
     </div>
   );
@@ -128,7 +130,6 @@ function ColumnDropdown({ headers, visibleKeys, getColKey, toggleColumn, resetCo
 
   return (
     <div className="relative" ref={ref}>
-      {/* Trigger */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -140,7 +141,6 @@ function ColumnDropdown({ headers, visibleKeys, getColKey, toggleColumn, resetCo
         />
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div
           className="absolute top-[calc(100%+6px)] left-0 z-50 bg-[var(--vs-bg-primary)] border border-[var(--vs-border)] rounded-xl shadow-2xl overflow-hidden w-full min-w-max"
@@ -148,10 +148,8 @@ function ColumnDropdown({ headers, visibleKeys, getColKey, toggleColumn, resetCo
             boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
           }}
         >
-          {/* Blue top stripe like image 2 */}
           <div className="h-1 bg-indigo-600 w-full" />
 
-          {/* Header row */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--vs-border)] bg-[var(--vs-bg-secondary)]/50">
             <span className="text-[13px] font-bold text-[var(--vs-text-secondary)] uppercase tracking-widest">
               {visibleCount}/{totalCount} visible
@@ -165,7 +163,6 @@ function ColumnDropdown({ headers, visibleKeys, getColKey, toggleColumn, resetCo
             </button>
           </div>
 
-          {/* Column items — full width, no grid, like image 2 */}
           <div className="flex flex-col gap-3 max-h-64 overflow-y-auto py-3">
             {headers.map((header, index) => {
               const key = getColKey(header, index);
@@ -186,7 +183,6 @@ function ColumnDropdown({ headers, visibleKeys, getColKey, toggleColumn, resetCo
                     onChange={() => toggleColumn(key)}
                     className="sr-only"
                   />
-                  {/* Custom styled checkbox to match image 2 */}
                   <span
                     className={`
                       inline-flex items-center justify-center w-5 h-5 rounded border-2 shrink-0 transition-all
@@ -224,36 +220,26 @@ export default function Table({
   data = [],
   loading = false,
   emptyMessage = 'No data found.',
-
-  // Search
   showSearch = true,
   searchPlaceholder = 'Search records...',
   searchTerm: controlledSearchTerm,
   onSearchTermChange,
-
-  // Columns
+  onSearchClick,
+  onSearchClear,
   showColumnsToggle = true,
-
-  // Toolbar custom actions slot (e.g. Add button)
   actions,
-
-  // ── Row-level action props ──────────────────────
-  onEdit,          // (item) => void  — shows ✏️ Edit button
-  onDelete,        // (item) => void  — shows 🗑️ Delete button
-  onView,          // (item) => void  — shows 👁 View button
-  onToggle,        // (item, newVal) => void  — shows Toggle switch
-  toggleField = 'isActive', // which field drives the toggle state
-
-  // Pagination
+  onEdit,
+  onDelete,
+  onView,
+  onToggle,
+  toggleField = 'isActive',
   showPagination = true,
-  pageSizeOptions = [5, 10, 20, 50],
+  pageSizeOptions = [10, 20, 50, 100, 500],
   currentPage: controlledCurrentPage,
   pageSize: controlledPageSize,
   totalRows: controlledTotalRows,
   onPageChange,
   onPageSizeChange,
-
-  // Sort
   sortConfig: controlledSortConfig,
   onSortChange,
 }) {
@@ -275,36 +261,52 @@ export default function Table({
   const isControlledSort = controlledSortConfig !== undefined && onSortChange !== undefined;
   const sortConfig = isControlledSort ? controlledSortConfig : localSortConfig;
 
+  const [jumpPage, setJumpPage] = useState('');
+
   const getColKey = (header, index) => header.key || header.label || index.toString();
   const [visibleKeys, setVisibleKeys] = useState({});
 
   /* ── determine if row actions are needed ── */
   const hasRowActions = !!(onEdit || onDelete || onView || onToggle);
 
-  /* ── build effective headers (auto-add Actions column) ── */
+  /* ── build effective headers (ensure Actions column is ALWAYS at START index 0 and sticky) ── */
   const effectiveHeaders = useMemo(() => {
-    if (!hasRowActions) return headers;
-    // Don't duplicate if user already added an Actions column
-    const alreadyHas = headers.some(h => (h.label || '').toLowerCase() === 'actions');
-    if (alreadyHas) return headers;
-    return [
-      ...headers,
-      {
+    let actionsHeader = null;
+    const otherHeaders = [];
+
+    headers.forEach((h) => {
+      const isActions = h.key === 'actions' || h.key === '__actions__' || (h.label || '').toLowerCase() === 'actions';
+      if (isActions) {
+        actionsHeader = {
+          ...h,
+          _isActionsCol: true,
+        };
+      } else {
+        otherHeaders.push(h);
+      }
+    });
+
+    if (!actionsHeader && hasRowActions) {
+      actionsHeader = {
         label: 'Actions',
         key: '__actions__',
-        width: '120px',
-        className: 'text-right',
-        cellClassName: 'text-right',
+        width: '1%',
+        className: 'text-center',
+        cellClassName: 'text-center',
         _isActionsCol: true,
-      },
-    ];
+      };
+    }
+
+    if (actionsHeader) {
+      return [actionsHeader, ...otherHeaders];
+    }
+    return headers;
   }, [headers, hasRowActions]);
 
   /* ── effects ── */
   useEffect(() => {
     const initial = {};
     effectiveHeaders.forEach((h, i) => {
-      // If a 'value' is provided, use it to determine visibility. Defaults to true.
       initial[getColKey(h, i)] = h.value ? h.value === 'checked' : true;
     });
     setVisibleKeys(initial);
@@ -402,6 +404,16 @@ export default function Table({
     else { setLocalPageSize(size); setLocalCurrentPage(1); }
   };
 
+  const handleJumpSubmit = (e) => {
+    if (e.key === 'Enter') {
+      const p = parseInt(jumpPage, 10);
+      if (!isNaN(p) && p >= 1 && p <= totalPages) {
+        handlePageChange(p);
+        setJumpPage('');
+      }
+    }
+  };
+
   const handleSort = (key) => {
     let direction = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
@@ -421,12 +433,21 @@ export default function Table({
     isControlledSearch ? onSearchTermChange(val) : setLocalSearchTerm(val);
   };
 
-  const clearSearch = () =>
-    isControlledSearch ? onSearchTermChange('') : setLocalSearchTerm('');
+  const clearSearch = () => {
+    if (isControlledSearch) {
+      onSearchTermChange('');
+    } else {
+      setLocalSearchTerm('');
+    }
+    if (onSearchClear) {
+      onSearchClear();
+    }
+  };
 
   /* ── render cell ── */
   const renderCell = (header, item) => {
-    // Auto-generated actions column
+    if (header.render) return header.render(item);
+
     if (header._isActionsCol) {
       return (
         <RowActions
@@ -439,12 +460,9 @@ export default function Table({
         />
       );
     }
-    // Custom render
-    if (header.render) return header.render(item);
 
     const raw = item[header.key];
 
-    // Image type
     if (header.type === 'image') {
       return raw ? (
         <img
@@ -463,7 +481,6 @@ export default function Table({
       );
     }
 
-    // Key-based with truncation
     return <TruncatedCell value={typeof raw === 'string' ? raw : raw} />;
   };
 
@@ -472,16 +489,13 @@ export default function Table({
     <div className="w-full flex flex-col" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
 
       {/* ── Toolbar ── */}
-      <div
-        className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 p-3 sm:p-4 rounded-t-xl border border-[var(--vs-border)]"
-        style={{ background: 'var(--vs-bg-primary)' }}
-      >
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 pb-3 sm:pb-4 bg-[var(--vs-bg-primary)]">
         {/* Left: Column toggle + Actions slot */}
         <div className="flex flex-wrap items-end gap-2 w-full sm:w-auto">
           {showColumnsToggle && (
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold tracking-widest text-[var(--vs-text-secondary)] uppercase pl-0.5">
-                Columns
+              <span className="text-[11px] font-bold tracking-widest text-[#0d6efd] uppercase">
+                SELECT COLUMNS TO DISPLAY:
               </span>
               <ColumnDropdown
                 headers={effectiveHeaders}
@@ -495,7 +509,7 @@ export default function Table({
 
           {actions && (
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold tracking-widest text-transparent uppercase select-none pl-0.5">
+              <span className="text-[11px] font-bold tracking-widest text-transparent uppercase select-none">
                 &nbsp;
               </span>
               <div className="flex items-center h-10 gap-2">
@@ -508,8 +522,8 @@ export default function Table({
         {/* Right: Search */}
         {showSearch && (
           <div className="flex flex-col gap-1 w-full sm:w-auto">
-            <span className="text-[10px] font-bold tracking-widest text-[var(--vs-text-secondary)] uppercase pl-0.5">
-              Search
+            <span className="text-[11px] font-bold tracking-widest text-indigo-600 dark:text-indigo-400 uppercase">
+              SEARCH:
             </span>
             <div className="flex items-center w-full sm:w-72 md:w-80 lg:w-96">
               <input
@@ -517,10 +531,16 @@ export default function Table({
                 placeholder={searchPlaceholder}
                 value={searchTerm}
                 onChange={handleSearchChange}
-                className="flex-1 h-10 px-3 bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] border border-[var(--vs-border)] rounded-l-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-0 transition-all"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && onSearchClick) {
+                    onSearchClick();
+                  }
+                }}
+                className="flex-1 h-10 px-3 bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] border border-[var(--vs-border)] rounded-l-xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-0 transition-all"
               />
               <button
                 type="button"
+                onClick={onSearchClick}
                 className="h-10 w-10 flex-shrink-0 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white border border-indigo-600 shadow-sm transition-colors cursor-pointer"
               >
                 <Search className="w-4 h-4" />
@@ -528,7 +548,7 @@ export default function Table({
               <button
                 type="button"
                 onClick={clearSearch}
-                className="h-10 w-10 flex-shrink-0 flex items-center justify-center bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white rounded-r-lg border border-rose-500 shadow-sm transition-colors cursor-pointer"
+                className="h-10 w-10 flex-shrink-0 flex items-center justify-center bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white rounded-r-xl border border-rose-500 shadow-sm transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -538,43 +558,45 @@ export default function Table({
       </div>
 
       {/* ── Table grid ── */}
-      <div className="overflow-x-auto w-full border border-t-0 border-[var(--vs-border)] rounded-b-xl">
+      <div className="overflow-x-auto w-full border border-[var(--vs-border)] rounded-xl custom-scrollbar">
         <CTable hover responsive align="middle" className="mb-0 text-sm w-full border-collapse !bg-transparent">
           <CTableHead>
             <CTableRow>
-              {visibleHeaders.map((header, index) => (
-                <CTableHeaderCell
-                  key={getColKey(header, index)}
-                  className={`px-4 py-3 !bg-[var(--vs-bg-secondary)] !text-[var(--vs-text-secondary)] !border-b !border-r last:!border-r-0 !border-[var(--vs-border)] text-[11px] font-bold uppercase tracking-widest whitespace-nowrap ${header.className || ''}`}
-                  style={{ width: header.width }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>{header.label}</span>
-                    {header.sortable && (
-                      <button
-                        type="button"
-                        onClick={() => handleSort(header.key || header.label)}
-                        className="text-[var(--vs-text-secondary)] hover:text-[var(--vs-text-primary)] transition-colors cursor-pointer p-0.5 rounded hover:bg-[var(--vs-bg-primary)]"
-                      >
-                        {getSortIcon(header.key || header.label)}
-                      </button>
-                    )}
-                  </div>
-                </CTableHeaderCell>
-              ))}
+              {visibleHeaders.map((header, index) => {
+                const isActions = header._isActionsCol;
+                return (
+                  <CTableHeaderCell
+                    key={getColKey(header, index)}
+                    className={`px-4 py-3 ${isActions ? 'sticky left-0 z-20 !bg-[var(--vs-bg-secondary)] border-r border-[var(--vs-border)] !px-2' : '!bg-[var(--vs-bg-secondary)]'} !text-[var(--vs-text-secondary)] !border-b !border-r last:!border-r-0 !border-[var(--vs-border)] text-[11px] font-bold uppercase tracking-widest whitespace-nowrap text-center ${header.className || ''}`}
+                    style={{ width: header.width }}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>{header.label}</span>
+                      {header.sortable && (
+                        <button
+                          type="button"
+                          onClick={() => handleSort(header.key || header.label)}
+                          className="text-[var(--vs-text-secondary)] hover:text-[var(--vs-text-primary)] transition-colors cursor-pointer p-0.5 rounded hover:bg-[var(--vs-bg-primary)]"
+                        >
+                          {getSortIcon(header.key || header.label)}
+                        </button>
+                      )}
+                    </div>
+                  </CTableHeaderCell>
+                );
+              })}
             </CTableRow>
           </CTableHead>
 
           <CTableBody>
-            {loading && paginatedData.length === 0 ? (
+            {loading ? (
               <CTableRow>
                 <CTableDataCell
                   colSpan={visibleHeaders.length}
                   className="px-6 py-12 text-center !bg-[var(--vs-bg-primary)] !text-[var(--vs-text-secondary)] !border-none"
                 >
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-                    <span className="text-sm">Loading...</span>
+                  <div className="py-12">
+                    <Loader />
                   </div>
                 </CTableDataCell>
               </CTableRow>
@@ -589,7 +611,6 @@ export default function Table({
                     <div className="absolute inset-0 rounded-xl border-2 border-dashed border-blue-200"></div>
                     <div className="relative z-10 flex flex-col items-center">
                       <div className="p-3 mb-3 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full">
-                        {/* <InfoIcon className="w-12 h-12 text-blue-400" /> */}
                         <svg className="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                             d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -601,21 +622,27 @@ export default function Table({
                 </CTableDataCell>
               </CTableRow>
             ) : (
-              paginatedData.map((item, rowIndex) => (
-                <CTableRow
-                  key={item._id || rowIndex}
-                  className={`transition-colors ${rowIndex % 2 !== 0 ? 'bg-[var(--vs-bg-secondary)]/[0.3]' : ''} hover:!bg-indigo-50/[0.08]`}
-                >
-                  {visibleHeaders.map((header, colIndex) => (
-                    <CTableDataCell
-                      key={colIndex}
-                      className={`px-4 py-2.5 !bg-transparent !text-[var(--vs-text-primary)] !border-r last:!border-r-0 !border-[var(--vs-border)] ${rowIndex === paginatedData.length - 1 ? '' : '!border-b'} ${header.cellClassName || ''}`}
-                    >
-                      {renderCell(header, item)}
-                    </CTableDataCell>
-                  ))}
-                </CTableRow>
-              ))
+              paginatedData.map((item, rowIndex) => {
+                const rowBgClass = rowIndex % 2 !== 0 ? '!bg-[var(--vs-bg-secondary)]' : '!bg-[var(--vs-bg-primary)]';
+                return (
+                  <CTableRow
+                    key={item._id || rowIndex}
+                    className={`group transition-colors ${rowBgClass} hover:!bg-[#0d6efd]/[0.05] dark:hover:!bg-[#0d6efd]/[0.12]`}
+                  >
+                    {visibleHeaders.map((header, colIndex) => {
+                      const isActions = header._isActionsCol;
+                      return (
+                        <CTableDataCell
+                          key={colIndex}
+                          className={`px-4 py-2.5 ${isActions ? `sticky left-0 z-10 ${rowBgClass} group-hover:!bg-[#f0f7ff] dark:group-hover:!bg-[#152338] border-r border-[var(--vs-border)] !px-2` : '!bg-transparent'} !text-[var(--vs-text-primary)] !border-r last:!border-r-0 !border-[var(--vs-border)] whitespace-nowrap ${rowIndex === paginatedData.length - 1 ? '' : '!border-b'} ${header.cellClassName || ''}`}
+                        >
+                          {renderCell(header, item)}
+                        </CTableDataCell>
+                      );
+                    })}
+                  </CTableRow>
+                );
+              })
             )}
           </CTableBody>
         </CTable>
@@ -625,14 +652,10 @@ export default function Table({
       {showPagination && totalRecords > 0 && (
         <div className="flex flex-col sm:flex-row justify-between sm:justify-end items-center gap-3 mt-4 text-sm text-[var(--vs-text-secondary)] flex-wrap">
           <span className="text-xs sm:text-sm whitespace-nowrap order-2 sm:order-1">
-            Showing{' '}
-            <span className="font-semibold text-[var(--vs-text-primary)]">{startRecord}–{endRecord}</span>
-            {' '}of{' '}
-            <span className="font-semibold text-[var(--vs-text-primary)]">{totalRecords}</span>
-            {' '}records
+            Showing <span className="font-semibold text-[var(--vs-text-primary)]">{startRecord}-{endRecord}</span> of <span className="font-semibold text-[var(--vs-text-primary)]">{totalRecords}</span> records
           </span>
 
-          <div className="flex items-center gap-2 order-1 sm:order-2">
+          <div className="flex items-center gap-2 order-1 sm:order-2 flex-wrap">
             <button
               type="button"
               disabled={currentPage === 1}
@@ -649,12 +672,12 @@ export default function Table({
                   type="button"
                   onClick={() => typeof p === 'number' && handlePageChange(p)}
                   disabled={p === '...'}
-                  className={`h-8 min-w-[2rem] px-1.5 flex items-center justify-center rounded-lg border text-sm transition-all shadow-sm font-medium
+                  className={`h-8 min-w-[2rem] px-2 flex items-center justify-center rounded-lg border text-sm transition-all shadow-sm font-medium
                     ${p === currentPage
-                      ? 'bg-indigo-600 border-indigo-600 text-white'
+                      ? '!bg-[#0d6efd] !border-[#0d6efd] !text-white'
                       : p === '...'
                         ? 'border-transparent bg-transparent text-[var(--vs-text-secondary)] cursor-default shadow-none text-xs'
-                        : 'border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] hover:bg-indigo-600 hover:text-white hover:border-indigo-600 cursor-pointer'
+                        : 'border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] hover:bg-[#0d6efd] hover:text-white hover:border-[#0d6efd] cursor-pointer'
                     }`}
                 >
                   {p}
@@ -680,6 +703,27 @@ export default function Table({
                 <option key={opt} value={opt}>{opt} / page</option>
               ))}
             </select>
+
+            <div className="flex items-center gap-1.5 ml-1">
+              <span className="text-xs text-[var(--vs-text-secondary)] whitespace-nowrap">Go to</span>
+              <input
+                type="number"
+                min={1}
+                max={totalPages}
+                value={jumpPage}
+                onChange={(e) => setJumpPage(e.target.value)}
+                onKeyDown={handleJumpSubmit}
+                onBlur={() => {
+                  const p = parseInt(jumpPage, 10);
+                  if (!isNaN(p) && p >= 1 && p <= totalPages) {
+                    handlePageChange(p);
+                    setJumpPage('');
+                  }
+                }}
+                className="w-12 h-8 px-1 text-center bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] border border-[var(--vs-border)] rounded-lg text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <span className="text-xs text-[var(--vs-text-secondary)] whitespace-nowrap">Page</span>
+            </div>
           </div>
         </div>
       )}

@@ -1,9 +1,15 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+body {
+  font-family: 'Outfit', sans-serif;
+}
+
 /* ── Tailwind v4: map semantic tokens to CSS variables ── */
 @theme {
+  --font-sans: 'Outfit', sans-serif;
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -49,10 +55,14 @@
   --vs-page-bg: #f1f5f9;
 
   /* ── Additional semantic tokens ── */
-  --vs-header-icon: #64748b;              /* header action icon color */
-  --vs-heading: #4f46e5;                  /* page h1 heading */
-  --vs-logout-text: #f43f5e;             /* logout link text */
-  --vs-logout-hover-bg: rgba(244,63,94,0.10); /* logout hover background */
+  --vs-header-icon: #64748b;
+  /* header action icon color */
+  --vs-heading: #4f46e5;
+  /* page h1 heading */
+  --vs-logout-text: #f43f5e;
+  /* logout link text */
+  --vs-logout-hover-bg: rgba(244, 63, 94, 0.10);
+  /* logout hover background */
   /* Notification icon bubble backgrounds */
   --vs-notif-bg-blue: #eff6ff;
   --vs-notif-bg-green: #f0fdf4;
@@ -69,7 +79,8 @@
   --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  --primary: 243 75% 59%;        /* indigo-500 #6366f1 */
+  --primary: 243 75% 59%;
+  /* indigo-500 #6366f1 */
   --primary-foreground: 0 0% 100%;
   --secondary: 210 40% 96%;
   --secondary-foreground: 222 47% 11%;
@@ -77,7 +88,8 @@
   --muted-foreground: 215 16% 47%;
   --accent: 210 40% 96%;
   --accent-foreground: 222 47% 11%;
-  --destructive: 0 84% 60%;      /* red-500 */
+  --destructive: 0 84% 60%;
+  /* red-500 */
   --destructive-foreground: 0 0% 100%;
   --border: 214 32% 91%;
   --input: 214 32% 91%;
@@ -111,13 +123,14 @@
   --vs-header-icon: #ffffff;
   --vs-heading: #ffffff;
   --vs-logout-text: #ffffff;
-  --vs-logout-hover-bg: #ef4444;         /* red-500 solid in dark */
-  --vs-notif-bg-blue: rgba(59,130,246,0.12);
-  --vs-notif-bg-green: rgba(16,185,129,0.12);
-  --vs-stat-bg-indigo: rgba(99,102,241,0.12);
-  --vs-stat-bg-emerald: rgba(16,185,129,0.12);
-  --vs-stat-bg-blue: rgba(59,130,246,0.12);
-  --vs-stat-bg-rose: rgba(244,63,94,0.12);
+  --vs-logout-hover-bg: #ef4444;
+  /* red-500 solid in dark */
+  --vs-notif-bg-blue: rgba(59, 130, 246, 0.12);
+  --vs-notif-bg-green: rgba(16, 185, 129, 0.12);
+  --vs-stat-bg-indigo: rgba(99, 102, 241, 0.12);
+  --vs-stat-bg-emerald: rgba(16, 185, 129, 0.12);
+  --vs-stat-bg-blue: rgba(59, 130, 246, 0.12);
+  --vs-stat-bg-rose: rgba(244, 63, 94, 0.12);
 
   /* ── shadcn/ui semantic tokens (dark mode) ── */
   --background: 222 47% 4%;
@@ -126,7 +139,8 @@
   --card-foreground: 210 40% 98%;
   --popover: 222 47% 8%;
   --popover-foreground: 210 40% 98%;
-  --primary: 243 75% 65%;        /* indigo-400 */
+  --primary: 243 75% 65%;
+  /* indigo-400 */
   --primary-foreground: 0 0% 100%;
   --secondary: 217 33% 17%;
   --secondary-foreground: 210 40% 98%;
@@ -176,8 +190,8 @@ textarea:focus {
 
 /* Autofill fixes for dark mode */
 .dark input:-webkit-autofill,
-.dark input:-webkit-autofill:hover, 
-.dark input:-webkit-autofill:focus, 
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
 .dark input:-webkit-autofill:active {
   -webkit-text-fill-color: #fff !important;
   transition: background-color 5000s ease-in-out 0s;
@@ -250,9 +264,11 @@ button:not([class]):focus {
   0% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
+
   100% {
     background-position: 0% 50%;
   }
@@ -267,31 +283,96 @@ button:not([class]):focus {
    Modal Animations
    ============================================ */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
+
 @keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
+
 @keyframes scaleIn {
-  from { transform: scale(0.95) translateY(10px); opacity: 0; }
-  to { transform: scale(1) translateY(0); opacity: 1; }
+  from {
+    transform: scale(0.95) translateY(10px);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
+
 @keyframes scaleOut {
-  from { transform: scale(1) translateY(0); opacity: 1; }
-  to { transform: scale(0.95) translateY(10px); opacity: 0; }
+  from {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: scale(0.95) translateY(10px);
+    opacity: 0;
+  }
 }
 
 .modal-backdrop-enter {
   animation: fadeIn 0.2s ease-out forwards;
 }
+
 .modal-backdrop-exit {
   animation: fadeOut 0.2s ease-in forwards;
 }
+
 .modal-content-enter {
   animation: scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
+
 .modal-content-exit {
   animation: scaleOut 0.2s ease-in forwards;
+}
+
+@utility no-scrollbar {
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+@utility custom-scrollbar {
+  &::-webkit-scrollbar {
+    background-color: #93c5fd;
+
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 9999px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: #93c5fd;
+    border-radius: 9999px;
+  }
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #344054;
 }

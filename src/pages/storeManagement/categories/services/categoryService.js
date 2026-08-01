@@ -1,7 +1,7 @@
 import apiClient from '@/utility/Http';
 
-export const getCategoriesApi = async () => {
-  const response = await apiClient.get('/categories');
+export const getCategoriesApi = async (params) => {
+  const response = await apiClient.get('/categories', { params });
   return response.data;
 };
 

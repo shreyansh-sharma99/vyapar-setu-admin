@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { encryptData } from '@/utility/crypto';
+import { formatDateWithTiming } from '@/utility/dateTiming';
 import Button from '@/components/inputs/Button';
 import Table from '@/components/table/Table';
 import {
@@ -19,9 +20,23 @@ export default function SubcategoryList() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const { subcategories, loading, toast: reduxToast } = useSelector((state) => state.subcategory);
+
+  const searchParams = new URLSearchParams(location.search);
+  const initialCategoryId = searchParams.get('categoryId') || '';
+
+  const { subcategories, pagination, loading, toast: reduxToast } = useSelector((state) => state.subcategory);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, subCategoryId: null });
   const [toasts, setToasts] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [params, setParams] = useState({
+    page: 1,
+    limit: 10,
+    sort: 'createdAt',
+    order: 'desc',
+    search: '',
+    ...(initialCategoryId ? { categoryId: initialCategoryId } : {}),
+  });
 
   const showToast = (message, color = 'success') => {
     const id = Date.now();
@@ -32,8 +47,8 @@ export default function SubcategoryList() {
   };
 
   useEffect(() => {
-    dispatch(getSubcategories());
-  }, [dispatch]);
+    dispatch(getSubcategories(params));
+  }, [dispatch, params]);
 
   useEffect(() => {
     if (location.state?.message) {
@@ -59,6 +74,11 @@ export default function SubcategoryList() {
     navigate(`/subcategories/edit/${encryptedId}?categoryId=${categoryId}`);
   };
 
+  const handleViewClick = (item) => {
+    const encryptedId = encodeURIComponent(encryptData(item._id));
+    navigate(`/subcategories/view/${encryptedId}`);
+  };
+
   const handleConfirmDelete = () => {
     if (deleteModal.subCategoryId) {
       dispatch(deleteSubcategory(deleteModal.subCategoryId));
@@ -69,6 +89,17 @@ export default function SubcategoryList() {
   const handleStatusToggle = (item, newVal) => {
     const newStatus = newVal ? 'active' : 'inactive';
     dispatch(changeSubcategoryStatus({ subCategoryId: item._id, status: newStatus }));
+  };
+
+  const handleSearchClick = (searchVal) => {
+    const query = typeof searchVal === 'string' ? searchVal : searchTerm;
+    setSearchTerm(query);
+    setParams((prev) => ({ ...prev, search: query, page: 1 }));
+  };
+
+  const handleSearchClear = () => {
+    setSearchTerm('');
+    setParams((prev) => ({ ...prev, search: '', page: 1 }));
   };
 
   const headers = [
@@ -107,15 +138,35 @@ export default function SubcategoryList() {
       render: (item) => {
         const isActive = item.status === 'active';
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-            isActive
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-              : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
-          }`}>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isActive
+            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+            : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
+            }`}>
             {isActive ? 'Active' : 'Inactive'}
           </span>
         );
       },
+      value: 'checked'
+    },
+    {
+      label: 'Created By',
+      key: 'createdBy',
+      sortable: true,
+      render: (item) => <span>{item.createdBy?.name || '—'}</span>,
+      value: 'checked'
+    },
+    {
+      label: 'Updated By',
+      key: 'updatedBy',
+      sortable: true,
+      render: (item) => <span>{item.updatedBy?.name || '—'}</span>,
+      value: 'checked'
+    },
+    {
+      label: 'Date',
+      key: 'createdAt',
+      sortable: true,
+      render: (item) => <span>{formatDateWithTiming(item.createdAt)}</span>,
       value: 'checked'
     }
   ];
@@ -131,8 +182,19 @@ export default function SubcategoryList() {
           emptyMessage="No subcategories found. Click 'Add New Subcategory' to create one."
           onEdit={handleEditClick}
           onDelete={handleDeleteClick}
+          onView={handleViewClick}
           onToggle={handleStatusToggle}
           toggleField="status"
+          currentPage={pagination?.page || params.page || 1}
+          pageSize={pagination?.limit || params.limit || 10}
+          totalRows={pagination?.total || pagination?.totalItems || subcategories.length}
+          onPageChange={(page) => setParams((prev) => ({ ...prev, page }))}
+          onPageSizeChange={(limit) => setParams((prev) => ({ ...prev, limit, page: 1 }))}
+          onSortChange={({ key, direction }) => setParams((prev) => ({ ...prev, sort: key, order: direction }))}
+          searchTerm={searchTerm}
+          onSearchTermChange={setSearchTerm}
+          onSearchClick={handleSearchClick}
+          onSearchClear={handleSearchClear}
           actions={
             <Button
               className="!h-10"

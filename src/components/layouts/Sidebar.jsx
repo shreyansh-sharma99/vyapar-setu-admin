@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import CIcon from '@coreui/icons-react';
 import {
-  cilSpeedometer, cilBasket, cilChevronBottom, cilX, cilUser,
+  cilSpeedometer, cilBasket, cilChevronBottom, cilX, cilUser, cilTag, cilSettings, cilChartPie,
 } from '@coreui/icons';
 
 const menuGroups = [
@@ -10,6 +10,7 @@ const menuGroups = [
     title: 'MENU',
     items: [
       { name: 'Dashboard', icon: cilSpeedometer, href: '/' },
+      { name: 'Customers', icon: cilUser, href: '/customers' },
       {
         name: 'Store Management',
         icon: cilBasket,
@@ -21,7 +22,40 @@ const menuGroups = [
           { name: 'Products', href: '/products' },
         ],
       },
-      { name: 'Customers', icon: cilUser, href: '/customers' },
+      {
+        name: 'Sales Management',
+        icon: cilTag,
+        submenu: [
+          { name: 'Sales Invoices', href: '/sales/invoices' },
+          { name: 'Quotation / Estimate', href: '/sales/quotations' },
+          { name: 'Payment In', href: '/sales/payment-in' },
+          { name: 'Customer Ledger', href: '/sales/customer-ledger' },
+          { name: 'Payment Account', href: '/sales/payment-account' },
+          { name: 'Sales Return', href: '/sales/return' },
+          { name: 'Credit Note', href: '/sales/credit-note' },
+          { name: 'Delivery Challan', href: '/sales/delivery-challan' },
+          { name: 'Proforma Invoice', href: '/sales/proforma-invoice' },
+        ],
+      },
+      {
+        name: 'Reports & Analytics',
+        icon: cilChartPie,
+        submenu: [
+          { name: 'Sales Register', href: '/reports/sales-register' },
+          { name: 'GSTR-1 Summary', href: '/reports/gstr1' },
+          { name: 'HSN Summary', href: '/reports/hsn-summary' },
+          { name: 'Accounts Ageing', href: '/reports/ageing' },
+        ],
+      },
+      {
+        name: 'Invoice Setting',
+        icon: cilSettings,
+        submenu: [
+          { name: 'General Invoice Setting', href: '/sales/general-invoice-setting' },
+          { name: 'Invoice Settings', href: '/sales/invoice-setting' },
+        ],
+      },
+
     ],
   },
 ];
@@ -87,26 +121,43 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, sidebarCollapsed 
         {/* ── Logo ── */}
         <div
           className={[
-            'flex items-center h-12 px-4 shrink-0 border-b',
+            'flex items-center h-12 px-4 shrink-0 border-b relative',
             logoBorder,
-            sidebarCollapsed ? 'lg:justify-center lg:px-0' : 'justify-between',
+            sidebarCollapsed ? 'lg:justify-center lg:px-0' : 'justify-center',
           ].join(' ')}
         >
-          <Link to="/" className="flex items-center gap-3 min-w-0">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-sm shadow">
-              VS
-            </div>
-            <span
-              className={`text-[15px] font-bold whitespace-nowrap overflow-hidden transition-all duration-300 ${logoText} ${sidebarCollapsed ? 'lg:w-0 lg:opacity-0' : 'opacity-100'
-                }`}
-            >
-              VyaparSetu
-            </span>
+          <Link to="/" className="flex items-center justify-center min-w-0">
+            {!sidebarCollapsed ? (
+              <div className="flex flex-col select-none items-center justify-center leading-none text-center">
+                <div className="flex items-baseline leading-none justify-center">
+                  <span className="text-xl font-extrabold text-[#0f6ebd] tracking-tight">Vyapar</span>
+                  <span
+                    className="text-xl font-extrabold text-[#ff5722] tracking-tight ml-0.5"
+                    style={{ textShadow: '0 0 10px rgba(255, 87, 34, 0.4)' }}
+                  >
+                    Setu
+                  </span>
+                </div>
+                <span className="text-[7px] font-extrabold tracking-[0.16em] text-[#ff5722] uppercase mt-1 leading-none whitespace-nowrap">
+                  CONNECT &bull; TRADE &bull; GROW
+                </span>
+              </div>
+            ) : (
+              <img
+                src="/image/logos/newLogo.png"
+                alt="Logo"
+                className="h-8 w-8 object-contain shrink-0"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://placehold.co/32x32?text=VS';
+                }}
+              />
+            )}
           </Link>
 
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden ml-2 p-1.5 rounded-md transition-colors text-[var(--vs-text-secondary)] hover:bg-[var(--vs-btn-hover)]"
+            className="lg:hidden absolute right-4 p-1.5 rounded-md transition-colors text-[var(--vs-text-secondary)] hover:bg-[var(--vs-btn-hover)]"
           >
             <CIcon icon={cilX} className="w-4 h-4" />
           </button>
@@ -179,7 +230,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, sidebarCollapsed 
                             </button>
 
                             {!sidebarCollapsed && (
-                              <div className={`overflow-hidden  ml-6 transition-all duration-200 ${isOpen ? 'max-h-80' : 'max-h-0'}`}>
+                              <div className={`overflow-hidden ml-6 transition-all duration-300 ${isOpen ? 'max-h-[600px]' : 'max-h-0'}`}>
                                 <ul className={`mt-0.5 flex flex-col gap-0.5 border-l-2 pl-4 ${subBorder} m-0 p-0`}>
                                   {item.submenu.map((sub, si) => {
                                     const isSubActive = location.pathname.startsWith(sub.href);

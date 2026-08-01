@@ -1,8 +1,11 @@
 import apiClient from '@/utility/Http';
 
-export const getSubcategoriesApi = async (categoryId) => {
-  const url = categoryId ? `/subcategories?categoryId=${categoryId}` : '/subcategories';
-  const response = await apiClient.get(url);
+export const getSubcategoriesApi = async (params) => {
+  let queryParams = params;
+  if (typeof params === 'string') {
+    queryParams = { categoryId: params };
+  }
+  const response = await apiClient.get('/subcategories', { params: queryParams });
   return response.data;
 };
 

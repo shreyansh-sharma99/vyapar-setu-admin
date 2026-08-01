@@ -34,10 +34,6 @@ export default function ProductDetails() {
 
   if (loading) {
     return (
-      // <div className="flex flex-col items-center justify-center min-h-[400px] py-12">
-      //   <Loader className="mb-4" />
-      //   <p className="text-sm text-[var(--vs-text-secondary)] font-medium">Loading product details...</p>
-      // </div>
       <Card
         h1="Product Details"
         buttonName="Back"

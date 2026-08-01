@@ -108,7 +108,6 @@ export default function CreateProduct() {
     }
   }, [isCustomizable, customFields.length]);
 
-  // Image Upload handler
   const handleUploadSuccess = (response) => {
     if (response && response.data) {
       if (Array.isArray(response.data)) {
@@ -126,7 +125,6 @@ export default function CreateProduct() {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Custom Fields Builder handler
   const handleCustomFieldChange = (index, key, value) => {
     setCustomFields((prev) =>
       prev.map((field, i) => (i === index ? { ...field, [key]: value } : field))
@@ -542,7 +540,7 @@ export default function CreateProduct() {
               {isCustomizable === 'true' && (
                 <div className="bg-[var(--vs-bg-secondary)] p-6 rounded-2xl border border-[var(--vs-border)] flex flex-col gap-4">
                   <span className="text-sm font-semibold text-[var(--vs-text-primary)]">Custom Fields Builder</span>
-                  
+
                   <div className="overflow-x-auto rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)]">
                     <table className="w-full border-collapse border-spacing-0">
                       <thead className="bg-[var(--vs-active-bg)] dark:bg-indigo-950/40 text-[var(--vs-active-text)] dark:text-indigo-300">
@@ -602,7 +600,7 @@ export default function CreateProduct() {
                                 >
                                   <Plus className="w-4 h-4" />
                                 </button>
-                                
+
                                 {customFields.length > 1 && (
                                   <button
                                     type="button"

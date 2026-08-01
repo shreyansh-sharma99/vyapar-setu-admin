@@ -12,6 +12,8 @@ export default function Card({
   bodyClassName = 'p-6',
   buttonVariant = 'primary',
   buttonIcon,
+  rightNode,
+  className = '',
   children,
 }) {
   const navigate = useNavigate();
@@ -28,7 +30,7 @@ export default function Card({
   };
 
   return (
-    <div className="w-full rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] shadow-sm dark:shadow-none transition-colors duration-300">
+    <div className={`w-full rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] shadow-sm dark:shadow-none transition-colors duration-300 ${className}`}>
       <div className="px-6 py-2 bg-[var(--vs-bg-secondary)] border-b border-[var(--vs-border)] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors duration-300 rounded-t-xl">
         <div className="flex items-center gap-3.5">
           <div>
@@ -43,8 +45,10 @@ export default function Card({
           </div>
         </div>
 
-        {/* Action Button — rendered on the right side using workspace <Button> component */}
-        {buttonName && (
+        {/* Action Button / Custom Node on the right side */}
+        {rightNode ? (
+          rightNode
+        ) : buttonName ? (
           <Button
             size="xs"
             variant={buttonVariant}
@@ -53,7 +57,7 @@ export default function Card({
           >
             {buttonName}
           </Button>
-        )}
+        ) : null}
       </div>
 
       {/* ── Card Body ── */}

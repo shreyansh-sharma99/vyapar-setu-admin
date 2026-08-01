@@ -11,9 +11,9 @@ import {
 
 export const getProducts = createAsyncThunk(
   'product/getProducts',
-  async (_, { rejectWithValue }) => {
+  async (params, { rejectWithValue }) => {
     try {
-      const data = await getProductsApi();
+      const data = await getProductsApi(params);
       return data;
     } catch (error) {
       return rejectWithValue(
@@ -110,6 +110,7 @@ export const getProductByBarcode = createAsyncThunk(
 const initialState = {
   products: [],
   currentProduct: null,
+  pagination: null,
   loading: false,
   error: null,
   success: false,
@@ -140,6 +141,7 @@ const productSlice = createSlice({
       .addCase(getProducts.fulfilled, (state, action) => {
         state.loading = false;
         state.products = action.payload.data || [];
+        state.pagination = action.payload.meta || null;
       })
       .addCase(getProducts.rejected, (state, action) => {
         state.loading = false;
@@ -217,9 +219,11 @@ const productSlice = createSlice({
       })
 
       .addCase(changeProductStatus.pending, (state) => {
+        state.loading = true;
         state.error = null;
       })
       .addCase(changeProductStatus.fulfilled, (state, action) => {
+        state.loading = false;
         const index = state.products.findIndex((p) => p._id === action.payload.productId);
         if (index !== -1) {
           state.products[index].status = action.payload.status;
@@ -227,6 +231,7 @@ const productSlice = createSlice({
         state.toast = { message: `Product status updated to ${action.payload.status}.`, color: 'success' };
       })
       .addCase(changeProductStatus.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload;
         state.toast = { message: action.payload || 'Failed to update product status.', color: 'danger' };
       })

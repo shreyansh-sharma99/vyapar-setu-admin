@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Eye, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Eye, Edit2, Trash2, Users, UserCheck, UserX } from 'lucide-react';
 import { encryptData } from '@/utility/crypto';
 import Button from '@/components/inputs/Button';
 import Table from '@/components/table/Table';
+import TableInfoCard from '@/components/table/TableInfoCard';
 import {
   getCustomers,
   deleteCustomer,
@@ -23,6 +24,10 @@ export default function CustomerList() {
   const { customers, pagination, loading, toast: reduxToast } = useSelector((state) => state.customer);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, customerId: null });
   const [toasts, setToasts] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const showToast = (message, color = 'success') => {
     const id = Date.now();
@@ -32,9 +37,16 @@ export default function CustomerList() {
     }, 3000);
   };
 
+  const fetchCustomers = () => {
+    const params = { page: currentPage, limit: pageSize };
+    if (selectedStatus !== 'all') params.status = selectedStatus;
+    if (searchTerm.trim()) params.search = searchTerm.trim();
+    dispatch(getCustomers(params));
+  };
+
   useEffect(() => {
-    dispatch(getCustomers({ page: 1, limit: 10 }));
-  }, [dispatch]);
+    fetchCustomers();
+  }, [dispatch, currentPage, pageSize, selectedStatus]);
 
   useEffect(() => {
     if (location.state?.message) {
@@ -47,8 +59,17 @@ export default function CustomerList() {
     if (reduxToast) {
       showToast(reduxToast.message, reduxToast.color);
       dispatch(clearCustomerToast());
+      fetchCustomers();
     }
   }, [reduxToast, dispatch]);
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setCurrentPage(1);
+    const params = { page: 1, limit: pageSize };
+    if (selectedStatus !== 'all') params.status = selectedStatus;
+    dispatch(getCustomers(params));
+  };
 
   const handleDeleteClick = (item) => {
     setDeleteModal({ isOpen: true, customerId: item._id });
@@ -78,6 +99,9 @@ export default function CustomerList() {
       customerData: { ...item, status: newStatus }
     }));
   };
+
+  const activeCount = customers.filter((c) => c.status === 'active').length;
+  const inactiveCount = customers.filter((c) => c.status === 'inactive').length;
 
   const headers = [
     {
@@ -113,11 +137,7 @@ export default function CustomerList() {
       render: (item) => {
         const isActive = item.status === 'active';
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-            isActive
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-              : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
-          }`}>
+          <span className={`font-semibold text-xs capitalize ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
             {isActive ? 'Active' : 'Inactive'}
           </span>
         );
@@ -127,32 +147,78 @@ export default function CustomerList() {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card h1="Customers" bodyClassName="p-4">
+    <div>
+      <Card
+        h1="Customers"
+        bodyClassName="px-4 pb-4 pt-2"
+        rightNode={
+          <select
+            value={selectedStatus}
+            onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
+            className="h-10 px-3 text-sm rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] outline-none cursor-pointer shadow-sm"
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        }
+      >
+        <div className="pb-2">
+          <TableInfoCard
+            stats={[
+              {
+                label: 'Total Customers',
+                value: pagination?.totalItems || customers.length,
+                icon: <Users className="w-4 h-4 text-indigo-500" />,
+                colorClass: 'text-indigo-600 dark:text-indigo-400',
+                isActive: selectedStatus === 'all',
+                onClick: () => { setSelectedStatus('all'); setCurrentPage(1); },
+              },
+              {
+                label: 'Active',
+                value: activeCount,
+                icon: <UserCheck className="w-4 h-4 text-emerald-500" />,
+                colorClass: 'text-emerald-600 dark:text-emerald-400',
+                isActive: selectedStatus === 'active',
+                onClick: () => { setSelectedStatus(selectedStatus === 'active' ? 'all' : 'active'); setCurrentPage(1); },
+              },
+              {
+                label: 'Inactive',
+                value: inactiveCount,
+                icon: <UserX className="w-4 h-4 text-rose-500" />,
+                colorClass: 'text-rose-600 dark:text-rose-400',
+                isActive: selectedStatus === 'inactive',
+                onClick: () => { setSelectedStatus(selectedStatus === 'inactive' ? 'all' : 'inactive'); setCurrentPage(1); },
+              },
+            ]}
+          />
+        </div>
+
         <Table
           headers={headers}
           data={customers}
           loading={loading}
+          showSearch={true}
           searchPlaceholder="Search customers..."
+          searchTerm={searchTerm}
+          onSearchTermChange={(val) => setSearchTerm(val)}
+          onSearchClick={() => { setCurrentPage(1); fetchCustomers(); }}
+          onSearchClear={handleClearSearch}
           emptyMessage="No customers found. Click 'Add New Customer' to create one."
           onEdit={handleEditClick}
           onDelete={handleDeleteClick}
           onView={handleViewClick}
           onToggle={handleStatusToggle}
           toggleField="status"
-          currentPage={pagination.currentPage}
-          pageSize={pagination.limit}
-          totalRows={pagination.totalItems}
-          onPageChange={(page) => dispatch(getCustomers({ page, limit: pagination.limit }))}
-          onPageSizeChange={(limit) => dispatch(getCustomers({ page: 1, limit }))}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          totalRows={pagination?.totalItems || 0}
+          onPageChange={(page) => setCurrentPage(page)}
+          onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
           actions={
-            <Button
-              className="!h-10"
-              startIcon={<Plus className="w-3.5 h-3.5" />}
-              onClick={() => navigate('/customers/create')}
-            >
-              Add New Customer
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => navigate('/customers/create')}>Add New Customer</Button>
+            </div>
           }
         />
       </Card>

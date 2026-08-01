@@ -1,7 +1,7 @@
 import apiClient from '@/utility/Http';
 
-export const getProductsApi = async () => {
-  const response = await apiClient.get('/products');
+export const getProductsApi = async (params) => {
+  const response = await apiClient.get('/products', { params });
   return response.data;
 };
 

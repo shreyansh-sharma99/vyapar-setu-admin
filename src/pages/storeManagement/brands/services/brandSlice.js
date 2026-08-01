@@ -10,9 +10,9 @@ import {
 
 export const getBrands = createAsyncThunk(
   'brand/getBrands',
-  async (_, { rejectWithValue }) => {
+  async (params, { rejectWithValue }) => {
     try {
-      const data = await getBrandsApi();
+      const data = await getBrandsApi(params);
       return data;
     } catch (error) {
       return rejectWithValue(
@@ -95,6 +95,7 @@ export const deleteBrand = createAsyncThunk(
 const initialState = {
   brands: [],
   currentBrand: null,
+  pagination: null,
   loading: false,
   error: null,
   success: false,
@@ -112,6 +113,9 @@ const brandSlice = createSlice({
     clearBrandToast: (state) => {
       state.toast = null;
     },
+    clearCurrentBrand: (state) => {
+      state.currentBrand = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -122,6 +126,7 @@ const brandSlice = createSlice({
       .addCase(getBrands.fulfilled, (state, action) => {
         state.loading = false;
         state.brands = action.payload.data || [];
+        state.pagination = action.payload.meta || null;
       })
       .addCase(getBrands.rejected, (state, action) => {
         state.loading = false;
@@ -183,9 +188,11 @@ const brandSlice = createSlice({
       })
 
       .addCase(changeBrandStatus.pending, (state) => {
+        state.loading = true;
         state.error = null;
       })
       .addCase(changeBrandStatus.fulfilled, (state, action) => {
+        state.loading = false;
         const index = state.brands.findIndex(
           (b) => b._id === action.payload.brandId
         );
@@ -195,6 +202,7 @@ const brandSlice = createSlice({
         state.toast = { message: `Brand status updated to ${action.payload.status}.`, color: 'success' };
       })
       .addCase(changeBrandStatus.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload;
         state.toast = { message: action.payload || 'Failed to update brand status.', color: 'danger' };
       })
@@ -218,5 +226,5 @@ const brandSlice = createSlice({
   },
 });
 
-export const { resetBrandStatus, clearBrandToast } = brandSlice.actions;
+export const { resetBrandStatus, clearBrandToast, clearCurrentBrand } = brandSlice.actions;
 export default brandSlice.reducer;

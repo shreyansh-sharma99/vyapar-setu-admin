@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CIcon from '@coreui/icons-react';
 import {
   cilMenu, cilBell, cilSun, cilMoon,
   cilEnvelopeOpen, cilChevronBottom, cilUser,
   cilSettings, cilExitToApp,
 } from '@coreui/icons';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { logoutUser } from '../../pages/login/services/authSlice';
+import { clearSettingsToast } from '../../pages/settings/services/settingsSlice';
 import { Loader2 } from 'lucide-react';
+import { CToaster, CToast, CToastBody } from '@coreui/react';
+import SettingsModal from '../../pages/settings/components/SettingsModal';
 
 export default function Header({
   sidebarOpen, setSidebarOpen,
@@ -18,13 +21,32 @@ export default function Header({
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Only used to pick the correct toggle icon (sun vs moon); CSS vars handle all colors.
   const [isDark, setIsDark] = useState(
     () => document.documentElement.classList.contains('dark')
   );
 
+  const [toasts, setToasts] = useState([]);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { toast: reduxToast } = useSelector((state) => state.settings || {});
+  const { user } = useSelector((state) => state.auth || {});
+
+  const showToast = (message, color = 'success') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, color }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  };
+
+  useEffect(() => {
+    if (reduxToast) {
+      showToast(reduxToast.message, reduxToast.color);
+      dispatch(clearSettingsToast());
+    }
+  }, [reduxToast, dispatch]);
 
   const handleHamburger = () => {
     if (window.innerWidth < 1024) setSidebarOpen(!sidebarOpen);
@@ -49,22 +71,28 @@ export default function Header({
   const iconBtn = `flex h-8 w-8 items-center justify-center rounded-lg transition-colors cursor-pointer
     text-[var(--vs-header-icon)] hover:bg-[var(--vs-btn-hover)]`;
 
+  const hamburgerBtn = `flex h-9 w-9 items-center justify-center !rounded-[6px] border !border-blue-600 bg-transparent text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors cursor-pointer`;
+
   return (
     <header className="sticky top-0 z-40 flex w-full h-12 items-center px-3 md:px-4 shrink-0
       bg-[var(--vs-bg-primary)] border-b border-[var(--vs-border)] transition-colors duration-300 relative">
 
       {/* ── Left: hamburger ── */}
       <div className="flex items-center gap-2 mr-auto">
-        <button onClick={handleHamburger} className={iconBtn} aria-label="Toggle sidebar">
-          <CIcon icon={cilMenu} className="w-4 h-4" />
+        <button
+          onClick={handleHamburger}
+          className={hamburgerBtn}
+          style={{ borderRadius: '12px' }}
+          aria-label="Toggle sidebar"
+        >
+          <CIcon icon={cilMenu} className="w-4 h-4 text-blue-600" />
         </button>
       </div>
 
       {/* ── Centre: brand name ── */}
-      <a href="/" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none z-10">
-        <span className="text-base md:text-lg font-extrabold tracking-widest bg-gradient-to-r from-blue-500 via-purple-500 via-pink-500 to-blue-500 bg-clip-text text-transparent animate-gradient-flow cursor-pointer !text-transparent">
-          Vyapar Setu
-        </span>
+      <a href="/" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none z-10 flex items-baseline leading-none">
+        <span className="text-lg md:text-xl font-extrabold text-[#0f6ebd] tracking-tight">Vyapar</span>
+        <span className="text-lg md:text-xl font-extrabold text-[#ff5722] tracking-tight ml-0.5">Setu</span>
       </a>
 
       {/* ── Right: actions ── */}
@@ -76,7 +104,7 @@ export default function Header({
         </button>
 
         {/* Notifications */}
-        <div className="relative">
+        {/* <div className="relative">
           <button
             onClick={() => { setNotifOpen(!notifOpen); setProfileOpen(false); }}
             className={`${iconBtn} relative`}
@@ -127,7 +155,7 @@ export default function Header({
               ))}
             </div>
           )}
-        </div>
+        </div> */}
 
         <div className="mx-1 h-5 w-px bg-[var(--vs-border)]" />
 
@@ -137,15 +165,11 @@ export default function Header({
             onClick={() => { setProfileOpen(!profileOpen); setNotifOpen(false); }}
             className="flex items-center gap-1.5 rounded-lg p-1 transition-colors hover:bg-[var(--vs-btn-hover)]"
           >
-            <div className="h-7 w-7 rounded-full overflow-hidden ring-2 ring-indigo-500/20 shrink-0">
-              <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"
-                alt="avatar"
-                className="h-full w-full object-cover"
-              />
+            <div className="h-7 w-7 rounded-full overflow-hidden ring-2 ring-indigo-500/20 shrink-0 flex items-center justify-center bg-indigo-500 text-white font-bold text-xs">
+              {user?.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U'}
             </div>
             <p className="hidden md:block text-sm font-semibold whitespace-nowrap m-0 text-[var(--vs-text-primary)]">
-              Shreyansh S.
+              {user?.name || 'Admin'}
             </p>
             <CIcon
               icon={cilChevronBottom}
@@ -154,8 +178,17 @@ export default function Header({
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 top-full mt-2 w-48 rounded-xl shadow-xl py-1.5 z-50
+            <div className="absolute right-0 top-full mt-2 w-56 rounded-xl shadow-xl py-1.5 z-50
               bg-[var(--vs-drop-bg)] border border-[var(--vs-drop-border)]">
+
+              <div className="px-3 py-2 border-b border-[var(--vs-drop-border)] mb-1">
+                <p className="text-sm font-semibold text-[var(--vs-text-primary)] m-0 truncate">
+                  {user?.name || 'Admin'}
+                </p>
+                <p className="text-xs text-[var(--vs-text-secondary)] mt-0.5 mb-0 truncate">
+                  {user?.email || 'admin@example.com'}
+                </p>
+              </div>
 
               {[
                 { icon: cilUser, label: 'My Profile' },
@@ -164,6 +197,13 @@ export default function Header({
                 <a
                   key={i}
                   href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (item.label === 'Settings') {
+                      setSettingsOpen(true);
+                      setProfileOpen(false);
+                    }
+                  }}
                   className="flex items-center gap-2.5 px-3 py-2 text-sm transition-colors
                     text-[var(--vs-text-primary)] dark:!text-white
                     hover:bg-[var(--vs-drop-hover)]"
@@ -200,6 +240,17 @@ export default function Header({
           )}
         </div>
       </div>
+      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      <CToaster className="p-3" style={{ zIndex: 9999999, position: 'fixed', bottom: '20px', right: '20px' }}>
+        {toasts.map((t) => (
+          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
+            <div className="d-flex">
+              <CToastBody className="font-semibold">{t.message}</CToastBody>
+            </div>
+          </CToast>
+        ))}
+      </CToaster>
     </header>
   );
 }

@@ -3,9 +3,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Search, Barcode, QrCode } from 'lucide-react';
 import { encryptData } from '@/utility/crypto';
+import { formatDateWithTiming } from '@/utility/dateTiming';
 import Button from '@/components/inputs/Button';
 import Table from '@/components/table/Table';
-import { Input } from '@/components/inputs/Input';
 import {
   getProducts,
   deleteProduct,
@@ -22,11 +22,21 @@ export default function ProductList() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const { products, loading, toast: reduxToast } = useSelector((state) => state.product);
+
+  const { products, pagination, loading, toast: reduxToast } = useSelector((state) => state.product);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, productId: null });
   const [toasts, setToasts] = useState([]);
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [params, setParams] = useState({
+    page: 1,
+    limit: 10,
+    sort: 'createdAt',
+    order: 'desc',
+    search: '',
+  });
 
   const showToast = (message, color = 'success') => {
     const id = Date.now();
@@ -37,8 +47,8 @@ export default function ProductList() {
   };
 
   useEffect(() => {
-    dispatch(getProducts());
-  }, [dispatch]);
+    dispatch(getProducts(params));
+  }, [dispatch, params]);
 
   useEffect(() => {
     if (location.state?.message) {
@@ -80,6 +90,17 @@ export default function ProductList() {
     dispatch(changeProductStatus({ productId: item._id, status: newStatus }));
   };
 
+  const handleSearchClick = (searchVal) => {
+    const query = typeof searchVal === 'string' ? searchVal : searchTerm;
+    setSearchTerm(query);
+    setParams((prev) => ({ ...prev, search: query, page: 1 }));
+  };
+
+  const handleSearchClear = () => {
+    setSearchTerm('');
+    setParams((prev) => ({ ...prev, search: '', page: 1 }));
+  };
+
   const searchProductByBarcodeValue = async (val) => {
     const trimmed = val.trim();
     if (!trimmed) return;
@@ -119,7 +140,8 @@ export default function ProductList() {
       width: '80px',
       value: 'checked',
       render: (item) => {
-        const imageUrl = item.images && item.images.length > 0 ? item.images[0] : null;
+        const imageUrl = item.images?.[0]?.path;
+
         return imageUrl ? (
           <img
             src={imageUrl}
@@ -131,7 +153,7 @@ export default function ProductList() {
             No Image
           </div>
         );
-      }
+      },
     },
     {
       label: 'Name',
@@ -154,6 +176,13 @@ export default function ProductList() {
       sortable: true,
       value: 'checked',
       render: (item) => <span>{item.subCategoryId?.name || 'N/A'}</span>
+    },
+    {
+      label: 'Brand',
+      key: 'brandId',
+      sortable: true,
+      value: 'checked',
+      render: (item) => <span>{item.brandId?.name || 'N/A'}</span>
     },
     {
       label: 'Price',
@@ -195,15 +224,35 @@ export default function ProductList() {
       render: (item) => {
         const isActive = item.status === 'active';
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-            isActive
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-              : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
-          }`}>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isActive
+            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+            : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
+            }`}>
             {isActive ? 'Active' : 'Inactive'}
           </span>
         );
       },
+      value: 'checked'
+    },
+    {
+      label: 'Created By',
+      key: 'createdBy',
+      sortable: true,
+      render: (item) => <span>{item.createdBy?.name || '—'}</span>,
+      value: 'checked'
+    },
+    {
+      label: 'Updated By',
+      key: 'updatedBy',
+      sortable: true,
+      render: (item) => <span>{item.updatedBy?.name || '—'}</span>,
+      value: 'checked'
+    },
+    {
+      label: 'Date',
+      key: 'createdAt',
+      sortable: true,
+      render: (item) => <span>{formatDateWithTiming(item.createdAt)}</span>,
       value: 'checked'
     }
   ];
@@ -261,6 +310,16 @@ export default function ProductList() {
           onToggle={handleStatusToggle}
           toggleField="status"
           onView={handleViewClick}
+          currentPage={pagination?.page || params.page || 1}
+          pageSize={pagination?.limit || params.limit || 10}
+          totalRows={pagination?.total || pagination?.totalItems || products.length}
+          onPageChange={(page) => setParams((prev) => ({ ...prev, page }))}
+          onPageSizeChange={(limit) => setParams((prev) => ({ ...prev, limit, page: 1 }))}
+          onSortChange={({ key, direction }) => setParams((prev) => ({ ...prev, sort: key, order: direction }))}
+          searchTerm={searchTerm}
+          onSearchTermChange={setSearchTerm}
+          onSearchClick={handleSearchClick}
+          onSearchClear={handleSearchClear}
         />
       </Card>
 

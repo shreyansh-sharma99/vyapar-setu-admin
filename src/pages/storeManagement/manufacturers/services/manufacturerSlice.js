@@ -10,9 +10,9 @@ import {
 
 export const getManufacturers = createAsyncThunk(
   'manufacturer/getManufacturers',
-  async (_, { rejectWithValue }) => {
+  async (params, { rejectWithValue }) => {
     try {
-      const data = await getManufacturersApi();
+      const data = await getManufacturersApi(params);
       return data;
     } catch (error) {
       return rejectWithValue(
@@ -95,6 +95,7 @@ export const deleteManufacturer = createAsyncThunk(
 const initialState = {
   manufacturers: [],
   currentManufacturer: null,
+  pagination: null,
   loading: false,
   error: null,
   success: false,
@@ -112,6 +113,9 @@ const manufacturerSlice = createSlice({
     clearManufacturerToast: (state) => {
       state.toast = null;
     },
+    clearCurrentManufacturer: (state) => {
+      state.currentManufacturer = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -122,6 +126,7 @@ const manufacturerSlice = createSlice({
       .addCase(getManufacturers.fulfilled, (state, action) => {
         state.loading = false;
         state.manufacturers = action.payload.data || [];
+        state.pagination = action.payload.meta || null;
       })
       .addCase(getManufacturers.rejected, (state, action) => {
         state.loading = false;
@@ -183,9 +188,11 @@ const manufacturerSlice = createSlice({
       })
 
       .addCase(changeManufacturerStatus.pending, (state) => {
+        state.loading = true;
         state.error = null;
       })
       .addCase(changeManufacturerStatus.fulfilled, (state, action) => {
+        state.loading = false;
         const index = state.manufacturers.findIndex(
           (m) => m._id === action.payload.manufacturerId
         );
@@ -195,6 +202,7 @@ const manufacturerSlice = createSlice({
         state.toast = { message: `Manufacturer status updated to ${action.payload.status}.`, color: 'success' };
       })
       .addCase(changeManufacturerStatus.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload;
         state.toast = { message: action.payload || 'Failed to update manufacturer status.', color: 'danger' };
       })
@@ -218,5 +226,5 @@ const manufacturerSlice = createSlice({
   },
 });
 
-export const { resetManufacturerStatus, clearManufacturerToast } = manufacturerSlice.actions;
+export const { resetManufacturerStatus, clearManufacturerToast, clearCurrentManufacturer } = manufacturerSlice.actions;
 export default manufacturerSlice.reducer;

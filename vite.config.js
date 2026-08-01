@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // https://vite.dev/config/
+// Trigger server restart to reload newly installed node_modules (flatpickr)
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {

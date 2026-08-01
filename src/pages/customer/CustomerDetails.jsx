@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit2, ShieldAlert, Mail, Phone, MapPin, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Edit2, ShieldAlert, Mail, Phone, MapPin, CheckCircle2, FileText, Map, CreditCard, Wallet } from 'lucide-react';
 import Button from '@/components/inputs/Button';
 import Card from '@/components/breadCrumbs/Card';
 import Loader from '@/components/loader/Loader';
@@ -110,8 +110,7 @@ export default function CustomerDetails() {
           <div className="grid grid-cols-1 md:grid-cols-3 mt-2">
 
             {/* ── Contact Information Card ── */}
-            <div className="md:col-span-1 bg-[var(--vs-bg-primary)] overflow-hidden border-r border-[var(--vs-border)]">
-              {/* Card Header */}
+            <div className="md:col-span-1 bg-[var(--vs-bg-primary)] overflow-hidden border-b md:border-b-0 md:border-r border-[var(--vs-border)]">
               <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--vs-bg-secondary)] border-b border-[var(--vs-border)]">
                 <div className="p-1 rounded-md bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
                   <Mail className="w-3.5 h-3.5" />
@@ -121,7 +120,6 @@ export default function CustomerDetails() {
                 </h3>
               </div>
 
-              {/* Card Body */}
               <div className="px-4 py-3 flex flex-col">
                 {/* Email */}
                 <div className="flex items-center gap-3">
@@ -149,8 +147,76 @@ export default function CustomerDetails() {
               </div>
             </div>
 
+            {/* ── Tax & Credit Details Card ── */}
+            <div className="md:col-span-1 bg-[var(--vs-bg-primary)] overflow-hidden border-b md:border-b-0 md:border-r border-[var(--vs-border)]">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--vs-bg-secondary)] border-b border-[var(--vs-border)]">
+                <div className="p-1 rounded-md bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+                <h3 className="text-[13px] font-bold text-[var(--vs-active-text)]">
+                  Tax & Credit Details
+                </h3>
+              </div>
+
+              <div className="px-4 py-3 flex flex-col">
+                {/* GSTIN */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">GSTIN</p>
+                    <p className="text-[13px] font-bold text-[var(--vs-text-primary)] truncate leading-tight mt-px">{currentCustomer.gstin || 'Not Provided'}</p>
+                  </div>
+                </div>
+
+                <div className="border-t border-dashed border-[var(--vs-border)] my-2.5" />
+
+                {/* State Code */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-500 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 shrink-0">
+                    <Map className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">State Code</p>
+                    <p className="text-[13px] font-bold text-[var(--vs-text-primary)] leading-tight mt-px">{currentCustomer.stateCode || 'Not Provided'}</p>
+                  </div>
+                </div>
+
+                <div className="border-t border-dashed border-[var(--vs-border)] my-2.5" />
+
+                {/* Credit Limit */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 dark:text-rose-400 border border-rose-100 dark:border-rose-900/50 shrink-0">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">Credit Limit</p>
+                    <p className="text-[13px] font-bold text-[var(--vs-text-primary)] leading-tight mt-px">
+                      ₹{(currentCustomer.creditLimit ?? 0).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-dashed border-[var(--vs-border)] my-2.5" />
+
+                {/* Opening Balance */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-500 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50 shrink-0">
+                    <Wallet className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">Opening Balance</p>
+                    <p className="text-[13px] font-bold text-[var(--vs-text-primary)] leading-tight mt-px">
+                      ₹{(currentCustomer.openingBalance ?? 0).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* ── Address Directory Card ── */}
-            <div className="md:col-span-2 bg-[var(--vs-bg-primary)] overflow-hidden">
+            <div className="md:col-span-1 bg-[var(--vs-bg-primary)] overflow-hidden">
               {/* Card Header */}
               <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--vs-bg-secondary)] border-b border-[var(--vs-border)]">
                 <div className="p-1 rounded-md bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">

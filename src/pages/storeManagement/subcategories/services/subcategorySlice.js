@@ -10,9 +10,9 @@ import {
 
 export const getSubcategories = createAsyncThunk(
   'subcategory/getSubcategories',
-  async (categoryId, { rejectWithValue }) => {
+  async (params, { rejectWithValue }) => {
     try {
-      const data = await getSubcategoriesApi(categoryId);
+      const data = await getSubcategoriesApi(params);
       return data;
     } catch (error) {
       return rejectWithValue(
@@ -95,6 +95,7 @@ export const deleteSubcategory = createAsyncThunk(
 const initialState = {
   subcategories: [],
   currentSubcategory: null,
+  pagination: null,
   loading: false,
   error: null,
   success: false,
@@ -112,6 +113,9 @@ const subcategorySlice = createSlice({
     clearSubcategoryToast: (state) => {
       state.toast = null;
     },
+    clearCurrentSubcategory: (state) => {
+      state.currentSubcategory = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -122,6 +126,7 @@ const subcategorySlice = createSlice({
       .addCase(getSubcategories.fulfilled, (state, action) => {
         state.loading = false;
         state.subcategories = action.payload.data || [];
+        state.pagination = action.payload.meta || null;
       })
       .addCase(getSubcategories.rejected, (state, action) => {
         state.loading = false;
@@ -185,9 +190,11 @@ const subcategorySlice = createSlice({
       })
 
       .addCase(changeSubcategoryStatus.pending, (state) => {
+        state.loading = true;
         state.error = null;
       })
       .addCase(changeSubcategoryStatus.fulfilled, (state, action) => {
+        state.loading = false;
         const index = state.subcategories.findIndex(
           (s) => s._id === action.payload.subCategoryId
         );
@@ -197,6 +204,7 @@ const subcategorySlice = createSlice({
         state.toast = { message: `Subcategory status updated to ${action.payload.status}.`, color: 'success' };
       })
       .addCase(changeSubcategoryStatus.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload;
         state.toast = { message: action.payload || 'Failed to update subcategory status.', color: 'danger' };
       })
@@ -220,5 +228,5 @@ const subcategorySlice = createSlice({
   },
 });
 
-export const { resetSubcategoryStatus, clearSubcategoryToast } = subcategorySlice.actions;
+export const { resetSubcategoryStatus, clearSubcategoryToast, clearCurrentSubcategory } = subcategorySlice.actions;
 export default subcategorySlice.reducer;

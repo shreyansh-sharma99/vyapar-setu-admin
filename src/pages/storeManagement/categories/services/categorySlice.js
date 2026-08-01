@@ -10,9 +10,9 @@ import {
 
 export const getCategories = createAsyncThunk(
   'category/getCategories',
-  async (_, { rejectWithValue }) => {
+  async (params, { rejectWithValue }) => {
     try {
-      const data = await getCategoriesApi();
+      const data = await getCategoriesApi(params);
       return data;
     } catch (error) {
       return rejectWithValue(
@@ -94,6 +94,12 @@ export const changeCategoryStatus = createAsyncThunk(
 
 const initialState = {
   categories: [],
+  pagination: {
+    totalItems: 0,
+    totalPages: 1,
+    currentPage: 1,
+    limit: 10,
+  },
   currentCategory: null,
   loading: false,
   error: null,
@@ -112,6 +118,9 @@ const categorySlice = createSlice({
     clearCategoryToast: (state) => {
       state.toast = null;
     },
+    clearCurrentCategory: (state) => {
+      state.currentCategory = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -122,6 +131,21 @@ const categorySlice = createSlice({
       .addCase(getCategories.fulfilled, (state, action) => {
         state.loading = false;
         state.categories = action.payload.data || [];
+        if (action.payload.meta) {
+          state.pagination = {
+            totalItems: action.payload.meta.total || 0,
+            totalPages: action.payload.meta.totalPages || 1,
+            currentPage: action.payload.meta.page || 1,
+            limit: action.payload.meta.limit || 10,
+          };
+        } else {
+          state.pagination = {
+            totalItems: state.categories.length,
+            totalPages: 1,
+            currentPage: 1,
+            limit: 10,
+          };
+        }
       })
       .addCase(getCategories.rejected, (state, action) => {
         state.loading = false;
@@ -200,9 +224,11 @@ const categorySlice = createSlice({
       })
 
       .addCase(changeCategoryStatus.pending, (state) => {
+        state.loading = true;
         state.error = null;
       })
       .addCase(changeCategoryStatus.fulfilled, (state, action) => {
+        state.loading = false;
         const index = state.categories.findIndex(
           (c) => c._id === action.payload.categoryId
         );
@@ -212,11 +238,12 @@ const categorySlice = createSlice({
         state.toast = { message: `Category status updated to ${action.payload.status}.`, color: 'success' };
       })
       .addCase(changeCategoryStatus.rejected, (state, action) => {
+        state.loading = false;
         state.error = action.payload;
         state.toast = { message: action.payload || 'Failed to update category status.', color: 'danger' };
       });
   },
 });
 
-export const { resetCategoryStatus, clearCategoryToast } = categorySlice.actions;
+export const { resetCategoryStatus, clearCategoryToast, clearCurrentCategory } = categorySlice.actions;
 export default categorySlice.reducer;

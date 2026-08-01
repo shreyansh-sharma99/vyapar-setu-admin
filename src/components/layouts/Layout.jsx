@@ -27,7 +27,9 @@ function Layout({ setDarkMode }) {
         <main className="flex-1 p-4 md:p-5 bg-[var(--vs-page-bg)] transition-colors duration-300">
           <Outlet />
         </main>
+        <footer className="sticky z-10 bottom-0 bg-white px-4 py-1 text-center text-xs border-t border-gray-200 dark:border-none dark:bg-white/[0.03] dark:text-white">Easy Connect © {new Date().getFullYear()} — All Rights Reserved</footer>
       </div>
+
     </div>
   );
 }
