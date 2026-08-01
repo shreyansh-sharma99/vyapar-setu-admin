@@ -22,7 +22,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import Switch from '@/components/inputs/Switch';
-import Loader from '@/components/loader/loader';
+import Loader from '@/components/loader/Loader';
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
