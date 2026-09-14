@@ -3,32 +3,32 @@ import CIcon from '@coreui/icons-react';
 import { cilPeople, cilBasket, cilWallet, cilArrowTop, cilArrowBottom } from '@coreui/icons';
 
 const stats = [
-  { title: 'Total Views',   value: '3.456k',     change: '0.43%', up: true,  icon: cilPeople, color: 'indigo'  },
-  { title: 'Total Profit',  value: '$45,231.89', change: '4.35%', up: true,  icon: cilWallet, color: 'emerald' },
-  { title: 'Total Product', value: '2,450',       change: '2.59%', up: true,  icon: cilBasket, color: 'blue'    },
-  { title: 'Total Users',   value: '1,205',       change: '0.95%', up: false, icon: cilPeople, color: 'rose'    },
+  { title: 'Total Views', value: '3.456k', change: '0.43%', up: true, icon: cilPeople, color: 'indigo' },
+  { title: 'Total Profit', value: '$45,231.89', change: '4.35%', up: true, icon: cilWallet, color: 'emerald' },
+  { title: 'Total Product', value: '2,450', change: '2.59%', up: true, icon: cilBasket, color: 'blue' },
+  { title: 'Total Users', value: '1,205', change: '0.95%', up: false, icon: cilPeople, color: 'rose' },
 ];
 
 const orders = [
-  { id: '#ORD-98745', customer: 'Priya Patel',  avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=80&q=80', product: 'Handicraft Jute Bag',    date: 'Jun 22, 2026', amount: '$49.00',  status: 'success', label: 'Completed' },
-  { id: '#ORD-98744', customer: 'Amit Sharma',  avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80', product: 'Terracotta Diya Set',    date: 'Jun 21, 2026', amount: '$120.50', status: 'warning', label: 'Pending'   },
-  { id: '#ORD-98743', customer: 'Sarah Connor', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=80&q=80', product: 'Blue Pottery Vase',      date: 'Jun 21, 2026', amount: '$235.00', status: 'success', label: 'Completed' },
-  { id: '#ORD-98742', customer: 'Raj Malhotra', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=80&q=80', product: 'Wooden Carved Elephant', date: 'Jun 20, 2026', amount: '$89.99',  status: 'danger',  label: 'Cancelled' },
+  { id: '#ORD-98745', customer: 'Priya Patel', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=80&q=80', product: 'Handicraft Jute Bag', date: 'Jun 22, 2026', amount: '$49.00', status: 'success', label: 'Completed' },
+  { id: '#ORD-98744', customer: 'Amit Sharma', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80', product: 'Terracotta Diya Set', date: 'Jun 21, 2026', amount: '$120.50', status: 'warning', label: 'Pending' },
+  { id: '#ORD-98743', customer: 'Sarah Connor', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=80&q=80', product: 'Blue Pottery Vase', date: 'Jun 21, 2026', amount: '$235.00', status: 'success', label: 'Completed' },
+  { id: '#ORD-98742', customer: 'Raj Malhotra', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=80&q=80', product: 'Wooden Carved Elephant', date: 'Jun 20, 2026', amount: '$89.99', status: 'danger', label: 'Cancelled' },
 ];
 
 // Stat card icon colors — bg is a CSS var string that .dark swaps automatically
 const ICON_COLORS = {
-  indigo:  { icon: '#6366f1', bg: 'var(--vs-stat-bg-indigo)'  },
+  indigo: { icon: '#6366f1', bg: 'var(--vs-stat-bg-indigo)' },
   emerald: { icon: '#10b981', bg: 'var(--vs-stat-bg-emerald)' },
-  blue:    { icon: '#3b82f6', bg: 'var(--vs-stat-bg-blue)'    },
-  rose:    { icon: '#f43f5e', bg: 'var(--vs-stat-bg-rose)'    },
+  blue: { icon: '#3b82f6', bg: 'var(--vs-stat-bg-blue)' },
+  rose: { icon: '#f43f5e', bg: 'var(--vs-stat-bg-rose)' },
 };
 
 // Badge classes — Tailwind dark: variant works fine here (no CSS var conflict)
 const BADGE_CLASSES = {
   success: 'text-emerald-700 bg-emerald-50 ring-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:ring-emerald-500/20',
   warning: 'text-amber-700  bg-amber-50  ring-amber-200  dark:text-amber-400  dark:bg-amber-500/10  dark:ring-amber-500/20',
-  danger:  'text-rose-700   bg-rose-50   ring-rose-200   dark:text-rose-400   dark:bg-rose-500/10   dark:ring-rose-500/20',
+  danger: 'text-rose-700   bg-rose-50   ring-rose-200   dark:text-rose-400   dark:bg-rose-500/10   dark:ring-rose-500/20',
 };
 
 export default function Dashboard() {
@@ -111,7 +111,7 @@ export default function Dashboard() {
                   <path d="M0 175 Q150 130 300 145 T600 65 T900 48 L1000 44" fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinecap="round" />
                   <path d="M0 188 Q150 168 300 162 T600 112 T900 95 L1000 88 L1000 190 L0 190Z" fill="url(#ge2)" />
                   <path d="M0 188 Q150 168 300 162 T600 112 T900 95 L1000 88" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" />
-                  <circle cx="600" cy="65"  r="4" fill="#4f46e5" className="stroke-[var(--vs-bg-primary)]" strokeWidth="2" />
+                  <circle cx="600" cy="65" r="4" fill="#4f46e5" className="stroke-[var(--vs-bg-primary)]" strokeWidth="2" />
                   <circle cx="600" cy="112" r="4" fill="#10b981" className="stroke-[var(--vs-bg-primary)]" strokeWidth="2" />
                 </svg>
               </div>

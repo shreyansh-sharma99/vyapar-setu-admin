@@ -135,6 +135,7 @@ export default function PaymentAccount() {
     dispatch(clearErrors());
     setFormErrors({});
     if (accountData && accountData.verificationStatus !== 'none') {
+      console.log(accountData.beneficiaryEmail)
       setFormData({
         accountHolderName: accountData.accountHolderName || '',
         accountNumber: '',
@@ -433,7 +434,7 @@ export default function PaymentAccount() {
                   value={formData.beneficiaryEmail}
                   onChange={handleInputChange}
                   disabled={!isEditMode || saving}
-                  placeholder="e.g. accounts@acme.com"
+                  placeholder="accounts@acme.com"
                   error={!!formErrors.beneficiaryEmail}
                   startIcon={<Mail className="w-4 h-4" />}
                 />

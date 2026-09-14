@@ -91,7 +91,7 @@ export default function SettingsModal({ isOpen, onClose }) {
             <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center">
               <Settings className="w-5 h-5 text-indigo-500" />
             </div>
-            <h1 className="!text-md font-semibold !text-blue-600 dark:text-blue-400 m-0">
+            <h1 className="!text-[24px] font-semibold !text-blue-600 dark:text-blue-400 m-0">
               Settings
             </h1>
           </div>
@@ -168,9 +168,9 @@ export default function SettingsModal({ isOpen, onClose }) {
               </div>
 
               {settings?.createdAt && (
-                <div className="flex justify-between items-center text-xs mt-4 pt-4 border-t -mx-6 px-6" style={{ borderColor: 'var(--vs-border)', color: 'var(--vs-text-secondary)' }}>
-                  <p>Created At: {formatDateWithTiming(settings.createdAt)}</p>
-                  <p>Updated At: {formatDateWithTiming(settings.updatedAt)}</p>
+                <div className="flex justify-between  text-xs pt-3 -mx-6 px-6" style={{ borderColor: 'var(--vs-border)', color: 'var(--vs-text-secondary)' }}>
+                  <span>Created At: {formatDateWithTiming(settings.createdAt)}</span>
+                  <span>Updated At: {formatDateWithTiming(settings.updatedAt)}</span>
                 </div>
               )}
             </>

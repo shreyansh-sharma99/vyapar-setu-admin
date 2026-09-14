@@ -33,8 +33,8 @@ export default function UpdateCustomer() {
       status: 'active',
       gstin: '',
       stateCode: '',
-      creditLimit: 0,
-      openingBalance: 0,
+      creditLimit: '',
+      openingBalance: '',
       address: {
         type: 'home',
         street: '',
@@ -72,8 +72,8 @@ export default function UpdateCustomer() {
         status: currentCustomer.status || 'active',
         gstin: currentCustomer.gstin || '',
         stateCode: currentCustomer.stateCode || '',
-        creditLimit: currentCustomer.creditLimit || 0,
-        openingBalance: currentCustomer.openingBalance || 0,
+        creditLimit: currentCustomer.creditLimit || '',
+        openingBalance: currentCustomer.openingBalance || '',
         address: {
           type: firstAddress.type || 'home',
           street: firstAddress.street || '',

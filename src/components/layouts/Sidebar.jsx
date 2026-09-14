@@ -1,30 +1,39 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import CIcon from '@coreui/icons-react';
+import { useSelector } from 'react-redux';
 import {
-  cilSpeedometer, cilBasket, cilChevronBottom, cilX, cilUser, cilTag, cilSettings, cilChartPie,
-} from '@coreui/icons';
+  LayoutDashboard,
+  Users,
+  Store,
+  Receipt,
+  BarChart3,
+  Settings,
+  ChevronRight,
+  X,
+} from 'lucide-react';
+import Logo from '../Logo';
 
 const menuGroups = [
   {
     title: 'MENU',
     items: [
-      { name: 'Dashboard', icon: cilSpeedometer, href: '/' },
-      { name: 'Customers', icon: cilUser, href: '/customers' },
+      { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
+      { name: 'Customers', icon: Users, href: '/customers' },
       {
         name: 'Store Management',
-        icon: cilBasket,
+        icon: Store,
         submenu: [
           { name: 'Categories', href: '/categories' },
           { name: 'Subcategories', href: '/subcategories' },
           { name: 'Brands', href: '/brands' },
           { name: 'Manufacturers', href: '/manufacturers' },
           { name: 'Products', href: '/products' },
+          { name: 'Inventory', href: '/inventory' },
         ],
       },
       {
         name: 'Sales Management',
-        icon: cilTag,
+        icon: Receipt,
         submenu: [
           { name: 'Sales Invoices', href: '/sales/invoices' },
           { name: 'Quotation / Estimate', href: '/sales/quotations' },
@@ -39,7 +48,7 @@ const menuGroups = [
       },
       {
         name: 'Reports & Analytics',
-        icon: cilChartPie,
+        icon: BarChart3,
         submenu: [
           { name: 'Sales Register', href: '/reports/sales-register' },
           { name: 'GSTR-1 Summary', href: '/reports/gstr1' },
@@ -49,29 +58,44 @@ const menuGroups = [
       },
       {
         name: 'Invoice Setting',
-        icon: cilSettings,
+        icon: Settings,
         submenu: [
           { name: 'General Invoice Setting', href: '/sales/general-invoice-setting' },
           { name: 'Invoice Settings', href: '/sales/invoice-setting' },
         ],
       },
-
     ],
   },
 ];
 
+const getInitials = (name) => {
+  if (!name) return 'SO';
+  const parts = name.trim().split(' ');
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+};
+
 export default function Sidebar({ sidebarOpen, setSidebarOpen, sidebarCollapsed }) {
   const [openDropdown, setOpenDropdown] = useState(null);
   const location = useLocation();
+  const { user } = useSelector((state) => state.auth || {});
 
-  useEffect(() => { if (sidebarCollapsed) setOpenDropdown(null); }, [sidebarCollapsed]);
+  useEffect(() => {
+    if (sidebarCollapsed) setOpenDropdown(null);
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     if (!sidebarCollapsed) {
-      menuGroups.forEach(group => {
-        group.items.forEach(item => {
+      menuGroups.forEach((group) => {
+        group.items.forEach((item) => {
           if (item.submenu) {
-            const isSubActive = item.submenu.some(sub => location.pathname.startsWith(sub.href));
+            const isSubActive = item.submenu.some((sub) =>
+              sub.href === '/'
+                ? location.pathname === '/'
+                : location.pathname === sub.href || location.pathname.startsWith(sub.href + '/')
+            );
             if (isSubActive) {
               setOpenDropdown(item.name);
             }
@@ -82,168 +106,174 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, sidebarCollapsed 
   }, [location.pathname, sidebarCollapsed]);
 
   const toggleDropdown = (name) => {
-    if (!sidebarCollapsed) setOpenDropdown(p => p === name ? null : name);
+    if (!sidebarCollapsed) {
+      setOpenDropdown((prev) => (prev === name ? null : name));
+    }
   };
-
-  const bg = 'bg-[var(--vs-bg-primary)]';
-  const border = 'border-[var(--vs-border)]';
-  const logoBorder = 'border-[var(--vs-border-subtle)]';
-  const labelColor = 'text-[var(--vs-text-secondary)]';
-  const divider = 'border-[var(--vs-border-subtle)]';
-  const logoText = 'text-[var(--vs-text-primary)]';
-
-  const itemActive = 'bg-[var(--vs-active-bg)]';
-  const itemDefault = 'hover:bg-[var(--vs-btn-hover)]';
-  const subLink = 'hover:text-[var(--vs-active-text)]';
-  const subBorder = 'border-[var(--vs-border-sidebar-line)]';
 
   return (
     <>
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden transition-opacity"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       <aside
-        style={{ transition: 'width 300ms ease, transform 300ms ease, background-color 300ms ease' }}
+        style={{
+          transition: 'width 300ms cubic-bezier(0.4, 0, 0.2, 1), transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
         className={[
           'fixed top-0 left-0 z-50 flex h-screen flex-col',
-          'border-r',
-          bg, border,
+          'border-r border-[var(--vs-border)]',
+          'bg-[var(--vs-bg-primary)]',
           'lg:static lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-          sidebarCollapsed ? 'lg:w-[72px] w-64' : 'w-64',
+          sidebarCollapsed ? 'lg:w-[72px] w-72' : 'w-72',
         ].join(' ')}
       >
-        {/* ── Logo ── */}
+        {/* ── Logo Header (h-16 to match AppHeader) ── */}
         <div
           className={[
-            'flex items-center h-12 px-4 shrink-0 border-b relative',
-            logoBorder,
+            'flex items-center h-16 px-4 shrink-0 border-b border-[var(--vs-border-subtle)] relative',
             sidebarCollapsed ? 'lg:justify-center lg:px-0' : 'justify-center',
           ].join(' ')}
         >
           <Link to="/" className="flex items-center justify-center min-w-0">
             {!sidebarCollapsed ? (
-              <div className="flex flex-col select-none items-center justify-center leading-none text-center">
-                <div className="flex items-baseline leading-none justify-center">
-                  <span className="text-xl font-extrabold text-[#0f6ebd] tracking-tight">Vyapar</span>
-                  <span
-                    className="text-xl font-extrabold text-[#ff5722] tracking-tight ml-0.5"
-                    style={{ textShadow: '0 0 10px rgba(255, 87, 34, 0.4)' }}
-                  >
-                    Setu
-                  </span>
-                </div>
-                <span className="text-[7px] font-extrabold tracking-[0.16em] text-[#ff5722] uppercase mt-1 leading-none whitespace-nowrap">
-                  CONNECT &bull; TRADE &bull; GROW
-                </span>
+              <div className="flex items-center justify-center w-full px-2">
+                <Logo className="w-full h-auto max-h-12 object-contain transition-all duration-300 hover:scale-105" />
               </div>
             ) : (
               <img
                 src="/image/logos/newLogo.png"
                 alt="Logo"
-                className="h-8 w-8 object-contain shrink-0"
+                className="w-10 h-10 object-contain transition-all duration-300 hover:scale-110"
                 onError={(e) => {
                   e.target.onerror = null;
-                  e.target.src = 'https://placehold.co/32x32?text=VS';
+                  e.target.src = 'https://placehold.co/40x40?text=VS';
                 }}
               />
             )}
           </Link>
 
+          {/* Close button on mobile */}
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden absolute right-4 p-1.5 rounded-md transition-colors text-[var(--vs-text-secondary)] hover:bg-[var(--vs-btn-hover)]"
+            className="lg:hidden absolute right-3 p-1.5 rounded-lg transition-colors text-[var(--vs-text-secondary)] hover:bg-[var(--vs-btn-hover)] cursor-pointer"
+            aria-label="Close sidebar"
           >
-            <CIcon icon={cilX} className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex flex-col overflow-y-auto overflow-x-hidden flex-1 pt-1.5 pb-3">
-          <nav className={`flex flex-col gap-3.5 ${sidebarCollapsed ? 'px-2' : 'px-3'}`}>
+        {/* ── Scrollable Navigation ── */}
+        <div className="flex flex-col overflow-y-auto overflow-x-hidden flex-1 py-3 thin-scrollbar">
+          <nav className={`flex flex-col gap-4 ${sidebarCollapsed ? 'px-2.5' : 'px-3.5'}`}>
             {menuGroups.map((group, gi) => (
               <div key={gi}>
                 {!sidebarCollapsed && (
-                  <p className={`mb-1 ml-2 text-[10px] font-bold uppercase tracking-widest ${labelColor} m-0`}>
+                  <p className="mb-2 ml-3 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--vs-text-secondary)]/70 select-none">
                     {group.title}
                   </p>
                 )}
                 {sidebarCollapsed && gi > 0 && (
-                  <hr className={`${divider} mb-2`} />
+                  <hr className="border-[var(--vs-border-subtle)] my-2" />
                 )}
 
-                <ul className="flex flex-col gap-0.5 m-0 p-0">
+                <ul className="flex flex-col gap-1 m-0 p-0 list-none">
                   {group.items.map((item, ii) => {
                     const hasSubmenu = !!item.submenu;
                     const isOpen = openDropdown === item.name;
 
-                    // Determine if the item is active
                     let isActive = false;
                     if (item.href) {
-                      isActive = item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href);
+                      isActive =
+                        item.href === '/'
+                          ? location.pathname === '/'
+                          : location.pathname === item.href || location.pathname.startsWith(item.href + '/');
                     } else if (hasSubmenu) {
-                      isActive = item.submenu.some(sub => location.pathname.startsWith(sub.href));
+                      isActive = item.submenu.some((sub) =>
+                        sub.href === '/'
+                          ? location.pathname === '/'
+                          : location.pathname === sub.href || location.pathname.startsWith(sub.href + '/')
+                      );
                     }
 
+                    const ItemIcon = item.icon;
+
                     const rowBase = [
-                      'flex items-center rounded-lg transition-all duration-150 w-full',
-                      sidebarCollapsed ? 'justify-center h-10 w-10 mx-auto' : 'gap-3 px-3 py-2',
-                      isActive ? itemActive : itemDefault,
+                      'group flex items-center rounded-xl transition-all duration-200 outline-none select-none cursor-pointer',
+                      sidebarCollapsed
+                        ? 'justify-center h-11 w-11 mx-auto'
+                        : 'gap-3 px-3.5 h-11 w-full text-[14px] font-medium tracking-normal',
+                      isActive
+                        ? 'bg-primary text-white font-semibold shadow-md shadow-primary/25'
+                        : 'text-slate-700 dark:text-slate-200 hover:bg-primary/10 hover:text-primary active:scale-[0.98]',
                     ].join(' ');
 
-                    const rowStyle = {
-                      color: isActive ? 'var(--vs-active-text)' : 'var(--vs-text-sidebar)',
-                    };
-
-                    const iconStyle = {
-                      color: isActive ? 'var(--vs-active-icon)' : 'var(--vs-text-sidebar-icon)',
-                    };
-
-                    const ic = [
-                      'shrink-0',
-                      sidebarCollapsed ? 'w-[18px] h-[18px]' : 'w-4 h-4',
-                    ].join(' ');
+                    const iconSizeClass = sidebarCollapsed ? 'h-6 w-6' : 'h-5 w-5';
 
                     return (
-                      <li key={ii} className={`list-none ${isActive ? 'text-[var(--vs-active-text)]' : 'text-[var(--vs-text-sidebar)]'}`}>
+                      <li key={ii} className="list-none">
                         {hasSubmenu ? (
                           <>
                             <button
+                              type="button"
                               onClick={() => toggleDropdown(item.name)}
                               title={sidebarCollapsed ? item.name : undefined}
                               className={rowBase}
                             >
-                              <CIcon icon={item.icon} className={`${ic} ${isActive ? 'text-[var(--vs-active-icon)]' : 'text-[var(--vs-text-sidebar-icon)]'}`} />
+                              <ItemIcon
+                                className={`${iconSizeClass} shrink-0 transition-all duration-200 ${
+                                  isActive ? 'text-white' : 'text-inherit'
+                                }`}
+                              />
                               {!sidebarCollapsed && (
                                 <>
-                                  <span className="flex-1 text-left text-sm font-medium">{item.name}</span>
-                                  <CIcon
-                                    icon={cilChevronBottom}
-                                    className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} text-inherit`}
+                                  <span className="flex-1 text-left whitespace-nowrap overflow-hidden text-ellipsis">{item.name}</span>
+                                  <ChevronRight
+                                    className={`h-4 w-4 shrink-0 transition-transform duration-300 ${
+                                      isOpen ? 'rotate-90' : ''
+                                    } ${isActive ? 'text-white' : 'opacity-70 group-hover:opacity-100'}`}
                                   />
                                 </>
                               )}
                             </button>
 
                             {!sidebarCollapsed && (
-                              <div className={`overflow-hidden ml-6 transition-all duration-300 ${isOpen ? 'max-h-[600px]' : 'max-h-0'}`}>
-                                <ul className={`mt-0.5 flex flex-col gap-0.5 border-l-2 pl-4 ${subBorder} m-0 p-0`}>
+                              <div
+                                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                                  isOpen ? 'max-h-[700px] opacity-100 mt-1' : 'max-h-0 opacity-0'
+                                }`}
+                              >
+                                <ul className="ml-4 pl-3.5 border-l-2 border-primary/20 dark:border-primary/30 flex flex-col gap-1 py-1.5 my-0.5 list-none">
                                   {item.submenu.map((sub, si) => {
-                                    const isSubActive = location.pathname.startsWith(sub.href);
+                                    const isSubActive =
+                                      sub.href === '/'
+                                        ? location.pathname === '/'
+                                        : location.pathname === sub.href ||
+                                          location.pathname.startsWith(sub.href + '/');
                                     return (
-                                      <li key={si} className="list-none text-[var(--vs-text-sidebar)]">
+                                      <li key={si} className="list-none">
                                         <Link
                                           to={sub.href}
-                                          className={`block py-1.5 px-2 text-sm rounded transition-all duration-150 ${subLink} ${isSubActive
-                                            ? '!text-[var(--vs-active-text)] bg-[var(--vs-active-bg)] font-semibold shadow-xs'
-                                            : 'hover:bg-[var(--vs-btn-hover)]'
-                                            }`}
+                                          className={`group/sub flex items-center gap-2.5 py-2 px-3 text-[13.5px] rounded-lg font-medium transition-all duration-150 ${
+                                            isSubActive
+                                              ? 'bg-primary/12 text-primary font-semibold shadow-xs'
+                                              : 'text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
+                                          }`}
                                         >
-                                          {sub.name}
+                                          <span
+                                            className={`h-1.5 w-1.5 rounded-full shrink-0 transition-all duration-200 ${
+                                              isSubActive
+                                                ? 'bg-primary scale-125 ring-2 ring-primary/30'
+                                                : 'bg-slate-300 dark:bg-slate-600 group-hover/sub:bg-primary/70 group-hover/sub:scale-110'
+                                            }`}
+                                          />
+                                          <span className="whitespace-nowrap tracking-normal">{sub.name}</span>
                                         </Link>
                                       </li>
                                     );
@@ -256,19 +286,15 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, sidebarCollapsed 
                           <Link
                             to={item.href}
                             title={sidebarCollapsed ? item.name : undefined}
-                            className={`${rowBase} relative ${isActive ? 'text-[var(--vs-active-text)]' : 'text-[var(--vs-text-sidebar)]'}`}
+                            className={rowBase}
                           >
-                            <CIcon icon={item.icon} className={`${ic} ${isActive ? 'text-[var(--vs-active-icon)]' : 'text-[var(--vs-text-sidebar-icon)]'}`} />
+                            <ItemIcon
+                              className={`${iconSizeClass} shrink-0 transition-all duration-200 ${
+                                isActive ? 'text-white' : 'text-inherit'
+                              }`}
+                            />
                             {!sidebarCollapsed && (
-                              <span className="flex-1 text-sm font-medium">{item.name}</span>
-                            )}
-                            {!sidebarCollapsed && item.badge && (
-                              <span className="ml-auto rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-bold text-white leading-none">
-                                {item.badge}
-                              </span>
-                            )}
-                            {sidebarCollapsed && item.badge && (
-                              <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-indigo-600" />
+                              <span className="flex-1 text-left whitespace-nowrap overflow-hidden text-ellipsis">{item.name}</span>
                             )}
                           </Link>
                         )}
@@ -279,6 +305,37 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, sidebarCollapsed 
               </div>
             ))}
           </nav>
+        </div>
+
+        {/* ── Sidebar Footer (User Profile Card like Admin Owner) ── */}
+        <div className="border-t border-[var(--vs-border-subtle)] bg-[var(--vs-bg-primary)]/40 shrink-0">
+          {!sidebarCollapsed ? (
+            <div className="flex items-center gap-3.5 p-3.5">
+              <div className="relative shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center text-white text-sm font-bold shadow-md shadow-primary/30">
+                  {getInitials(user?.name)}
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--vs-bg-primary)] bg-emerald-500 shadow-xs" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[14px] font-bold text-[var(--vs-text-primary)] truncate leading-tight mb-0.5">
+                  {user?.name || 'Shop Owner'}
+                </span>
+                <span className="text-[11px] text-[var(--vs-text-secondary)] font-medium truncate">
+                  {user?.email || 'owner@example.com'}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center p-3" title={user?.name || 'Shop Owner'}>
+              <div className="relative shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center text-white text-sm font-bold shadow-md shadow-primary/30">
+                  {getInitials(user?.name)}
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--vs-bg-primary)] bg-emerald-500 shadow-xs" />
+              </div>
+            </div>
+          )}
         </div>
       </aside>
     </>

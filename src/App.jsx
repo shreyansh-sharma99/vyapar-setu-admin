@@ -22,6 +22,8 @@ import ProductList from './pages/storeManagement/products/ProductList';
 import CreateProduct from './pages/storeManagement/products/CreateProduct';
 import UpdateProduct from './pages/storeManagement/products/UpdateProduct';
 import ProductDetails from './pages/storeManagement/products/ProductDetails';
+import Inventory from './pages/inventory/inventory/Inventory';
+import AdjustStock from './pages/inventory/inventory/AdjustStock';
 import CustomerList from './pages/customer/CustomerList';
 import CreateCustomer from './pages/customer/CreateCustomer';
 import UpdateCustomer from './pages/customer/UpdateCustomer';
@@ -119,6 +121,8 @@ function App() {
           <Route path="products/create" element={<CreateProduct />} />
           <Route path="products/edit/:id" element={<UpdateProduct />} />
           <Route path="products/view/:id" element={<ProductDetails />} />
+          <Route path="inventory" element={<Inventory />} />
+          <Route path="inventory/adjust" element={<AdjustStock />} />
           <Route path="customers" element={<CustomerList />} />
           <Route path="customers/create" element={<CreateCustomer />} />
           <Route path="customers/edit/:id" element={<UpdateCustomer />} />

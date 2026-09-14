@@ -20,6 +20,7 @@ import paymentAccountReducer from './pages/sales/paymentAccout/services/paymentA
 import invoiceSettingReducer from './pages/Invoices/invoiceSetting/services/invoiceSettingSlice';
 import generalInvoiceSettingReducer from './pages/Invoices/generalInvoiceSetting/services/generalInvoiceSettingSlice';
 import reportsReducer from './pages/reports/services/reportSlice';
+import inventoryReducer from './pages/inventory/inventory/services/inventorySlice';
 
 export const store = configureStore({
   reducer: {
@@ -44,6 +45,7 @@ export const store = configureStore({
     invoiceSetting: invoiceSettingReducer,
     generalInvoiceSetting: generalInvoiceSettingReducer,
     reports: reportsReducer,
+    inventory: inventoryReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

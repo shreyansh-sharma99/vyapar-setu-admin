@@ -26,8 +26,8 @@ export default function CreateCustomer() {
       status: 'active',
       gstin: '',
       stateCode: '',
-      creditLimit: 0,
-      openingBalance: 0,
+      creditLimit: '',
+      openingBalance: '',
       address: {
         type: 'home',
         street: '',
