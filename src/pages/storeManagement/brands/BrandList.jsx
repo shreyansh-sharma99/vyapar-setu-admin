@@ -14,6 +14,7 @@ import {
 } from './services/brandSlice';
 import Card from '../../../components/breadCrumbs/Card';
 import DeleteModal from '@/components/modal/DeleteModal';
+import { useToasts } from '../products/utils/productUtils';
 import { CToaster, CToast, CToastBody } from '@coreui/react';
 
 export default function BrandList() {
@@ -23,7 +24,7 @@ export default function BrandList() {
 
   const { brands, pagination, loading, toast: reduxToast } = useSelector((state) => state.brand);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, brandId: null });
-  const [toasts, setToasts] = useState([]);
+  const { toasts, showToast } = useToasts(5000);
   const [searchTerm, setSearchTerm] = useState('');
 
   const [params, setParams] = useState({
@@ -34,14 +35,6 @@ export default function BrandList() {
     search: '',
   });
 
-  const showToast = (message, color = 'success') => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, color }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
-  };
-
   useEffect(() => {
     dispatch(getBrands(params));
   }, [dispatch, params]);
@@ -51,14 +44,14 @@ export default function BrandList() {
       showToast(location.state.message, location.state.color || 'success');
       window.history.replaceState({}, document.title);
     }
-  }, [location]);
+  }, [location, showToast]);
 
   useEffect(() => {
     if (reduxToast) {
       showToast(reduxToast.message, reduxToast.color);
       dispatch(clearBrandToast());
     }
-  }, [reduxToast, dispatch]);
+  }, [reduxToast, dispatch, showToast]);
 
   const handleDeleteClick = (item) => {
     setDeleteModal({ isOpen: true, brandId: item._id });

@@ -19,8 +19,18 @@ import customerLedgerReducer from './pages/sales/customerLedger/services/custome
 import paymentAccountReducer from './pages/sales/paymentAccout/services/paymentAccountSlice';
 import invoiceSettingReducer from './pages/Invoices/invoiceSetting/services/invoiceSettingSlice';
 import generalInvoiceSettingReducer from './pages/Invoices/generalInvoiceSetting/services/generalInvoiceSettingSlice';
+import invoiceLayoutReducer from './pages/Invoices/invoiceLayout/services/invoiceLayoutSlice';
 import reportsReducer from './pages/reports/services/reportSlice';
 import inventoryReducer from './pages/inventory/inventory/services/inventorySlice';
+import staffReducer from './pages/staff/services/staffSlice';
+import stockTransferReducer from './pages/inventory/stockTransfers/services/stockTransferSlice';
+import supplierReducer from './pages/purchase/suppliers/services/supplierSlice';
+import purchaseOrderReducer from './pages/purchase/purchaseOrders/services/purchaseOrderSlice';
+import goodsReceiptReducer from './pages/purchase/goodsReceipts/services/goodsReceiptSlice';
+import purchaseBillReducer from './pages/purchase/purchaseBills/services/purchaseBillSlice';
+import purchaseReturnReducer from './pages/purchase/purchaseReturns/services/purchaseReturnSlice';
+import paymentOutReducer from './pages/purchase/paymentsOut/services/paymentOutSlice';
+import storeReducer from './pages/storeManagement/stores/services/storeSlice';
 
 export const store = configureStore({
   reducer: {
@@ -31,6 +41,7 @@ export const store = configureStore({
     brand: brandReducer,
     manufacturer: manufacturerReducer,
     product: productReducer,
+    store: storeReducer,
     customer: customerReducer,
     salesInvoice: salesInvoiceReducer,
     quotation: quotationReducer,
@@ -44,8 +55,17 @@ export const store = configureStore({
     paymentAccount: paymentAccountReducer,
     invoiceSetting: invoiceSettingReducer,
     generalInvoiceSetting: generalInvoiceSettingReducer,
+    invoiceLayout: invoiceLayoutReducer,
     reports: reportsReducer,
     inventory: inventoryReducer,
+    staff: staffReducer,
+    stockTransfer: stockTransferReducer,
+    supplier: supplierReducer,
+    purchaseOrder: purchaseOrderReducer,
+    goodsReceipt: goodsReceiptReducer,
+    purchaseBill: purchaseBillReducer,
+    purchaseReturn: purchaseReturnReducer,
+    paymentOut: paymentOutReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

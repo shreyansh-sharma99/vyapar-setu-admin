@@ -22,8 +22,13 @@ import ProductList from './pages/storeManagement/products/ProductList';
 import CreateProduct from './pages/storeManagement/products/CreateProduct';
 import UpdateProduct from './pages/storeManagement/products/UpdateProduct';
 import ProductDetails from './pages/storeManagement/products/ProductDetails';
+import ProductAuditReport from './pages/storeManagement/products/ProductAuditReport';
 import Inventory from './pages/inventory/inventory/Inventory';
 import AdjustStock from './pages/inventory/inventory/AdjustStock';
+import StockAuditReport from './pages/inventory/inventory/StockAuditReport';
+import StoreList from './pages/storeManagement/stores/StoreList';
+import CreateStore from './pages/storeManagement/stores/CreateStore';
+import UpdateStore from './pages/storeManagement/stores/UpdateStore';
 import CustomerList from './pages/customer/CustomerList';
 import CreateCustomer from './pages/customer/CreateCustomer';
 import UpdateCustomer from './pages/customer/UpdateCustomer';
@@ -53,21 +58,47 @@ import CustomerLedger from './pages/sales/customerLedger/CustomerLedger';
 import PaymentAccount from './pages/sales/paymentAccout/PaymentAccount';
 import InvoiceSetting from './pages/Invoices/invoiceSetting/InvoiceSetting';
 import GeneralInvoiceSetting from './pages/Invoices/generalInvoiceSetting/GeneralInvoiceSetting';
+import InvoiceLayout from './pages/Invoices/invoiceLayout/InvoiceLayout';
 import SalesRegister from './pages/reports/SalesRegister';
 import Gstr1Report from './pages/reports/Gstr1Report';
 import HsnSummary from './pages/reports/HsnSummary';
 import AgeingReport from './pages/reports/AgeingReport';
+import StoreWiseStock from './pages/inventory/inventory/StoreWiseStock';
+import DamagedStock from './pages/inventory/inventory/DamagedStock';
+import ReorderReport from './pages/inventory/inventory/ReorderReport';
+import StockValuation from './pages/inventory/inventory/StockValuation';
+import StockTransferList from './pages/inventory/stockTransfers/StockTransferList';
+import CreateStockTransfer from './pages/inventory/stockTransfers/CreateStockTransfer';
+import StockTransferDetails from './pages/inventory/stockTransfers/StockTransferDetails';
+import ProductVariants from './pages/storeManagement/products/ProductVariants';
+import ProductImportExport from './pages/storeManagement/products/ProductImportExport';
+import BarcodeLabels from './pages/storeManagement/products/BarcodeLabels';
+import SupplierList from './pages/purchase/suppliers/SupplierList';
+import SupplierForm from './pages/purchase/suppliers/SupplierForm';
+import SupplierDetails from './pages/purchase/suppliers/SupplierDetails';
+import PurchaseOrderList from './pages/purchase/purchaseOrders/PurchaseOrderList';
+import CreatePurchaseOrder from './pages/purchase/purchaseOrders/CreatePurchaseOrder';
+import PurchaseOrderDetails from './pages/purchase/purchaseOrders/PurchaseOrderDetails';
+import GoodsReceiptList from './pages/purchase/goodsReceipts/GoodsReceiptList';
+import CreateGoodsReceipt from './pages/purchase/goodsReceipts/CreateGoodsReceipt';
+import GoodsReceiptDetails from './pages/purchase/goodsReceipts/GoodsReceiptDetails';
+import PurchaseBillList from './pages/purchase/purchaseBills/PurchaseBillList';
+import CreatePurchaseBill from './pages/purchase/purchaseBills/CreatePurchaseBill';
+import PurchaseBillDetails from './pages/purchase/purchaseBills/PurchaseBillDetails';
+import PurchaseReturnList from './pages/purchase/purchaseReturns/PurchaseReturnList';
+import CreatePurchaseReturn from './pages/purchase/purchaseReturns/CreatePurchaseReturn';
+import PurchaseReturnDetails from './pages/purchase/purchaseReturns/PurchaseReturnDetails';
+import PaymentOutList from './pages/purchase/paymentsOut/PaymentOutList';
+import CreatePaymentOut from './pages/purchase/paymentsOut/CreatePaymentOut';
+import PaymentOutDetails from './pages/purchase/paymentsOut/PaymentOutDetails';
+import PayablesAgeing from './pages/purchase/reports/PayablesAgeing';
+import StaffList from './pages/staff/StaffList';
+import StaffForm from './pages/staff/StaffForm';
+import RoleList from './pages/staff/roles/RoleList';
+import RoleForm from './pages/staff/roles/RoleForm';
+import DesignationList from './pages/staff/designations/DesignationList';
 import PrivateRoute from './utility/PrivateRoute';
 import Layout from './components/layouts/Layout';
-
-function ComingSoon({ title }) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] gap-2 text-center">
-      <h2 className="text-xl font-bold text-[var(--vs-text-primary)]">{title}</h2>
-      <p className="text-sm text-[var(--vs-text-secondary)]">This module is under development and will be available soon.</p>
-    </div>
-  );
-}
 
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -117,12 +148,59 @@ function App() {
           <Route path="manufacturers/create" element={<CreateManufacturer />} />
           <Route path="manufacturers/edit/:id" element={<UpdateManufacturer />} />
           <Route path="manufacturers/view/:id" element={<ManufacturerDetails />} />
+          <Route path="stores" element={<StoreList />} />
+          <Route path="stores/create" element={<CreateStore />} />
+          <Route path="stores/edit/:id" element={<UpdateStore />} />
           <Route path="products" element={<ProductList />} />
           <Route path="products/create" element={<CreateProduct />} />
           <Route path="products/edit/:id" element={<UpdateProduct />} />
           <Route path="products/view/:id" element={<ProductDetails />} />
+          <Route path="products/audit/:id" element={<ProductAuditReport />} />
+          <Route path="products/variants/:id" element={<ProductVariants />} />
+          <Route path="products/import-export" element={<ProductImportExport />} />
+          <Route path="products/labels" element={<BarcodeLabels />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="inventory/adjust" element={<AdjustStock />} />
+          <Route path="inventory/audit-report" element={<StockAuditReport />} />
+          <Route path="inventory/store-wise" element={<StoreWiseStock />} />
+          <Route path="inventory/damaged" element={<DamagedStock />} />
+          <Route path="inventory/reorder" element={<ReorderReport />} />
+          <Route path="inventory/valuation" element={<StockValuation />} />
+          <Route path="inventory/transfers" element={<StockTransferList />} />
+          <Route path="inventory/transfers/create" element={<CreateStockTransfer />} />
+          <Route path="inventory/transfers/edit/:id" element={<CreateStockTransfer />} />
+          <Route path="inventory/transfers/view/:id" element={<StockTransferDetails />} />
+          <Route path="purchase/suppliers" element={<SupplierList />} />
+          <Route path="purchase/suppliers/create" element={<SupplierForm />} />
+          <Route path="purchase/suppliers/edit/:id" element={<SupplierForm />} />
+          <Route path="purchase/suppliers/view/:id" element={<SupplierDetails />} />
+          <Route path="purchase/orders" element={<PurchaseOrderList />} />
+          <Route path="purchase/orders/create" element={<CreatePurchaseOrder />} />
+          <Route path="purchase/orders/edit/:id" element={<CreatePurchaseOrder />} />
+          <Route path="purchase/orders/view/:id" element={<PurchaseOrderDetails />} />
+          <Route path="purchase/receipts" element={<GoodsReceiptList />} />
+          <Route path="purchase/receipts/create" element={<CreateGoodsReceipt />} />
+          <Route path="purchase/receipts/edit/:id" element={<CreateGoodsReceipt />} />
+          <Route path="purchase/receipts/view/:id" element={<GoodsReceiptDetails />} />
+          <Route path="purchase/bills" element={<PurchaseBillList />} />
+          <Route path="purchase/bills/create" element={<CreatePurchaseBill />} />
+          <Route path="purchase/bills/edit/:id" element={<CreatePurchaseBill />} />
+          <Route path="purchase/bills/view/:id" element={<PurchaseBillDetails />} />
+          <Route path="purchase/returns" element={<PurchaseReturnList />} />
+          <Route path="purchase/returns/create" element={<CreatePurchaseReturn />} />
+          <Route path="purchase/returns/edit/:id" element={<CreatePurchaseReturn />} />
+          <Route path="purchase/returns/view/:id" element={<PurchaseReturnDetails />} />
+          <Route path="purchase/payments" element={<PaymentOutList />} />
+          <Route path="purchase/payments/create" element={<CreatePaymentOut />} />
+          <Route path="purchase/payments/view/:id" element={<PaymentOutDetails />} />
+          <Route path="purchase/payables-ageing" element={<PayablesAgeing />} />
+          <Route path="staff" element={<StaffList />} />
+          <Route path="staff/create" element={<StaffForm />} />
+          <Route path="staff/edit/:id" element={<StaffForm />} />
+          <Route path="staff/roles" element={<RoleList />} />
+          <Route path="staff/roles/create" element={<RoleForm />} />
+          <Route path="staff/roles/edit/:id" element={<RoleForm />} />
+          <Route path="staff/designations" element={<DesignationList />} />
           <Route path="customers" element={<CustomerList />} />
           <Route path="customers/create" element={<CreateCustomer />} />
           <Route path="customers/edit/:id" element={<UpdateCustomer />} />
@@ -160,6 +238,7 @@ function App() {
           <Route path="sales/general-invoice-setting" element={<GeneralInvoiceSetting />} />
           <Route path="sales/invoice-setting" element={<InvoiceSetting />} />
           <Route path="sales/invoice-settings" element={<InvoiceSetting />} />
+          <Route path="sales/invoice-layout" element={<InvoiceLayout />} />
           <Route path="reports/sales-register" element={<SalesRegister />} />
           <Route path="reports/gstr1" element={<Gstr1Report />} />
           <Route path="reports/hsn-summary" element={<HsnSummary />} />

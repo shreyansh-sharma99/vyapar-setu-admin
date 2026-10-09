@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { ArrowLeft, Plus, Trash2, Save, Send, Calendar, Truck } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Send, Store as StoreIcon, AlertTriangle } from 'lucide-react';
 import { decryptData } from '@/utility/crypto';
 import Button from '@/components/inputs/Button';
 import Card from '../../../components/breadCrumbs/Card';
@@ -10,7 +10,9 @@ import { Input } from '@/components/inputs/Input';
 import { Label } from '@/components/inputs/Label';
 import Select from '@/components/inputs/Select';
 import { getCustomers } from '../../customer/services/customerSlice';
-import { getProducts } from '../../storeManagement/products/services/productSlice';
+import { getStores } from '@/pages/storeManagement/stores/services/storeSlice';
+import ProductSearchPicker, { BarcodeScanInput } from '../components/ProductSearchPicker';
+import { getProductForLineApi, getStockInStore } from '../services/productLookupService';
 import {
   createDeliveryChallan,
   updateDeliveryChallan,
@@ -18,6 +20,37 @@ import {
   clearCurrentChallan,
   resetChallanStatus,
 } from './services/deliveryChallanSlice';
+
+/** Available stock of a line's product in the dispatch store. */
+function StockBadge({ available, qty, unit, storeName, hasProduct, hasStore }) {
+  if (!hasProduct) return null;
+  if (!hasStore) {
+    return (
+      <div className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+        Choose a dispatch store to see available stock.
+      </div>
+    );
+  }
+  if (available === null || available === undefined) {
+    return <div className="mt-1 text-[11px] text-[var(--vs-text-secondary)]">Checking stock...</div>;
+  }
+  const short = Number(qty || 0) > available;
+  return (
+    <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[11px]">
+      <span className={`px-2 py-0.5 rounded font-medium border ${available > 0
+        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40'
+        : 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-900/40'}`}
+      >
+        {storeName ? `[${storeName}] ` : ''}Available: {available} {unit || 'units'}
+      </span>
+      {short && (
+        <span className="text-rose-600 dark:text-rose-400 font-semibold text-[10px] bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/40">
+          Not enough stock
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function CreateDeliveryChallan() {
   const { id: encryptedId } = useParams();
@@ -28,8 +61,18 @@ export default function CreateDeliveryChallan() {
   const isEditMode = !!id;
 
   const { currentChallan, loading: challanLoading, success, error } = useSelector((s) => s.deliveryChallan);
-  const { customers, loading: customersLoading } = useSelector((s) => s.customer);
-  const { products } = useSelector((s) => s.product);
+  const { customers } = useSelector((s) => s.customer);
+  const { stores } = useSelector((s) => s.store);
+
+  // Products used on this challan (from the lookup or loaded for an edited draft), keyed by id.
+  const [productCache, setProductCache] = useState({});
+  const cacheProduct = (product) => {
+    if (product?._id) setProductCache((prev) => ({ ...prev, [product._id]: product }));
+  };
+
+  // Dispatch store: null = not chosen yet → the default active store is used on create.
+  const [selectedStoreId, setSelectedStoreId] = useState(null);
+  const [formError, setFormError] = useState('');
 
   // ─── Form State ─────────────────────────────────────────────────────────────
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
@@ -45,13 +88,50 @@ export default function CreateDeliveryChallan() {
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   const [lineItems, setLineItems] = useState([
-    { productId: '', productName: '', hsnCode: '', qty: 1 },
+    { productId: '', productName: '', hsnCode: '', unit: '', qty: 1 },
   ]);
+
+  // ─── Stores ──────────────────────────────────────────────────────────────────
+  const activeStores = (stores || []).filter((s) => s.isActive !== false);
+  const defaultStore = activeStores.find((s) => s.isDefault) || activeStores[0] || null;
+  const dispatchStoreId = selectedStoreId !== null
+    ? selectedStoreId
+    : (isEditMode ? '' : (defaultStore?._id || ''));
+  const dispatchStore = (stores || []).find((s) => String(s._id) === String(dispatchStoreId)) || null;
+  const dispatchStoreInactive = dispatchStore?.isActive === false;
+  const storeOptions = activeStores.map((s) => ({
+    value: s._id,
+    label: `${s.name}${s.code ? ` [${s.code}]` : ''}${s.isDefault ? ' (Default)' : ''}`,
+  }));
+
+  const getAvailable = (productId) => {
+    const product = productCache[productId];
+    if (!product || !dispatchStoreId) return null;
+    return getStockInStore(product, dispatchStoreId);
+  };
+
+  // Load product details (incl. stock per store) for lines of an edited challan.
+  const lineProductKey = lineItems.map((item) => item.productId).filter(Boolean).join(',');
+  useEffect(() => {
+    const missing = [...new Set(lineProductKey.split(',').filter(Boolean))].filter((pid) => !productCache[pid]);
+    if (missing.length === 0) return undefined;
+    let cancelled = false;
+    Promise.all(missing.map((pid) => getProductForLineApi(pid).catch(() => null))).then((rows) => {
+      if (cancelled) return;
+      setProductCache((prev) => {
+        const next = { ...prev };
+        rows.filter(Boolean).forEach((p) => { next[p._id] = p; });
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineProductKey]);
 
   // ─── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     dispatch(getCustomers({ page: 1, limit: 1000 }));
-    dispatch(getProducts());
+    dispatch(getStores());
     dispatch(resetChallanStatus());
     if (isEditMode) dispatch(getDeliveryChallanById(id));
     return () => { dispatch(clearCurrentChallan()); dispatch(resetChallanStatus()); };
@@ -65,6 +145,7 @@ export default function CreateDeliveryChallan() {
         });
         return;
       }
+      setSelectedStoreId(currentChallan.storeId?._id || currentChallan.storeId || '');
       setSelectedCustomerId(currentChallan.customerId?._id || currentChallan.customerId || '');
       setCustomerSnapshot(currentChallan.customerSnapshot || {
         name: '', phone: '', email: '', gstin: '', stateCode: '',
@@ -78,6 +159,7 @@ export default function CreateDeliveryChallan() {
           productId: item.productId?._id || item.productId || '',
           productName: item.productName || '',
           hsnCode: item.hsnCode || '',
+          unit: item.unit || '',
           qty: item.qty || 1,
         })));
       }
@@ -149,19 +231,23 @@ export default function CreateDeliveryChallan() {
     }
   };
 
+  const productLineFields = (product) => ({
+    productId: product._id,
+    productName: product.name,
+    hsnCode: product.hsnCode || product.hsnSacCode || '8471',
+    unit: product.unit || '',
+  });
+
   const handleLineItemChange = (index, field, value) => {
     const updated = [...lineItems];
     if (field === 'productId') {
-      const product = products.find((p) => p._id === value);
+      // `value` is the product object chosen in the picker (or '' to clear the line).
+      const product = value && typeof value === 'object' ? value : null;
       if (product) {
-        updated[index] = {
-          ...updated[index],
-          productId: product._id,
-          productName: product.name,
-          hsnCode: product.hsnCode || '8471',
-        };
+        cacheProduct(product);
+        updated[index] = { ...updated[index], ...productLineFields(product) };
       } else {
-        updated[index] = { ...updated[index], productId: '', productName: '', hsnCode: '' };
+        updated[index] = { ...updated[index], productId: '', productName: '', hsnCode: '', unit: '' };
       }
     } else {
       updated[index][field] = value;
@@ -169,19 +255,54 @@ export default function CreateDeliveryChallan() {
     setLineItems(updated);
   };
 
-  const addLineItem = () => setLineItems([...lineItems, { productId: '', productName: '', hsnCode: '', qty: 1 }]);
+  // Scanned product: fill the first empty row, otherwise add a new row.
+  const handleScannedProduct = (product) => {
+    cacheProduct(product);
+    setLineItems((prev) => {
+      const emptyIndex = prev.findIndex((item) => !item.productId);
+      if (emptyIndex !== -1) {
+        return prev.map((item, i) => (i === emptyIndex ? { ...item, ...productLineFields(product) } : item));
+      }
+      return [...prev, { qty: 1, ...productLineFields(product) }];
+    });
+  };
+
+  const addLineItem = () => setLineItems([...lineItems, { productId: '', productName: '', hsnCode: '', unit: '', qty: 1 }]);
   const removeLineItem = (index) => { if (lineItems.length > 1) setLineItems(lineItems.filter((_, i) => i !== index)); };
 
   const handleSave = (status = 'draft') => {
     setIsSubmitted(true);
+    setFormError('');
     const hasInvalidCustomer = !customerSnapshot.name || !customerSnapshot.phone;
     const invalidItem = lineItems.find((item) => !item.productId || Number(item.qty) <= 0);
     const gstin = customerSnapshot.gstin;
     const invalidGstin = gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/.test(gstin);
 
+    if (!dispatchStoreId) {
+      setFormError('Please choose the dispatch store / warehouse.');
+      return;
+    }
+    if (dispatchStoreInactive) {
+      setFormError(`"${dispatchStore.name}" is inactive. Please choose an active store / warehouse.`);
+      return;
+    }
     if (hasInvalidCustomer || invalidItem || invalidGstin) return;
 
+    if (status !== 'draft') {
+      const short = lineItems.find((item) => {
+        const available = getAvailable(item.productId);
+        return available !== null && Number(item.qty) > available;
+      });
+      if (short) {
+        setFormError(
+          `Not enough stock of "${short.productName}" in ${dispatchStore?.name || 'the selected store'}. Available: ${getAvailable(short.productId)}, required: ${short.qty}.`
+        );
+        return;
+      }
+    }
+
     const payload = {
+      storeId: dispatchStoreId,
       customerId: selectedCustomerId || null,
       customerSnapshot,
       challanDate,
@@ -192,6 +313,7 @@ export default function CreateDeliveryChallan() {
         productId: item.productId,
         productName: item.productName,
         hsnCode: item.hsnCode,
+        ...(item.unit ? { unit: item.unit } : {}),
         qty: Number(item.qty),
       })),
     };
@@ -232,9 +354,9 @@ export default function CreateDeliveryChallan() {
           <div className="lg:col-span-2 flex flex-col gap-6">
 
             {/* Error banner */}
-            {error && (
+            {(formError || error) && (
               <div className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 p-4 rounded-xl border border-red-200 dark:border-red-500/20">
-                <div className="font-semibold text-sm">{typeof error === 'string' ? error : 'Validation failed'}</div>
+                <div className="font-semibold text-sm">{formError || (typeof error === 'string' ? error : 'Validation failed')}</div>
               </div>
             )}
 
@@ -321,6 +443,41 @@ export default function CreateDeliveryChallan() {
           <div className="flex flex-col gap-6">
             <Card title="Challan Details" bodyClassName="p-3 flex flex-col gap-4">
               <div className="flex flex-col gap-3.5">
+                {/* Dispatch Store */}
+                <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-400">
+                    <StoreIcon className="w-4 h-4" />
+                    <span>Dispatch Store / Warehouse <span className="text-red-500">*</span></span>
+                  </div>
+                  <Select
+                    options={storeOptions}
+                    value={dispatchStoreInactive ? '' : dispatchStoreId}
+                    onChange={(val) => { setSelectedStoreId(val); setFormError(''); }}
+                    placeholder="Select store / warehouse"
+                    error={isSubmitted && (!dispatchStoreId || dispatchStoreInactive)}
+                  />
+                  {isSubmitted && !dispatchStoreId && (
+                    <div className="text-red-500 text-xs font-medium">Dispatch store / warehouse is required.</div>
+                  )}
+                  {dispatchStoreInactive && (
+                    <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400 text-xs font-medium bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-lg px-2 py-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        This challan was saved for &quot;{dispatchStore.name}&quot;, which is now inactive.
+                        Please choose an active store before saving.
+                      </span>
+                    </div>
+                  )}
+                  {stores?.length > 0 && activeStores.length === 0 && (
+                    <div className="text-amber-600 dark:text-amber-400 text-xs font-medium">
+                      No active store found. Activate a store under Stores first.
+                    </div>
+                  )}
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    Goods leave this store&apos;s stock when the challan is issued.
+                  </p>
+                </div>
+
                 <div className="flex flex-col gap-1">
                   <Label>Challan Date</Label>
                   <Input type="date" value={challanDate} onChange={(e) => setChallanDate(e.target.value)} />
@@ -363,9 +520,12 @@ export default function CreateDeliveryChallan() {
 
         {/* ── Line Items ── */}
         <Card title="Line Items" bodyClassName="p-2 flex flex-col gap-4 mt-6" rightNode={
-          <Button type="button" onClick={addLineItem} variant="primary" className="!h-8 px-2.5 text-xs">
-            <Plus className="w-3.5 h-3.5 mr-1" /> Add Row
-          </Button>
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 w-full sm:w-auto">
+            <BarcodeScanInput storeId={dispatchStoreId} onProduct={handleScannedProduct} />
+            <Button type="button" onClick={addLineItem} variant="primary" className="!h-8 px-2.5 text-xs">
+              <Plus className="w-3.5 h-3.5 mr-1" /> Add Row
+            </Button>
+          </div>
         }>
           {/* Desktop Table */}
           <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-300 dark:border-white/20">
@@ -384,12 +544,15 @@ export default function CreateDeliveryChallan() {
                   return (
                     <tr key={idx} className={`${!isLast ? 'border-b border-gray-300 dark:border-white/20' : ''} align-middle hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors`}>
                       <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
-                        <select value={item.productId} onChange={(e) => handleLineItemChange(idx, 'productId', e.target.value)}
-                          className={`w-full rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none text-[var(--vs-text-primary)] focus:ring-2 ${isSubmitted && !item.productId ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : 'border-gray-200 dark:border-white/10 focus:border-indigo-500/60 focus:ring-indigo-500/20'}`}>
-                          <option value="">-- Choose Product --</option>
-                          {products.map((p) => (<option key={p._id} value={p._id}>{p.name} {p.barcode ? `(${p.barcode})` : ''}</option>))}
-                        </select>
+                        <ProductSearchPicker
+                          value={item.productId}
+                          selectedLabel={item.productName}
+                          storeId={dispatchStoreId}
+                          onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
+                          error={isSubmitted && !item.productId}
+                        />
                         {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-1">Product is required</div>}
+                        <StockBadge available={getAvailable(item.productId)} qty={item.qty} unit={item.unit} storeName={dispatchStore?.code || dispatchStore?.name} hasProduct={!!item.productId} hasStore={!!dispatchStoreId} />
                       </td>
                       <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
                         <Input type="text" value={item.hsnCode} onChange={(e) => handleLineItemChange(idx, 'hsnCode', e.target.value)} className="text-center !h-9 !rounded-lg" />
@@ -420,11 +583,15 @@ export default function CreateDeliveryChallan() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label>Product <span className="text-red-500">*</span></Label>
-                  <select value={item.productId} onChange={(e) => handleLineItemChange(idx, 'productId', e.target.value)} className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none text-[var(--vs-text-primary)] ${isSubmitted && !item.productId ? 'border-red-500' : 'border-gray-200 dark:border-white/10'}`}>
-                    <option value="">-- Choose Product --</option>
-                    {products.map((p) => (<option key={p._id} value={p._id}>{p.name}</option>))}
-                  </select>
+                  <ProductSearchPicker
+                    value={item.productId}
+                    selectedLabel={item.productName}
+                    storeId={dispatchStoreId}
+                    onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
+                    error={isSubmitted && !item.productId}
+                  />
                   {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-0.5">Product is required</div>}
+                  <StockBadge available={getAvailable(item.productId)} qty={item.qty} unit={item.unit} storeName={dispatchStore?.code || dispatchStore?.name} hasProduct={!!item.productId} hasStore={!!dispatchStoreId} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1"><Label>HSN Code</Label><Input type="text" value={item.hsnCode} onChange={(e) => handleLineItemChange(idx, 'hsnCode', e.target.value)} /></div>

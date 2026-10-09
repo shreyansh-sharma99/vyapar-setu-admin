@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { ArrowLeft, Plus, Trash2, Save, Send } from 'lucide-react';
-import { decryptData, encryptData } from '@/utility/crypto';
+import { ArrowLeft, Plus, Trash2, Save, Send, Store as StoreIcon, AlertTriangle } from 'lucide-react';
+import { decryptData } from '@/utility/crypto';
 import Button from '@/components/inputs/Button';
 import Card from '../../../components/breadCrumbs/Card';
 import Loader from '@/components/loader/Loader';
 import { Input } from '@/components/inputs/Input';
 import { Label } from '@/components/inputs/Label';
 import Select from '@/components/inputs/Select';
+import { CToaster, CToast, CToastBody } from '@coreui/react';
 import { getCustomers } from '../../customer/services/customerSlice';
-import { getProducts } from '../../storeManagement/products/services/productSlice';
+import ProductSearchPicker, { BarcodeScanInput } from '../components/ProductSearchPicker';
+import { getProductForLineApi } from '../services/productLookupService';
+import { getStores } from '@/pages/storeManagement/stores/services/storeSlice';
 import {
   createSalesInvoice,
   updateSalesInvoice,
@@ -28,10 +31,21 @@ export default function CreateSalesInvoice() {
   const isEditMode = !!id;
 
   const { currentInvoice, loading: invoiceLoading, success, error } = useSelector((state) => state.salesInvoice);
-  const { customers, loading: customersLoading } = useSelector((state) => state.customer);
-  const { products, loading: productsLoading } = useSelector((state) => state.product);
+  const { customers } = useSelector((state) => state.customer);
+  const { stores } = useSelector((state) => state.store);
+
+  // Products picked on this invoice (from the async lookup, or loaded for an edited draft),
+  // keyed by id. Holds storeStocks so stock per store can be shown without loading the catalogue.
+  const [productCache, setProductCache] = useState({});
+  const products = Object.values(productCache);
+  const cacheProduct = (product) => {
+    if (product?._id) setProductCache((prev) => ({ ...prev, [product._id]: product }));
+  };
 
   // Form State
+  const [selectedStoreId, setSelectedStoreId] = useState('');
+  // Store saved on an edited draft — used to warn when it has since been deactivated.
+  const [draftStoreId, setDraftStoreId] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customerSnapshot, setCustomerSnapshot] = useState({
     name: '',
@@ -58,6 +72,16 @@ export default function CreateSalesInvoice() {
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
+  // Toast notifications
+  const [toasts, setToasts] = useState([]);
+  const showToast = (message, color = 'danger') => {
+    const toastId = Date.now();
+    setToasts((prev) => [...prev, { id: toastId, message, color }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== toastId));
+    }, 3500);
+  };
+
   const [lineItems, setLineItems] = useState([
     {
       productId: '',
@@ -77,7 +101,7 @@ export default function CreateSalesInvoice() {
   // Load dependency data
   useEffect(() => {
     dispatch(getCustomers({ page: 1, limit: 1000 }));
-    dispatch(getProducts());
+    dispatch(getStores());
     dispatch(resetSalesInvoiceStatus());
 
     if (isEditMode) {
@@ -90,9 +114,117 @@ export default function CreateSalesInvoice() {
     };
   }, [dispatch, id, isEditMode]);
 
+  // Selected products across line items
+  const selectedProductIds = lineItems
+    .map((item) => item.productId)
+    .filter(Boolean);
+
+  // Available stores: if product(s) chosen, only show stores where ALL chosen products have stock > 0
+  const availableStores = (stores || []).filter((store) => {
+    // Inactive stores can never be used for a sale.
+    if (store.isActive === false) return false;
+    if (selectedProductIds.length === 0) return true;
+    return selectedProductIds.every((pId) => {
+      const prod = products?.find((p) => p._id === pId);
+      // Product details still loading (edited draft) — don't hide stores yet.
+      if (!prod) return true;
+      if (!prod.storeStocks) return false;
+      const entry = prod.storeStocks.find(
+        (s) => (s.storeId?._id || s.storeId)?.toString() === store._id.toString()
+      );
+      return entry && Number(entry.stock) > 0;
+    });
+  });
+
+  const selectedStore = stores?.find((s) => s._id?.toString() === selectedStoreId?.toString());
+
+  // Draft saved against a store that is now inactive: warn the user (saving is blocked below).
+  const inactiveDraftStore = draftStoreId
+    ? (stores || []).find((s) => s._id?.toString() === draftStoreId.toString() && s.isActive === false) || null
+    : null;
+  const showInactiveDraftWarning = !!inactiveDraftStore
+    && (!selectedStoreId || selectedStoreId.toString() === draftStoreId.toString());
+
+  // Load product details (incl. stock per store) for lines of an edited invoice.
+  const lineProductKey = selectedProductIds.join(',');
+  useEffect(() => {
+    const missing = [...new Set(lineProductKey.split(',').filter(Boolean))].filter((pid) => !productCache[pid]);
+    if (missing.length === 0) return undefined;
+    let cancelled = false;
+    Promise.all(missing.map((pid) => getProductForLineApi(pid).catch(() => null))).then((rows) => {
+      if (cancelled) return;
+      setProductCache((prev) => {
+        const next = { ...prev };
+        rows.filter(Boolean).forEach((p) => { next[p._id] = p; });
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineProductKey]);
+
+  // Automatically deselect store if the chosen product(s) are not available in it
+  useEffect(() => {
+    if (selectedStoreId && selectedProductIds.length > 0) {
+      const isCurrentStoreValid = availableStores.some(
+        (s) => s._id.toString() === selectedStoreId.toString()
+      );
+      if (!isCurrentStoreValid) {
+        setSelectedStoreId('');
+      }
+    }
+  }, [selectedProductIds.join(','), stores]);
+
+  // Options for Store <Select />
+  const storeOptions = availableStores.map((s) => {
+    let stockDetail = '';
+    if (selectedProductIds.length === 1) {
+      const prod = products?.find((p) => p._id === selectedProductIds[0]);
+      const entry = prod?.storeStocks?.find(
+        (st) => (st.storeId?._id || st.storeId)?.toString() === s._id.toString()
+      );
+      if (entry) {
+        stockDetail = ` (Stock: ${entry.stock})`;
+      }
+    }
+    return {
+      value: s._id,
+      label: `${s.name}${s.code ? ` [${s.code}]` : ''}${stockDetail}${s.isDefault ? ' ⭐ Default' : ''}`,
+    };
+  });
+
+  // Helper to get stock in currently selected store
+  const getProductStoreStock = (productId) => {
+    if (!productId || !products) return null;
+    const prod = products.find((p) => p._id === productId);
+    if (!prod) return null;
+
+    if (selectedStoreId && prod.storeStocks && prod.storeStocks.length > 0) {
+      const storeEntry = prod.storeStocks.find(
+        (s) => (s.storeId?._id || s.storeId)?.toString() === selectedStoreId.toString()
+      );
+      return {
+        available: storeEntry ? Number(storeEntry.stock || 0) : 0,
+        storeSpecific: true,
+        storeCode: selectedStore?.code || selectedStore?.name || '',
+        storeName: selectedStore?.name || '',
+        total: prod.currentStock || 0,
+      };
+    }
+    return {
+      available: prod.currentStock || 0,
+      storeSpecific: false,
+      storeCode: '',
+      storeName: '',
+      total: prod.currentStock || 0,
+    };
+  };
+
   // Populate form if in edit mode
   useEffect(() => {
     if (isEditMode && currentInvoice) {
+      setSelectedStoreId(currentInvoice.storeId?._id || currentInvoice.storeId || '');
+      setDraftStoreId(currentInvoice.storeId?._id || currentInvoice.storeId || '');
       setSelectedCustomerId(currentInvoice.customerId?._id || '');
       setCustomerSnapshot(currentInvoice.customerSnapshot || {
         name: '',
@@ -223,23 +355,42 @@ export default function CreateSalesInvoice() {
     }
   };
 
+  // Line fields taken from a chosen product.
+  const productLineFields = (product) => ({
+    productId: product._id,
+    productName: product.name,
+    sku: product.sku || '',
+    hsnCode: product.hsnCode || '8471',
+    unit: product.unit || 'pcs',
+    rate: product.discountedPrice || product.basePrice || 0,
+    isGstApplicable: !!product.isGstApplicable,
+    taxPercent: product.isGstApplicable ? (product.gstRateOverride || 0) : 0,
+    cessPercent: product.cessPercent || 0,
+  });
+
+  // Scanned product: fill the first empty row, otherwise add a new row.
+  const handleScannedProduct = (product) => {
+    cacheProduct(product);
+    setLineItems((prev) => {
+      const emptyIndex = prev.findIndex((item) => !item.productId);
+      if (emptyIndex !== -1) {
+        return prev.map((item, i) => (i === emptyIndex ? { ...item, ...productLineFields(product) } : item));
+      }
+      return [...prev, { qty: 1, discountPercent: 0, ...productLineFields(product) }];
+    });
+  };
+
   const handleLineItemChange = (index, field, value) => {
     const updated = [...lineItems];
 
     if (field === 'productId') {
-      const product = products.find((p) => p._id === value);
+      // `value` is the product object chosen in the picker (or '' to clear the line).
+      const product = value && typeof value === 'object' ? value : null;
       if (product) {
+        cacheProduct(product);
         updated[index] = {
           ...updated[index],
-          productId: product._id,
-          productName: product.name,
-          sku: product.sku || '',
-          hsnCode: product.hsnCode || '8471',
-          unit: product.unit || 'pcs',
-          rate: product.discountedPrice || product.basePrice || 0,
-          isGstApplicable: !!product.isGstApplicable,
-          taxPercent: product.isGstApplicable ? (product.gstRateOverride || 0) : 0,
-          cessPercent: product.cessPercent || 0,
+          ...productLineFields(product),
         };
       } else {
         updated[index] = {
@@ -328,11 +479,44 @@ export default function CreateSalesInvoice() {
     const gstin = customerSnapshot.gstin;
     const invalidGstin = gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/.test(gstin);
 
-    if (invalidItem || hasInvalidCustomerFields || invalidGstin) {
+    if (!selectedStoreId) {
+      showToast('Dispatch Store / Warehouse is required. Please select a warehouse.', 'danger');
       return;
     }
 
+    if (selectedStore && selectedStore.isActive === false) {
+      showToast(`"${selectedStore.name}" is inactive. Please choose an active store.`, 'danger');
+      return;
+    }
+
+    if (invalidItem || hasInvalidCustomerFields || invalidGstin) {
+      if (invalidItem) {
+        showToast('Please select valid products with positive quantity and rate.', 'danger');
+      } else if (hasInvalidCustomerFields) {
+        showToast('Please fill in required customer details (Name, Phone, Pin Code).', 'danger');
+      } else if (invalidGstin) {
+        showToast('Please enter a valid 15-character GSTIN.', 'danger');
+      }
+      return;
+    }
+
+    if (status !== 'draft') {
+      const outOfStockItem = lineItems.find((item) => {
+        if (!item.productId) return false;
+        const stockInfo = getProductStoreStock(item.productId);
+        return stockInfo && stockInfo.available < Number(item.qty);
+      });
+      if (outOfStockItem) {
+        showToast(
+          `Insufficient stock in selected store for "${outOfStockItem.productName}". Available: ${getProductStoreStock(outOfStockItem.productId)?.available || 0}, Required: ${outOfStockItem.qty}`,
+          'danger'
+        );
+        return;
+      }
+    }
+
     const payload = {
+      storeId: selectedStoreId,
       customerId: selectedCustomerId || null,
       customerSnapshot,
       invoiceDate,
@@ -577,6 +761,47 @@ export default function CreateSalesInvoice() {
             <Card title="Details & Summary" >
 
               <div className="flex flex-col gap-3.5">
+                {/* Dispatch Store */}
+                <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-400">
+                    <StoreIcon className="w-4 h-4" />
+                    <span>Dispatch Store / Warehouse <span className="text-red-500">*</span></span>
+                  </div>
+                  <Select
+                    options={storeOptions}
+                    value={selectedStoreId}
+                    onChange={(val) => setSelectedStoreId(val)}
+                    placeholder={
+                      selectedProductIds.length > 0
+                        ? "Select Warehouse with Stock *"
+                        : "Select Store / Warehouse *"
+                    }
+                    error={isSubmitted && !selectedStoreId}
+                  />
+                  {isSubmitted && !selectedStoreId && (
+                    <div className="text-red-500 text-xs font-medium mt-0.5">
+                      Dispatch Store / Warehouse is required.
+                    </div>
+                  )}
+                  {showInactiveDraftWarning && (
+                    <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400 text-xs font-medium mt-0.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-lg px-2 py-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        This draft was saved for &quot;{inactiveDraftStore.name}&quot;, which is now inactive.
+                        Please choose an active store before saving.
+                      </span>
+                    </div>
+                  )}
+                  {selectedProductIds.length > 0 && availableStores.length === 0 && (
+                    <div className="text-amber-600 dark:text-amber-400 text-xs mt-0.5 font-medium">
+                      ⚠️ No warehouse currently has all selected product(s) in stock.
+                    </div>
+                  )}
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    Stock will be deducted from this store upon sale.
+                  </p>
+                </div>
+
                 <div className="flex flex-col gap-1">
                   <Label>Invoice Date</Label>
                   <Input
@@ -715,9 +940,12 @@ export default function CreateSalesInvoice() {
           title="Line Items"
           bodyClassName="p-2 flex flex-col gap-4"
           rightNode={
-            <Button type="button" onClick={addLineItem} variant="primary" className="!h-8 px-2.5 text-xs">
-              <Plus className="w-3.5 h-3.5 mr-1" /> Add Row
-            </Button>
+            <div className="flex flex-col sm:flex-row sm:items-start gap-2 w-full sm:w-auto">
+              <BarcodeScanInput storeId={selectedStoreId} onProduct={handleScannedProduct} />
+              <Button type="button" onClick={addLineItem} variant="primary" className="!h-8 px-2.5 text-xs">
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add Row
+              </Button>
+            </div>
           }
         >
 
@@ -750,19 +978,46 @@ export default function CreateSalesInvoice() {
                   return (
                     <tr key={idx} className={`${rowBorder} align-middle hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors`}>
                       <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
-                        <select
+                        <ProductSearchPicker
                           value={item.productId}
-                          onChange={(e) => handleLineItemChange(idx, 'productId', e.target.value)}
-                          className={`w-full rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none text-[var(--vs-text-primary)] focus:ring-2 ${isSubmitted && !item.productId ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : 'border-gray-200 dark:border-white/10 focus:border-indigo-500/60 focus:ring-indigo-500/20'}`}
-                        >
-                          <option value="">-- Choose Product --</option>
-                          {products.map((p) => (
-                            <option key={p._id} value={p._id}>
-                              {p.name} {p.barcode ? `(Barcode: ${p.barcode})` : ''}
-                            </option>
-                          ))}
-                        </select>
+                          selectedLabel={item.productName}
+                          storeId={selectedStoreId}
+                          onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
+                          error={isSubmitted && !item.productId}
+                        />
                         {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-1">Product is required</div>}
+                        {item.productId && (() => {
+                          const stockInfo = getProductStoreStock(item.productId);
+                          if (!stockInfo) return null;
+                          const isLow = stockInfo.available <= 0;
+                          const isInsufficient = Number(item.qty || 0) > stockInfo.available;
+
+                          if (!selectedStoreId) {
+                            return (
+                              <div className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/40">
+                                <span>⚠️ Select Warehouse in Details & Summary to view store stock (Total: {stockInfo.total})</span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[11px]">
+                              <span className={`px-2 py-0.5 rounded font-medium inline-flex items-center gap-1 border ${
+                                isLow 
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-900/40' 
+                                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40'
+                              }`}>
+                                <span className="font-semibold">[{stockInfo.storeCode || 'STORE'}]</span>
+                                <span>Remaining Stock: {stockInfo.available} {item.unit || 'units'}</span>
+                              </span>
+                              {isInsufficient && (
+                                <span className="text-rose-600 dark:text-rose-400 font-semibold text-[10px] bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/40">
+                                  ⚠️ Insufficient Stock
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
                         <Input
@@ -849,19 +1104,46 @@ export default function CreateSalesInvoice() {
 
                   <div className="flex flex-col gap-1">
                     <Label>Product <span className="text-red-500">*</span></Label>
-                    <select
+                    <ProductSearchPicker
                       value={item.productId}
-                      onChange={(e) => handleLineItemChange(idx, 'productId', e.target.value)}
-                      className={`w-full rounded-xl border bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none text-[var(--vs-text-primary)] ${isSubmitted && !item.productId ? 'border-red-500' : 'border-gray-200 dark:border-white/10'}`}
-                    >
-                      <option value="">-- Choose Product --</option>
-                      {products.map((p) => (
-                        <option key={p._id} value={p._id}>
-                          {p.name} {p.barcode ? `(${p.barcode})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      selectedLabel={item.productName}
+                      storeId={selectedStoreId}
+                      onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
+                      error={isSubmitted && !item.productId}
+                    />
                     {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-0.5">Product is required</div>}
+                    {item.productId && (() => {
+                      const stockInfo = getProductStoreStock(item.productId);
+                      if (!stockInfo) return null;
+                      const isLow = stockInfo.available <= 0;
+                      const isInsufficient = Number(item.qty || 0) > stockInfo.available;
+
+                      if (!selectedStoreId) {
+                        return (
+                          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/40">
+                            <span>⚠️ Select Warehouse in Details & Summary to view store stock (Total: {stockInfo.total})</span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[11px]">
+                          <span className={`px-2 py-0.5 rounded font-medium inline-flex items-center gap-1 border ${
+                            isLow 
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-900/40' 
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40'
+                          }`}>
+                            <span className="font-semibold">[{stockInfo.storeCode || 'STORE'}]</span>
+                            <span>Remaining Stock: {stockInfo.available} {item.unit || 'units'}</span>
+                          </span>
+                          {isInsufficient && (
+                            <span className="text-rose-600 dark:text-rose-400 font-semibold text-[10px] bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/40">
+                              ⚠️ Insufficient Stock
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -915,15 +1197,26 @@ export default function CreateSalesInvoice() {
             })}
           </div>
 
-          {isSubmitted && lineItems.some(item => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0) && (
-            <div className="text-red-500 text-sm mt-2 font-medium">
-              Please fill out all required line items with valid products, quantities, and rates.
-            </div>
-          )}
-        </Card>
-
-
+        {isSubmitted && lineItems.some(item => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0) && (
+          <div className="text-red-500 text-sm mt-2 font-medium">
+            Please fill out all required line items with valid products, quantities, and rates.
+          </div>
+        )}
       </Card>
+      </Card>
+
+      {/* Toast Notifications */}
+      <CToaster className="p-3" style={{ zIndex: 99999, position: 'fixed', bottom: '20px', right: '20px' }}>
+        {toasts.map((t) => (
+          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2 shadow-lg">
+            <div className="d-flex">
+              <CToastBody className="flex items-center gap-2 font-semibold">
+                {t.message}
+              </CToastBody>
+            </div>
+          </CToast>
+        ))}
+      </CToaster>
     </div>
   );
 }

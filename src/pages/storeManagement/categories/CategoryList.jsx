@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Image as ImageIcon } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { encryptData } from '@/utility/crypto';
 import { formatDateWithTiming } from '@/utility/dateTiming';
 import Button from '@/components/inputs/Button';
@@ -14,6 +14,7 @@ import {
 } from './services/categorySlice';
 import Card from '../../../components/breadCrumbs/Card';
 import DeleteModal from '@/components/modal/DeleteModal';
+import { useToasts } from '../products/utils/productUtils';
 import { CToaster, CToast, CToastBody } from '@coreui/react';
 
 export default function CategoryList() {
@@ -22,19 +23,11 @@ export default function CategoryList() {
   const location = useLocation();
   const { categories, pagination, loading, toast: reduxToast } = useSelector((state) => state.category);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, categoryId: null });
-  const [toasts, setToasts] = useState([]);
+  const { toasts, showToast } = useToasts(5000);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [sort, setSort] = useState('createdAt');
   const [order, setOrder] = useState('desc');
-
-  const showToast = (message, color = 'success') => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, color }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
-  };
 
   useEffect(() => {
     dispatch(getCategories({ page: 1, limit: 10, sort, order, search: '' }));
@@ -45,14 +38,14 @@ export default function CategoryList() {
       showToast(location.state.message, location.state.color || 'success');
       window.history.replaceState({}, document.title);
     }
-  }, [location]);
+  }, [location, showToast]);
 
   useEffect(() => {
     if (reduxToast) {
       showToast(reduxToast.message, reduxToast.color);
       dispatch(clearCategoryToast());
     }
-  }, [reduxToast, dispatch]);
+  }, [reduxToast, dispatch, showToast]);
 
   const handleDeleteClick = (item) => {
     setDeleteModal({ isOpen: true, categoryId: item._id });

@@ -11,7 +11,7 @@ export const logoutApi = async () => {
 };
 
 export const changePasswordApi = async (data) => {
-  const response = await apiClient.post('/auth/change-password', data);
+  const response = await apiClient.put('/auth/change-password', data);
   return response.data;
 };
 
@@ -21,7 +21,7 @@ export const forgotPasswordApi = async (emailData) => {
 };
 
 export const resetPasswordApi = async (resetToken, data) => {
-  const response = await apiClient.post(`/auth/reset-password/${resetToken}`, data);
+  const response = await apiClient.put(`/auth/reset-password/${resetToken}`, data);
   return response.data;
 };
 

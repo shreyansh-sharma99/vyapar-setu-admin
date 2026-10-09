@@ -14,6 +14,7 @@ import {
 } from './services/subcategorySlice';
 import Card from '../../../components/breadCrumbs/Card';
 import DeleteModal from '@/components/modal/DeleteModal';
+import { useToasts } from '../products/utils/productUtils';
 import { CToaster, CToast, CToastBody } from '@coreui/react';
 
 export default function SubcategoryList() {
@@ -26,7 +27,7 @@ export default function SubcategoryList() {
 
   const { subcategories, pagination, loading, toast: reduxToast } = useSelector((state) => state.subcategory);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, subCategoryId: null });
-  const [toasts, setToasts] = useState([]);
+  const { toasts, showToast } = useToasts(5000);
   const [searchTerm, setSearchTerm] = useState('');
 
   const [params, setParams] = useState({
@@ -38,14 +39,6 @@ export default function SubcategoryList() {
     ...(initialCategoryId ? { categoryId: initialCategoryId } : {}),
   });
 
-  const showToast = (message, color = 'success') => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, color }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
-  };
-
   useEffect(() => {
     dispatch(getSubcategories(params));
   }, [dispatch, params]);
@@ -55,14 +48,14 @@ export default function SubcategoryList() {
       showToast(location.state.message, location.state.color || 'success');
       window.history.replaceState({}, document.title);
     }
-  }, [location]);
+  }, [location, showToast]);
 
   useEffect(() => {
     if (reduxToast) {
       showToast(reduxToast.message, reduxToast.color);
       dispatch(clearSubcategoryToast());
     }
-  }, [reduxToast, dispatch]);
+  }, [reduxToast, dispatch, showToast]);
 
   const handleDeleteClick = (item) => {
     setDeleteModal({ isOpen: true, subCategoryId: item._id });

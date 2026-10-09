@@ -19,6 +19,7 @@ import {
   Hash,
   MapPin,
   Phone,
+  Store as StoreIcon,
 } from 'lucide-react';
 import { decryptData, encryptData } from '@/utility/crypto';
 import Button from '@/components/inputs/Button';
@@ -397,8 +398,19 @@ export default function SalesInvoiceDetails() {
                 <InfoRow icon={<Calendar className="w-3.5 h-3.5" />} label="Invoice Date" value={currentInvoice.invoiceDate ? new Date(currentInvoice.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
                 <InfoRow icon={<Calendar className="w-3.5 h-3.5" />} label="Due Date" value={currentInvoice.dueDate ? new Date(currentInvoice.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Immediate'} />
               </div>
-              <div className=" pt-2">
+              <div className="pt-2 flex flex-col gap-2">
                 <InfoRow icon={<MapPin className="w-3.5 h-3.5" />} label="Place of Supply" value={currentInvoice.placeOfSupply} />
+                {(currentInvoice.storeSnapshot?.name || currentInvoice.storeId?.name) && (
+                  <InfoRow
+                    icon={<StoreIcon className="w-3.5 h-3.5" />}
+                    label="Dispatch Warehouse"
+                    value={
+                      currentInvoice.storeSnapshot?.name
+                        ? `${currentInvoice.storeSnapshot.name} ${currentInvoice.storeSnapshot.code ? `[${currentInvoice.storeSnapshot.code}]` : ''}`
+                        : (currentInvoice.storeId?.name || '—')
+                    }
+                  />
+                )}
               </div>
             </Card>
 

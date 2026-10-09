@@ -254,7 +254,7 @@ const salesInvoiceSlice = createSlice({
         if (action.payload.data) {
           state.invoices.unshift(action.payload.data);
         }
-        state.toast = { message: 'Invoice created successfully.', color: 'success' };
+        state.toast = { message: action.payload?.message || 'Invoice created successfully.', color: 'success' };
       })
       .addCase(createSalesInvoice.rejected, (state, action) => {
         state.loading = false;
@@ -291,7 +291,7 @@ const salesInvoiceSlice = createSlice({
         if (index !== -1) {
           state.invoices[index] = updated;
         }
-        state.toast = { message: 'Invoice updated successfully.', color: 'success' };
+        state.toast = { message: action.payload?.message || 'Invoice updated successfully.', color: 'success' };
       })
       .addCase(updateSalesInvoice.rejected, (state, action) => {
         state.loading = false;

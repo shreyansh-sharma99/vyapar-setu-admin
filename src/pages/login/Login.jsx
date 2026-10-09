@@ -8,13 +8,14 @@ import { Label } from '@/components/inputs/Label';
 import { Input } from '@/components/inputs/Input';
 import Button from '@/components/inputs/Button';
 import { forgotPasswordApi } from '@/pages/login/services/authService';
+import { getHomePath } from '@/utility/shopPermissions';
 
 export default function Login() {
     const { register, handleSubmit, watch, formState: { errors } } = useForm();
     const loginEmail = watch("email");
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const { loading, error, isAuthenticated } = useSelector((state) => state.auth);
+    const { loading, error, isAuthenticated, user } = useSelector((state) => state.auth);
     const [showPassword, setShowPassword] = useState(false);
     const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
@@ -37,9 +38,10 @@ export default function Login() {
 
     useEffect(() => {
         if (isAuthenticated) {
-            navigate('/', { replace: true });
+            // Staff without dashboard access land on the first page their role allows.
+            navigate(getHomePath(user), { replace: true });
         }
-    }, [isAuthenticated, navigate]);
+    }, [isAuthenticated, user, navigate]);
 
     const onSubmit = (data) => {
         dispatch(loginUser(data));

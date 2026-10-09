@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import CIcon from '@coreui/icons-react';
 import {
-  cilMenu, cilBell, cilSun, cilMoon,
-  cilEnvelopeOpen, cilChevronBottom, cilUser,
+  cilMenu, cilSun, cilMoon,
+  cilChevronBottom, cilUser,
   cilSettings, cilExitToApp,
 } from '@coreui/icons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -12,6 +12,7 @@ import { clearSettingsToast } from '../../pages/settings/services/settingsSlice'
 import { Loader2 } from 'lucide-react';
 import { CToaster, CToast, CToastBody } from '@coreui/react';
 import SettingsModal from '../../pages/settings/components/SettingsModal';
+import { isOwner } from '@/utility/shopPermissions';
 
 export default function Header({
   sidebarOpen, setSidebarOpen,
@@ -19,7 +20,7 @@ export default function Header({
   setDarkMode,
 }) {
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
+  const [, setNotifOpen] = useState(false); // notifications panel is currently disabled
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Only used to pick the correct toggle icon (sun vs moon); CSS vars handle all colors.
@@ -32,6 +33,13 @@ export default function Header({
   const navigate = useNavigate();
   const { toast: reduxToast } = useSelector((state) => state.settings || {});
   const { user } = useSelector((state) => state.auth || {});
+  const owner = isOwner(user);
+  // Staff see their role; the owner sees "Owner".
+  const roleLabel = owner ? 'Owner' : (user?.roleName || 'Staff');
+  const designationRaw = owner ? '' : user?.designation;
+  const designationLabel = typeof designationRaw === 'string' ? designationRaw : (designationRaw?.name || '');
+  // Short line under the name for staff: "Designation · Role".
+  const staffLine = designationLabel ? `${designationLabel} · ${roleLabel}` : roleLabel;
 
   const showToast = (message, color = 'success') => {
     const id = Date.now();
@@ -74,7 +82,7 @@ export default function Header({
   const hamburgerBtn = `flex h-9 w-9 items-center justify-center !rounded-[6px] border !border-blue-600 bg-transparent text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors cursor-pointer`;
 
   return (
-    <header className="sticky top-0 z-40 flex w-full h-12 items-center px-3 md:px-4 shrink-0
+    <header className="print:hidden sticky top-0 z-40 flex w-full h-12 items-center px-3 md:px-4 shrink-0
       bg-[var(--vs-bg-primary)] border-b border-[var(--vs-border)] transition-colors duration-300 relative">
 
       {/* ── Left: hamburger ── */}
@@ -168,9 +176,16 @@ export default function Header({
             <div className="h-7 w-7 rounded-full overflow-hidden ring-2 ring-indigo-500/20 shrink-0 flex items-center justify-center bg-indigo-500 text-white font-bold text-xs">
               {user?.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U'}
             </div>
-            <p className="hidden md:block text-sm font-semibold whitespace-nowrap m-0 text-[var(--vs-text-primary)]">
-              {user?.name || 'Admin'}
-            </p>
+            <div className="hidden md:flex flex-col items-start leading-tight">
+              <p className="text-sm font-semibold whitespace-nowrap m-0 text-[var(--vs-text-primary)]">
+                {user?.name || 'Admin'}
+              </p>
+              {!owner && (
+                <span className="text-[10px] font-medium text-[var(--vs-text-secondary)] whitespace-nowrap">
+                  {staffLine}
+                </span>
+              )}
+            </div>
             <CIcon
               icon={cilChevronBottom}
               className="hidden md:block w-3 h-3 shrink-0 m-0 text-[var(--vs-header-icon)]"
@@ -188,11 +203,28 @@ export default function Header({
                 <p className="text-xs text-[var(--vs-text-secondary)] mt-0.5 mb-0 truncate">
                   {user?.email || 'admin@example.com'}
                 </p>
+                <span className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${owner
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20'
+                  : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20'}`}
+                >
+                  {roleLabel}
+                </span>
+                {designationLabel && (
+                  <p className="text-[11px] text-[var(--vs-text-secondary)] mt-1 mb-0 truncate">
+                    {designationLabel}
+                  </p>
+                )}
+                {!owner && user?.businessName && (
+                  <p className="text-[11px] text-[var(--vs-text-secondary)] mt-1 mb-0 truncate">
+                    {user.businessName}
+                  </p>
+                )}
               </div>
 
               {[
                 { icon: cilUser, label: 'My Profile' },
-                { icon: cilSettings, label: 'Settings' },
+                // Shop settings are owner only.
+                ...(owner ? [{ icon: cilSettings, label: 'Settings' }] : []),
               ].map((item, i) => (
                 <a
                   key={i}
@@ -240,7 +272,7 @@ export default function Header({
           )}
         </div>
       </div>
-      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {owner && <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />}
 
       <CToaster className="p-3" style={{ zIndex: 9999999, position: 'fixed', bottom: '20px', right: '20px' }}>
         {toasts.map((t) => (

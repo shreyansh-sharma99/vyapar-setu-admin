@@ -14,6 +14,7 @@ import {
 } from './services/manufacturerSlice';
 import Card from '../../../components/breadCrumbs/Card';
 import DeleteModal from '@/components/modal/DeleteModal';
+import { useToasts } from '../products/utils/productUtils';
 import { CToaster, CToast, CToastBody } from '@coreui/react';
 
 export default function ManufacturerList() {
@@ -23,7 +24,7 @@ export default function ManufacturerList() {
 
   const { manufacturers, pagination, loading, toast: reduxToast } = useSelector((state) => state.manufacturer);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, manufacturerId: null });
-  const [toasts, setToasts] = useState([]);
+  const { toasts, showToast } = useToasts(5000);
   const [searchTerm, setSearchTerm] = useState('');
 
   const [params, setParams] = useState({
@@ -34,14 +35,6 @@ export default function ManufacturerList() {
     search: '',
   });
 
-  const showToast = (message, color = 'success') => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, color }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
-  };
-
   useEffect(() => {
     dispatch(getManufacturers(params));
   }, [dispatch, params]);
@@ -51,14 +44,14 @@ export default function ManufacturerList() {
       showToast(location.state.message, location.state.color || 'success');
       window.history.replaceState({}, document.title);
     }
-  }, [location]);
+  }, [location, showToast]);
 
   useEffect(() => {
     if (reduxToast) {
       showToast(reduxToast.message, reduxToast.color);
       dispatch(clearManufacturerToast());
     }
-  }, [reduxToast, dispatch]);
+  }, [reduxToast, dispatch, showToast]);
 
   const handleDeleteClick = (item) => {
     setDeleteModal({ isOpen: true, manufacturerId: item._id });

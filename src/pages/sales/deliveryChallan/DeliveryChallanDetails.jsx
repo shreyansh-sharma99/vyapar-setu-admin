@@ -270,6 +270,17 @@ export default function DeliveryChallanDetails() {
             <Card title="Challan Info" bodyClassName="px-4 py-4 flex flex-col gap-4">
               <InfoRow icon={<Calendar className="w-3.5 h-3.5" />} label="Challan Date" value={challan.challanDate ? new Date(challan.challanDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
               <div className="pt-2 border-t border-[var(--vs-border)]">
+                <InfoRow
+                  icon={<Building2 className="w-3.5 h-3.5" />}
+                  label="Dispatch Store / Warehouse"
+                  value={
+                    challan.storeSnapshot?.name
+                      ? `${challan.storeSnapshot.name}${challan.storeSnapshot.code ? ` (${challan.storeSnapshot.code})` : ''}`
+                      : (challan.storeId?.name || '—')
+                  }
+                />
+              </div>
+              <div className="pt-2 border-t border-[var(--vs-border)]">
                 <InfoRow icon={<Truck className="w-3.5 h-3.5" />} label="Vehicle Number" value={challan.vehicleNumber || '—'} />
               </div>
               <div className="pt-2 border-t border-[var(--vs-border)]">

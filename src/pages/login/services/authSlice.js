@@ -1,7 +1,32 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { loginApi, logoutApi, changePasswordApi, forgotPasswordApi, resetPasswordApi } from './authService';
 import { encryptData, decryptData } from '@/utility/crypto';
-import { storePermissions } from '@/utility/permission';
+
+/**
+ * Login and GET /auth/profile return a flat user object:
+ *   owner: { _id, name, email, businessName, userType: 'owner', ... }
+ *   staff: { _id, name, email, userType: 'staff', roleName, permissions[], storeIds[], businessName, adminId }
+ * Make sure the access fields are always present with the right types.
+ */
+export const normalizeUser = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  const userType = raw.userType === 'staff' ? 'staff' : 'owner';
+  return {
+    ...raw,
+    userType,
+    roleName: userType === 'staff' ? (raw.roleName || 'Staff') : (raw.roleName || ''),
+    roleId: raw.roleId ? String(raw.roleId?._id || raw.roleId) : null,
+    designationId: raw.designationId ? String(raw.designationId?._id || raw.designationId) : null,
+    designation: typeof raw.designation === 'string' ? raw.designation : (raw.designation?.name || ''),
+    permissions: Array.isArray(raw.permissions) ? raw.permissions : [],
+    storeIds: Array.isArray(raw.storeIds) ? raw.storeIds.map((s) => String(s?._id || s)) : [],
+  };
+};
+
+const persistUser = (user) => {
+  localStorage.setItem('vyaparsetu', encryptData(JSON.stringify(user)));
+  if (user?.userType) localStorage.setItem('userType', user.userType);
+};
 
 const getInitialAuth = () => {
   const vsetu = localStorage.getItem('vyaparsetu');
@@ -13,7 +38,7 @@ const getInitialAuth = () => {
       const decrypted = decryptData(vsetu);
       if (decrypted) {
         const parsed = JSON.parse(decrypted);
-        user = parsed.owner || parsed.user || (parsed.data ? (parsed.data.owner || parsed.data.user || parsed.data) : null) || parsed;
+        user = normalizeUser(parsed.owner || parsed.user || (parsed.data ? (parsed.data.owner || parsed.data.user || parsed.data) : null) || parsed);
         const encryptedToken = localStorage.getItem('_v_at');
         if (encryptedToken) {
           const decryptedToken = decryptData(encryptedToken);
@@ -65,8 +90,8 @@ export const logoutUser = createAsyncThunk(
     } finally {
       // Always clear local state even if API fails
       dispatch(logout());
-      return true;
     }
+    return true;
   }
 );
 
@@ -132,7 +157,7 @@ const authSlice = createSlice({
         state.loading = false;
         if (action.payload?.data) {
           state.isAuthenticated = true;
-          const loggedInUser = action.payload.data.owner || action.payload.data.user || action.payload.data;
+          const loggedInUser = normalizeUser(action.payload.data.owner || action.payload.data.user || action.payload.data);
           state.user = loggedInUser;
           const token = action.payload.accessToken || action.payload.data.accessToken;
           const refreshToken = action.payload.refreshToken || action.payload.data.refreshToken;
@@ -143,13 +168,8 @@ const authSlice = createSlice({
           if (refreshToken) {
             localStorage.setItem('_v_rt', encryptData(refreshToken));
           }
-          if (loggedInUser?.userType) {
-            localStorage.setItem('userType', loggedInUser.userType);
-          }
-
-          const encryptedString = encryptData(JSON.stringify(action.payload.data));
-          localStorage.setItem('vyaparsetu', encryptedString);
-          storePermissions(action.payload.data);
+          // Saves userType, roleName, permissions and storeIds with the rest of the user.
+          persistUser(loggedInUser);
         }
       })
       .addCase(loginUser.rejected, (state, action) => {
@@ -186,7 +206,20 @@ const authSlice = createSlice({
       .addCase(resetPassword.rejected, (state, action) => {
         state.resetPasswordLoading = false;
         state.error = action.payload;
-      });
+      })
+      // Fresh profile (GET /auth/profile, see userSlice.fetchUserProfile): keeps role,
+      // permissions and store access current after the owner edits a staff member.
+      // Matched by type string to avoid a circular import with userSlice.
+      .addMatcher(
+        (action) => action.type === 'user/fetchProfile/fulfilled',
+        (state, action) => {
+          const profile = action.payload?.success ? action.payload.data : null;
+          if (!profile || !state.isAuthenticated) return;
+          const merged = normalizeUser({ ...(state.user || {}), ...profile });
+          state.user = merged;
+          persistUser(merged);
+        }
+      );
   },
 });
 

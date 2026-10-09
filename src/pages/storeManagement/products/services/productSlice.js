@@ -7,6 +7,9 @@ import {
   changeProductStatusApi,
   deleteProductApi,
   getProductByBarcodeApi,
+  generateBarcodesApi,
+  getProductVariantsApi,
+  createProductVariantsApi,
 } from './productService';
 
 export const getProducts = createAsyncThunk(
@@ -107,6 +110,48 @@ export const getProductByBarcode = createAsyncThunk(
   }
 );
 
+export const generateBarcodes = createAsyncThunk(
+  'product/generateBarcodes',
+  async (productIds, { rejectWithValue }) => {
+    try {
+      const data = await generateBarcodesApi(productIds);
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to generate barcodes'
+      );
+    }
+  }
+);
+
+export const getProductVariants = createAsyncThunk(
+  'product/getProductVariants',
+  async (productId, { rejectWithValue }) => {
+    try {
+      const data = await getProductVariantsApi(productId);
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to load variants'
+      );
+    }
+  }
+);
+
+export const createProductVariants = createAsyncThunk(
+  'product/createProductVariants',
+  async ({ productId, variants }, { rejectWithValue }) => {
+    try {
+      const data = await createProductVariantsApi(productId, variants);
+      return data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to create variants'
+      );
+    }
+  }
+);
+
 const initialState = {
   products: [],
   currentProduct: null,
@@ -115,6 +160,11 @@ const initialState = {
   error: null,
   success: false,
   toast: null,
+  variants: [],
+  variantGroupId: null,
+  variantsLoading: false,
+  variantsSaving: false,
+  generatingBarcodes: false,
 };
 
 const productSlice = createSlice({
@@ -234,6 +284,55 @@ const productSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
         state.toast = { message: action.payload || 'Failed to update product status.', color: 'danger' };
+      })
+
+      .addCase(generateBarcodes.pending, (state) => {
+        state.generatingBarcodes = true;
+      })
+      .addCase(generateBarcodes.fulfilled, (state, action) => {
+        state.generatingBarcodes = false;
+        const assigned = action.payload.data || [];
+        assigned.forEach((a) => {
+          const p = state.products.find((x) => x._id === a.productId);
+          if (p) p.barcode = a.barcode;
+        });
+        state.toast = {
+          message: assigned.length
+            ? `${assigned.length} barcode${assigned.length === 1 ? '' : 's'} generated.`
+            : 'No barcodes generated: every product already has one.',
+          color: assigned.length ? 'success' : 'info',
+        };
+      })
+      .addCase(generateBarcodes.rejected, (state, action) => {
+        state.generatingBarcodes = false;
+        state.toast = { message: action.payload || 'Failed to generate barcodes.', color: 'danger' };
+      })
+
+      .addCase(getProductVariants.pending, (state) => {
+        state.variantsLoading = true;
+      })
+      .addCase(getProductVariants.fulfilled, (state, action) => {
+        state.variantsLoading = false;
+        state.variants = action.payload.data?.variants || [];
+        state.variantGroupId = action.payload.data?.variantGroupId || null;
+      })
+      .addCase(getProductVariants.rejected, (state) => {
+        state.variantsLoading = false;
+        state.variants = [];
+        state.variantGroupId = null;
+      })
+
+      .addCase(createProductVariants.pending, (state) => {
+        state.variantsSaving = true;
+      })
+      .addCase(createProductVariants.fulfilled, (state, action) => {
+        state.variantsSaving = false;
+        const created = action.payload.data || [];
+        state.toast = { message: action.payload.message || `${created.length} variant(s) created.`, color: 'success' };
+      })
+      .addCase(createProductVariants.rejected, (state, action) => {
+        state.variantsSaving = false;
+        state.toast = { message: action.payload || 'Failed to create variants.', color: 'danger' };
       })
 
       .addCase(getProductByBarcode.pending, (state) => {

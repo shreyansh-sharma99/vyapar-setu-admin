@@ -26,6 +26,7 @@ export default function CreateSubcategory() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
+  const [fileError, setFileError] = useState(null);
 
   const { register, handleSubmit, control, reset, formState: { errors } } = useForm({
     defaultValues: {
@@ -43,9 +44,6 @@ export default function CreateSubcategory() {
   useEffect(() => {
     if (success) {
       reset();
-      setSelectedFile(null);
-      setImagePreview(null);
-      setUploadedImageUrl(null);
       dispatch(resetSubcategoryStatus());
       navigate('/subcategories', { state: { message: 'Subcategory created successfully.', color: 'success' } });
     }
@@ -55,10 +53,11 @@ export default function CreateSubcategory() {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('File size exceeds the 5MB limit.');
+        setFileError('File size exceeds the 5 MB limit. Please choose a smaller image.');
         return;
       }
       setSelectedFile(file);
+      setFileError(null);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
@@ -162,10 +161,14 @@ export default function CreateSubcategory() {
                 onUploadSuccess={handleUploadSuccess}
                 onRemove={() => {
                   setSelectedFile(null);
+                  setFileError(null);
                   setImagePreview(null);
                   setUploadedImageUrl(null);
                 }}
               />
+              {fileError && (
+                <span className="text-xs text-red-500 mt-1 block">{fileError}</span>
+              )}
             </div>
 
             {error && (

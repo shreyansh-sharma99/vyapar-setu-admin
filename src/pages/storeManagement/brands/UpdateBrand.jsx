@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
-import { ArrowLeft, Loader2, X } from 'lucide-react';
+import { ArrowLeft, Loader2, X, Trash2 } from 'lucide-react';
 import { Label } from '@/components/inputs/Label';
 import { Input } from '@/components/inputs/Input';
 import Button from '@/components/inputs/Button';
@@ -25,11 +25,13 @@ export default function UpdateBrand() {
 
   const { currentBrand, loading, error, success } = useSelector((state) => state.brand);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [newPreview, setNewPreview] = useState(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const [fileError, setFileError] = useState(null);
+  const [isInitialized, setIsInitialized] = useState(!id);
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
 
-  const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm({
     defaultValues: {
       name: '',
       description: '',
@@ -42,8 +44,6 @@ export default function UpdateBrand() {
       dispatch(getBrandById(id)).finally(() => {
         setIsInitialized(true);
       });
-    } else {
-      setIsInitialized(true);
     }
   }, [dispatch, id]);
 
@@ -51,7 +51,6 @@ export default function UpdateBrand() {
     if (currentBrand) {
       setValue('name', currentBrand.name);
       setValue('description', currentBrand.description || '');
-      setImagePreview(currentBrand.logo || null);
     }
   }, [currentBrand, setValue]);
 
@@ -62,23 +61,39 @@ export default function UpdateBrand() {
     }
   }, [success, dispatch, navigate]);
 
+  const existingImage = currentBrand?.logo || '';
+  const imagePreview = newPreview || uploadedImageUrl || (!imageRemoved && existingImage ? existingImage : null);
+
+  // Drop a newly picked image; if there is none, mark the saved image for removal.
+  const handleRemoveImage = () => {
+    const hadNewImage = !!(newPreview || uploadedImageUrl || selectedFile);
+    setSelectedFile(null);
+    setNewPreview(null);
+    setUploadedImageUrl(null);
+    setFileError(null);
+    if (!hadNewImage) setImageRemoved(true);
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('File size exceeds the 5MB limit.');
+        setFileError('File size exceeds the 5 MB limit. Please choose a smaller image.');
         return;
       }
       setSelectedFile(file);
+      setFileError(null);
+      setImageRemoved(false);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result);
+        setNewPreview(reader.result);
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleUploadSuccess = (response) => {
+    setImageRemoved(false);
     if (response && response.data && response.data.url) {
       setUploadedImageUrl(response.data.url);
     } else if (response && typeof response === 'string') {
@@ -87,9 +102,7 @@ export default function UpdateBrand() {
   };
 
   const onSubmit = (data) => {
-    const finalImageUrl = uploadedImageUrl !== null
-      ? uploadedImageUrl
-      : (imagePreview ? (currentBrand?.logo || '') : '');
+    const finalImageUrl = uploadedImageUrl || (imageRemoved ? '' : existingImage);
 
     const payload = {
       name: data.name.trim(),
@@ -164,12 +177,32 @@ export default function UpdateBrand() {
                 imagePreview={imagePreview}
                 onChange={handleFileChange}
                 onUploadSuccess={handleUploadSuccess}
-                onRemove={() => {
-                  setSelectedFile(null);
-                  setImagePreview(null);
-                  setUploadedImageUrl(null);
-                }}
+                onRemove={handleRemoveImage}
               />
+              {fileError && (
+                <span className="text-xs text-red-500 mt-1 block">{fileError}</span>
+              )}
+              {existingImage && !imageRemoved && !newPreview && !uploadedImageUrl && (
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Remove image
+                </button>
+              )}
+              {existingImage && imageRemoved && !uploadedImageUrl && !newPreview && (
+                <div className="mt-2 text-xs text-[var(--vs-text-secondary)]">
+                  The current image will be removed when you save.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setImageRemoved(false)}
+                    className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    Undo
+                  </button>
+                </div>
+              )}
             </div>
 
             {error && (

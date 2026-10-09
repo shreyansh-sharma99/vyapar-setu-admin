@@ -152,7 +152,7 @@ const invoiceSettingSlice = createSlice({
       .addCase(createInvoiceSetting.fulfilled, (state, action) => {
         state.saving = false;
         state.success = true;
-        state.successMessage = 'Invoice setting profile created successfully';
+        state.successMessage = action.payload?.message || 'Invoice setting profile created successfully';
         const newProfile = action.payload.data || action.payload;
         if (newProfile) {
           if (newProfile.isDefault) {
@@ -189,7 +189,7 @@ const invoiceSettingSlice = createSlice({
       .addCase(updateInvoiceSetting.fulfilled, (state, action) => {
         state.saving = false;
         state.success = true;
-        state.successMessage = 'Invoice setting profile updated successfully';
+        state.successMessage = action.payload?.message || 'Invoice setting profile updated successfully';
         const updated = action.payload.data || action.payload;
         if (updated && updated._id) {
           state.profiles = state.profiles.map((p) => {

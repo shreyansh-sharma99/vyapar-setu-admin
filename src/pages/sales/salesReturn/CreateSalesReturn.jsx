@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { ArrowLeft, Save, Send, Trash2, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, Save, Send, Info } from 'lucide-react';
 import { decryptData } from '@/utility/crypto';
 import Button from '@/components/inputs/Button';
 import Card from '../../../components/breadCrumbs/Card';
@@ -19,6 +19,25 @@ import {
   resetReturnStatus,
 } from './services/salesReturnSlice';
 
+/** Good → back to sellable stock; Damaged → damaged stock (not for sale). */
+function ConditionSelect({ value, onChange, disabled = false }) {
+  const isDamaged = value === 'damaged';
+  return (
+    <select
+      value={isDamaged ? 'damaged' : 'good'}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      title={isDamaged ? 'Goes to damaged stock — not available for sale' : 'Goes back to sellable stock'}
+      className={`w-full h-9 rounded-lg border px-2 text-sm outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:border-indigo-500/60 ${isDamaged
+        ? 'border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'
+        : 'border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 text-[var(--vs-text-primary)]'}`}
+    >
+      <option value="good">Good</option>
+      <option value="damaged">Damaged</option>
+    </select>
+  );
+}
+
 export default function CreateSalesReturn() {
   const { id: encryptedId } = useParams();
   const navigate = useNavigate();
@@ -28,7 +47,7 @@ export default function CreateSalesReturn() {
   const isEditMode = !!id;
 
   const { currentReturn, loading: returnLoading, success, error } = useSelector((s) => s.salesReturn);
-  const { invoices, loading: invoicesLoading } = useSelector((s) => s.salesInvoice);
+  const { invoices } = useSelector((s) => s.salesInvoice);
 
   // ─── Local State ─────────────────────────────────────────────────────────────
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
@@ -112,6 +131,7 @@ export default function CreateSalesReturn() {
               discountPercent: retItem.discountPercent,
               taxPercent: retItem.taxPercent,
               returnReason: retItem.returnReason || '',
+              condition: retItem.condition === 'damaged' ? 'damaged' : 'good',
               maxQty: match ? match.qty : retItem.qty, // Fallback to returned qty if match not found
               included: true,
             };
@@ -128,6 +148,7 @@ export default function CreateSalesReturn() {
             discountPercent: invItem.discountPercent,
             taxPercent: invItem.taxPercent,
             returnReason: '',
+            condition: 'good',
             maxQty: invItem.qty,
             included: false,
           }));
@@ -212,6 +233,7 @@ export default function CreateSalesReturn() {
         discountPercent: Number(item.discountPercent),
         taxPercent: Number(item.taxPercent),
         returnReason: item.returnReason,
+        condition: item.condition === 'damaged' ? 'damaged' : 'good',
       })),
     };
 
@@ -400,6 +422,15 @@ export default function CreateSalesReturn() {
             title="Returnable Line Items"
             bodyClassName="p-2 flex flex-col gap-4 mt-6"
           >
+            <div className="flex items-start gap-2 text-xs rounded-xl px-3 py-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-amber-800 dark:text-amber-300">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Set the <strong>Condition</strong> of each returned item. <strong>Good</strong> items go back into sellable stock.
+                {' '}<strong>Damaged</strong> items are moved to damaged stock — they will not be available for sale and can later be
+                restored or written off from Inventory → Damaged Stock.
+              </span>
+            </div>
+
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-300 dark:border-white/20">
               <table className="w-full text-sm border-collapse min-w-[700px]">
@@ -411,7 +442,8 @@ export default function CreateSalesReturn() {
                     <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[15%] text-center">Rate (₹)</th>
                     <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[12%] text-center">GST (%)</th>
                     <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[12%] text-center">Return Qty</th>
-                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[20%] text-center">Return Reason</th>
+                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[12%] text-center">Condition</th>
+                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[18%] text-center">Return Reason</th>
                     <th className="py-3 px-3 border-b border-gray-300 dark:border-white/20 text-center">Total (₹)</th>
                   </tr>
                 </thead>
@@ -468,6 +500,13 @@ export default function CreateSalesReturn() {
                               Qty must be 1 to {item.maxQty}
                             </div>
                           )}
+                        </td>
+                        <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-middle">
+                          <ConditionSelect
+                            value={item.condition}
+                            disabled={!item.included}
+                            onChange={(val) => handleLineItemChange(idx, 'condition', val)}
+                          />
                         </td>
                         <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-middle">
                           <input
@@ -557,6 +596,14 @@ export default function CreateSalesReturn() {
                               className="h-10 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 text-sm outline-none text-[var(--vs-text-primary)] focus:border-indigo-500/60"
                             />
                           </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <Label>Condition</Label>
+                          <ConditionSelect
+                            value={item.condition}
+                            onChange={(val) => handleLineItemChange(idx, 'condition', val)}
+                          />
                         </div>
 
                         <div className="flex justify-between items-center border-t border-gray-150 dark:border-white/5 pt-2 mt-1 text-sm font-semibold">

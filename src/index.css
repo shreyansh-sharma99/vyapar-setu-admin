@@ -376,3 +376,51 @@ button:not([class]):focus {
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: #344054;
 }
+
+/* ── Submenu active dot radar wave & blink animations ── */
+@keyframes sub-dot-wave {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  60% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+@keyframes sub-dot-blink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: drop-shadow(0 0 4px var(--color-primary, #6366f1));
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.85);
+    filter: drop-shadow(0 0 0px transparent);
+  }
+}
+
+.animate-sub-wave {
+  animation: sub-dot-wave 2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.animate-sub-wave-delayed {
+  animation: sub-dot-wave 2s cubic-bezier(0, 0.2, 0.8, 1) 0.85s infinite;
+}
+
+.animate-sub-blink {
+  animation: sub-dot-blink 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sub-wave,
+  .animate-sub-wave-delayed,
+  .animate-sub-blink {
+    animation: none;
+  }
+}

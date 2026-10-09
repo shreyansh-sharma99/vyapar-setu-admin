@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Settings, Loader2, X } from 'lucide-react';
+import { Settings, Loader2, X, Eye, EyeOff } from 'lucide-react';
 import Button from '@/components/inputs/Button';
 import { Input } from '@/components/inputs/Input';
 import { fetchSettings, updateSettings } from '../services/settingsSlice';
@@ -9,6 +9,32 @@ import Switch from '@/components/inputs/Switch';
 import { Label } from '@/components/inputs/Label';
 import Loader from '@/components/loader/Loader';
 import { formatDateWithTiming } from '@/utility/dateTiming';
+
+/** Password-style input with a show / hide toggle, for secrets. */
+function SecretInput({ value, onChange, placeholder, label }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <Input
+      type={visible ? 'text' : 'password'}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      autoComplete="new-password"
+      spellCheck={false}
+      endIcon={
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          className="p-1 rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/70 cursor-pointer"
+          aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+          title={visible ? 'Hide' : 'Show'}
+        >
+          {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      }
+    />
+  );
+}
 
 export default function SettingsModal({ isOpen, onClose }) {
   const dispatch = useDispatch();
@@ -107,7 +133,7 @@ export default function SettingsModal({ isOpen, onClose }) {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-2 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto pr-2 custom-scrollbar">
                 <div>
                   <Label className="block mb-1">
                     Low Stock Alert Threshold
@@ -136,11 +162,11 @@ export default function SettingsModal({ isOpen, onClose }) {
                   <Label className="block mb-1">
                     Razorpay Key Secret
                   </Label>
-                  <Input
-                    type="text"
+                  <SecretInput
                     value={razorpayKeySecret}
                     onChange={(e) => setRazorpayKeySecret(e.target.value)}
                     placeholder="Enter Key Secret"
+                    label="key secret"
                   />
                 </div>
 
@@ -148,15 +174,15 @@ export default function SettingsModal({ isOpen, onClose }) {
                   <Label className="block mb-1">
                     Razorpay Webhook Secret
                   </Label>
-                  <Input
-                    type="text"
+                  <SecretInput
                     value={razorpayWebhookSecret}
                     onChange={(e) => setRazorpayWebhookSecret(e.target.value)}
                     placeholder="Enter Webhook Secret"
+                    label="webhook secret"
                   />
                 </div>
 
-                <div className="col-span-2 flex items-center justify-between mt-2 p-3 rounded-xl border" style={{ borderColor: 'var(--vs-border)', backgroundColor: 'var(--vs-bg-secondary)' }}>
+                <div className="sm:col-span-2 flex items-center justify-between mt-2 p-3 rounded-xl border" style={{ borderColor: 'var(--vs-border)', backgroundColor: 'var(--vs-bg-secondary)' }}>
                   <Label>
                     Block Invoice On Credit Limit
                   </Label>

@@ -138,7 +138,9 @@ apiClient.interceptors.response.use(
         const encryptedRefreshToken = localStorage.getItem('_v_rt');
         const decryptedRefreshToken = encryptedRefreshToken ? decryptData(encryptedRefreshToken) : '';
 
-        const refreshUrl = apiClient.defaults.baseURL?.endsWith('/admin')
+        // Normalise trailing slashes so ".../admin/" is treated like ".../admin".
+        const normalisedBase = String(apiClient.defaults.baseURL || '').replace(/\/+$/, '');
+        const refreshUrl = normalisedBase.endsWith('/admin')
           ? '/auth/refresh'
           : '/admin/auth/refresh';
 

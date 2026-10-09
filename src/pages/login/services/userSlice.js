@@ -1,8 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getProfileApi } from './userService';
-import { encryptData, decryptData } from '@/utility/crypto';
-import { loginUser, logout } from './authSlice';
-import { storePermissions } from '@/utility/permission';
+import { decryptData } from '@/utility/crypto';
+import { loginUser, logout, normalizeUser } from './authSlice';
 
 
 
@@ -70,12 +69,9 @@ const userSlice = createSlice({
       .addCase(fetchUserProfile.fulfilled, (state, action) => {
         state.loading = false;
         if (action.payload?.success) {
-          state.profile = action.payload.data;
-
-          // Encrypt and store the response data
-          const encryptedString = encryptData(JSON.stringify(action.payload));
-          localStorage.setItem('vyaparsetu', encryptedString);
-          storePermissions(action.payload);
+          // authSlice merges the same profile into state.auth.user and saves it (encrypted)
+          // under 'vyaparsetu', including userType / roleName / permissions / storeIds.
+          state.profile = normalizeUser(action.payload.data);
         }
       })
       .addCase(fetchUserProfile.rejected, (state, action) => {
@@ -84,7 +80,7 @@ const userSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         if (action.payload?.data) {
-          state.profile = action.payload.data.owner || action.payload.data.user || action.payload.data;
+          state.profile = normalizeUser(action.payload.data.owner || action.payload.data.user || action.payload.data);
         }
       })
       .addCase(logout, (state) => {

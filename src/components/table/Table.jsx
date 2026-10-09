@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import Switch from '@/components/inputs/Switch';
 import Loader from '@/components/loader/Loader';
+import { FaHistory } from 'react-icons/fa';
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -65,14 +66,14 @@ function TruncatedCell({ value }) {
 
 /* ─── RowActions ────────────────────────────────────────────────────────────── */
 
-function RowActions({ item, onEdit, onDelete, onView, onToggle, toggleField = 'isActive' }) {
+function RowActions({ item, onEdit, onDelete, onView, onAudit, onToggle, toggleField = 'isActive' }) {
   return (
     <div className="flex items-center justify-center gap-0">
       {onView && (
         <button
           type="button"
           onClick={() => onView(item)}
-          className="p-1 rounded text-blue-800 hover:text-blue-700 transition-colors cursor-pointer"
+          className="p-1 rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer"
           title="View"
         >
           <Eye className="w-4 h-4" />
@@ -82,10 +83,20 @@ function RowActions({ item, onEdit, onDelete, onView, onToggle, toggleField = 'i
         <button
           type="button"
           onClick={() => onEdit(item)}
-          className="p-1 rounded text-blue-800 hover:text-blue-700 transition-colors cursor-pointer"
+          className="p-1 rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer"
           title="Edit"
         >
           <Edit2 className="w-4 h-4" />
+        </button>
+      )}
+      {onAudit && (
+        <button
+          type="button"
+          onClick={() => onAudit(item)}
+          className="p-1 rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer"
+          title="Stock Audit Report"
+        >
+          <FaHistory className="w-3.5 h-3.5" />
         </button>
       )}
       {onDelete && (
@@ -231,6 +242,7 @@ export default function Table({
   onEdit,
   onDelete,
   onView,
+  onAudit,
   onToggle,
   toggleField = 'isActive',
   showPagination = true,
@@ -242,6 +254,7 @@ export default function Table({
   onPageSizeChange,
   sortConfig: controlledSortConfig,
   onSortChange,
+  maxHeight, // optional CSS height of the scroll area (default: fills the screen)
 }) {
   /* ── state ── */
   const [localSearchTerm, setLocalSearchTerm] = useState('');
@@ -267,7 +280,7 @@ export default function Table({
   const [visibleKeys, setVisibleKeys] = useState({});
 
   /* ── determine if row actions are needed ── */
-  const hasRowActions = !!(onEdit || onDelete || onView || onToggle);
+  const hasRowActions = !!(onEdit || onDelete || onView || onAudit || onToggle);
 
   /* ── build effective headers (ensure Actions column is ALWAYS at START index 0 and sticky) ── */
   const effectiveHeaders = useMemo(() => {
@@ -455,6 +468,7 @@ export default function Table({
           onEdit={onEdit}
           onDelete={onDelete}
           onView={onView}
+          onAudit={onAudit}
           onToggle={onToggle}
           toggleField={toggleField}
         />
@@ -557,9 +571,12 @@ export default function Table({
         )}
       </div>
 
-      {/* ── Table grid ── */}
-      <div className="overflow-x-auto w-full border border-[var(--vs-border)] rounded-xl custom-scrollbar">
-        <CTable hover responsive align="middle" className="mb-0 text-sm w-full border-collapse !bg-transparent">
+      {/* ── Table grid ── fixed height; rows scroll inside, header stays on top */}
+      <div
+        className="overflow-auto w-full border border-[var(--vs-border)] rounded-xl custom-scrollbar"
+        style={{ maxHeight: maxHeight || 'max(320px, calc(100vh - 330px))' }}
+      >
+        <CTable hover align="middle" className="mb-0 text-sm w-full border-collapse !bg-transparent">
           <CTableHead>
             <CTableRow>
               {visibleHeaders.map((header, index) => {
@@ -567,7 +584,7 @@ export default function Table({
                 return (
                   <CTableHeaderCell
                     key={getColKey(header, index)}
-                    className={`px-4 py-3 ${isActions ? 'sticky left-0 z-20 !bg-[var(--vs-bg-secondary)] border-r border-[var(--vs-border)] !px-2' : '!bg-[var(--vs-bg-secondary)]'} !text-[var(--vs-text-secondary)] !border-b !border-r last:!border-r-0 !border-[var(--vs-border)] text-[11px] font-bold uppercase tracking-widest whitespace-nowrap text-center ${header.className || ''}`}
+                    className={`px-4 py-3 sticky top-0 ${isActions ? 'left-0 z-30 !bg-[var(--vs-bg-secondary)] border-r border-[var(--vs-border)] !px-2' : 'z-20 !bg-[var(--vs-bg-secondary)]'} !text-[var(--vs-text-secondary)] !border-b !border-r last:!border-r-0 !border-[var(--vs-border)] text-[11px] font-bold uppercase tracking-widest whitespace-nowrap text-center ${header.className || ''}`}
                     style={{ width: header.width }}
                   >
                     <div className="flex items-center justify-center gap-1.5">

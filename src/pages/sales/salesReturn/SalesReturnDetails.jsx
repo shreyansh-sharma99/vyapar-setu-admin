@@ -241,6 +241,7 @@ export default function SalesReturnDetails() {
                   <th className="py-3.5 px-4 text-center">Rate</th>
                   <th className="py-3.5 px-4 text-center">Discount</th>
                   <th className="py-3.5 px-4 text-center">Tax (GST)</th>
+                  <th className="py-3.5 px-4 text-center">Condition</th>
                   <th className="py-3.5 px-4 text-left">Return Reason</th>
                   <th className="py-3.5 px-4 text-right">Total</th>
                 </tr>
@@ -262,6 +263,23 @@ export default function SalesReturnDetails() {
                       <td className="py-3.5 px-4 text-center font-mono">₹{rate.toFixed(2)}</td>
                       <td className="py-3.5 px-4 text-center text-rose-500 font-semibold">{disc > 0 ? `${disc}%` : '—'}</td>
                       <td className="py-3.5 px-4 text-center font-mono">{item.taxPercent || 0}%</td>
+                      <td className="py-3.5 px-4 text-center">
+                        {item.condition === 'damaged' ? (
+                          <span
+                            className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
+                            title="Moved to damaged stock — not available for sale"
+                          >
+                            Damaged
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                            title="Returned to sellable stock"
+                          >
+                            Good
+                          </span>
+                        )}
+                      </td>
                       <td className="py-3.5 px-4 text-left italic text-gray-500 dark:text-white/40">{item.returnReason || '—'}</td>
                       <td className="py-3.5 px-4 text-right font-mono font-semibold text-indigo-600 dark:text-indigo-400">₹{total.toFixed(2)}</td>
                     </tr>
