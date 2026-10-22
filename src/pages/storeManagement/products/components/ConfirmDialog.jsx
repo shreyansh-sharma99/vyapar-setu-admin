@@ -13,6 +13,7 @@ export default function ConfirmDialog({
   loadingText = 'Working...',
   isLoading = false,
   icon,
+  maxWidth = 'max-w-sm', // wider for dialogs with a list
 }) {
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -36,7 +37,7 @@ export default function ConfirmDialog({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden modal-content-enter"
+        className={`relative w-full ${maxWidth} rounded-2xl shadow-2xl overflow-hidden modal-content-enter`}
         style={{ background: 'var(--vs-bg-primary)', border: '1px solid var(--vs-border)' }}
       >
         <div className="p-6 text-center flex flex-col items-center">

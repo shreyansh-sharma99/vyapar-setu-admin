@@ -184,9 +184,6 @@ export default function SupplierList() {
           }}
           actions={
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => navigate(PATHS.ageing)}>
-                Payables ageing
-              </Button>
               <Button onClick={() => navigate(`${PATHS.suppliers}/create`)}>Add Supplier</Button>
             </div>
           }

@@ -26,7 +26,7 @@ import {
   duplicateSalesInvoice,
   clearSalesInvoiceToast,
 } from './services/salesInvoiceSlice';
-import { downloadSalesInvoicePdfApi } from './services/salesInvoiceService';
+import { downloadInvoiceLayoutPdf } from './invoiceLayoutPdf';
 
 function AnimatedModal({ isOpen, onClose, children, maxWidth = 'max-w-md' }) {
   const [isClosing, setIsClosing] = useState(false);
@@ -223,7 +223,7 @@ export default function SalesInvoiceList() {
   };
 
   const handleVoidClick = (item) => {
-    setVoidModal({ isOpen: true, invoiceId: item._id, reason: '' });
+    setVoidModal({ isOpen: true, invoiceId: item._id, reason: '', fromChallan: !!item.deliveryChallanId });
   };
 
   const handleVoidSubmit = (e) => {
@@ -255,15 +255,8 @@ export default function SalesInvoiceList() {
 
   const handleDownloadPdf = async (item) => {
     try {
-      showToast('Downloading invoice PDF...', 'info');
-      const blob = await downloadSalesInvoicePdfApi(item._id);
-      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Invoice-${item.invoiceNumber || 'INV'}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
+      showToast('Preparing invoice PDF...', 'info');
+      await downloadInvoiceLayoutPdf({ id: item._id });
       showToast('PDF downloaded successfully.', 'success');
     } catch (err) {
       showToast('Failed to download PDF.', 'danger');
@@ -620,7 +613,9 @@ export default function SalesInvoiceList() {
           <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--vs-border)' }}>
             <h3 className="text-lg font-bold !text-red-600 dark:text-indigo-400">Void Sales Invoice</h3>
             <p className="text-xs text-[var(--vs-text-secondary)] mt-0.5">
-              This will cancel the invoice and restock inventory values.
+              {voidModal.fromChallan
+                ? 'The delivery challan will be reopened — cancel it there to return the stock.'
+                : 'This will cancel the invoice and restock inventory values.'}
             </p>
           </div>
           <form onSubmit={handleVoidSubmit}>

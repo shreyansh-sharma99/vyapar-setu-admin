@@ -16,7 +16,7 @@ import {
   FilterField,
   StoreSelect,
   ProductCell,
-  InventoryNav,
+  
   InventoryToaster,
 } from './components/InventoryShared';
 import {
@@ -301,7 +301,6 @@ export default function ReorderReport() {
   return (
     <div>
       <Card h1="Reorder Report" bodyClassName="px-4 pb-4 pt-3">
-        <InventoryNav current="reorder" />
         <AntdThemed>
           <FilterBar>
             <FilterField label="Store / Warehouse">

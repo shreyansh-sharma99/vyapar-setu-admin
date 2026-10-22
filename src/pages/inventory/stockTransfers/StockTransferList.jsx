@@ -227,7 +227,6 @@ export default function StockTransferList() {
     <div className="flex flex-col gap-4">
       <Card
         h1="Stock Transfers"
-        description="Move stock between your stores and warehouses, and track what arrived."
         bodyClassName="px-4 pb-4 pt-3"
         rightNode={
           <Button onClick={() => navigate('/inventory/transfers/create')} startIcon={<Plus className="w-4 h-4" />}>

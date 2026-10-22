@@ -12,7 +12,7 @@ import {
   FilterField,
   StoreSelect,
   ProductCell,
-  InventoryNav,
+  
   InventoryToaster,
 } from './components/InventoryShared';
 import { formatCurrency, formatQty, useDebouncedValue, useToasts, useReportLoader } from './components/inventoryUtils';
@@ -198,7 +198,6 @@ export default function StockValuation() {
   return (
     <div>
       <Card h1="Stock Valuation" bodyClassName="px-4 pb-4 pt-3">
-        <InventoryNav current="valuation" />
         <AntdThemed>
           <FilterBar>
             <FilterField label="Costing Method">

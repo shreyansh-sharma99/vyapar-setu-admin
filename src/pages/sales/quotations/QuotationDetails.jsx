@@ -23,6 +23,7 @@ import {
   deleteQuotation,
   clearQuotationToast,
 } from './services/quotationSlice';
+import { firstAddress, customerAddress } from '../components/address';
 
 // ─── Status Config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -181,9 +182,7 @@ export default function QuotationDetails() {
 
   const currentConfirm = confirmModal.type ? confirmConfig[confirmModal.type] : null;
 
-  const billingAddr = quotation.customerSnapshot?.billingAddress;
-  const billingStr = [billingAddr?.street, billingAddr?.city, billingAddr?.state, billingAddr?.pincode, billingAddr?.country]
-    .filter(Boolean).join(', ');
+  const billingStr = firstAddress(quotation.customerSnapshot?.billingAddress, customerAddress(quotation.customerId));
 
   return (
     <div className="flex flex-col gap-6 mx-auto text-[var(--vs-text-primary)]">

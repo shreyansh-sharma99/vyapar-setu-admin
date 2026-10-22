@@ -1,16 +1,8 @@
 /* Shared building blocks for the inventory screens */
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { CToaster, CToast, CToastBody } from '@coreui/react';
 import { ConfigProvider, Select as AntSelect, theme as antdTheme } from 'antd';
 import {
-  Boxes,
-  SlidersHorizontal,
-  LayoutGrid,
-  AlertOctagon,
-  ShoppingCart,
-  IndianRupee,
-  History,
   CheckCircle2,
   AlertTriangle,
   XCircle,
@@ -133,46 +125,6 @@ export const ProductCell = ({ name, sku, sub }) => (
     </span>
   </div>
 );
-
-/* ─── Inventory section links ───────────────────────────────────────────── */
-
-const INVENTORY_LINKS = [
-  { key: 'list', label: 'Inventory', to: '/inventory', icon: Boxes },
-  { key: 'adjust', label: 'Adjust Stock', to: '/inventory/adjust', icon: SlidersHorizontal },
-  { key: 'store-wise', label: 'Store-wise', to: '/inventory/store-wise', icon: LayoutGrid },
-  { key: 'damaged', label: 'Damaged', to: '/inventory/damaged', icon: AlertOctagon },
-  { key: 'reorder', label: 'Reorder', to: '/inventory/reorder', icon: ShoppingCart },
-  { key: 'valuation', label: 'Valuation', to: '/inventory/valuation', icon: IndianRupee },
-  { key: 'audit', label: 'Audit Report', to: '/inventory/audit-report', icon: History },
-];
-
-/** Compact button row linking the inventory screens; `current` is highlighted. */
-export const InventoryNav = ({ current, exclude = [] }) => {
-  const navigate = useNavigate();
-  return (
-    // One scrollable row of tabs at the top of the page body (never squeezes the page title).
-    <div className="flex items-center gap-1.5 overflow-x-auto thin-scrollbar pb-2 mb-3 border-b border-[var(--vs-border)]">
-      {INVENTORY_LINKS.filter((l) => !exclude.includes(l.key)).map((l) => {
-        const Icon = l.icon;
-        const active = l.key === current;
-        return (
-          <button
-            key={l.key}
-            type="button"
-            onClick={() => !active && navigate(l.to)}
-            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${active
-              ? 'bg-indigo-600 text-white border-indigo-600'
-              : 'bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] border-[var(--vs-border)] hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-          >
-            <Icon className="w-3.5 h-3.5" />
-            {l.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-};
 
 /* ─── Async product picker ──────────────────────────────────────────────── */
 

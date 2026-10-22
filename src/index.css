@@ -424,3 +424,36 @@ button:not([class]):focus {
     animation: none;
   }
 }
+/* ── Table pagination (same look as Admin Owner's AdvanceTable) ── */
+.ant-pagination-custom .ant-pagination-item { border-color: #e5e7eb; background: #fff; }
+.ant-pagination-custom .ant-pagination-item a { color: #374151; }
+.ant-pagination-custom .ant-pagination-item:hover { border-color: #60a5fa; }
+.ant-pagination-custom .ant-pagination-item-active { border-color: #3b82f6; background: #3b82f6; }
+.ant-pagination-custom .ant-pagination-item-active a,
+.ant-pagination-custom .ant-pagination-item-active:hover a { color: #fff; }
+.ant-pagination-custom .ant-pagination-item-active:hover { border-color: #2563eb; background: #2563eb; }
+.ant-pagination-custom .ant-pagination-prev .ant-pagination-item-link,
+.ant-pagination-custom .ant-pagination-next .ant-pagination-item-link { border: 1px solid #3b82f6; background: #3b82f6; color: #fff; }
+.ant-pagination-custom .ant-pagination-prev:hover .ant-pagination-item-link,
+.ant-pagination-custom .ant-pagination-next:hover .ant-pagination-item-link { border-color: #2563eb; background: #2563eb; color: #fff; }
+.ant-pagination-custom .ant-pagination-disabled .ant-pagination-item-link,
+.ant-pagination-custom .ant-pagination-disabled:hover .ant-pagination-item-link { color: #9ca3af; background: #f3f4f6; border-color: #e5e7eb; }
+.ant-pagination-custom .ant-pagination-total-text { color: var(--vs-text-secondary); }
+.dark .ant-pagination-custom .ant-pagination-item { border-color: #374151; background: #1f2937; }
+.dark .ant-pagination-custom .ant-pagination-item a { color: #d1d5db; }
+.dark .ant-pagination-custom .ant-pagination-item-active { border-color: #3b82f6; background: #3b82f6; }
+.dark .ant-pagination-custom .ant-pagination-item-active a { color: #fff; }
+.dark .ant-pagination-custom .ant-pagination-disabled .ant-pagination-item-link { color: #6b7280; background: #374151; border-color: #4b5563; }
+.dark .ant-pagination-custom .ant-pagination-options .ant-select-selector,
+.dark .ant-pagination-custom .ant-pagination-options-quick-jumper input { background: #1f2937; border-color: #374151; color: #e5e7eb; }
+.dark .ant-pagination-custom .ant-pagination-options-quick-jumper,
+.dark .ant-pagination-custom .ant-pagination-jump-prev .ant-pagination-item-ellipsis,
+.dark .ant-pagination-custom .ant-pagination-jump-next .ant-pagination-item-ellipsis { color: #9ca3af; }
+
+/* ── Invoice PDF capture: no scroll boxes, tables fit the page (screen view keeps its scroll) ── */
+.vs-invoice-print .overflow-x-auto,
+.vs-invoice-print .overflow-auto,
+.vs-invoice-print .overflow-y-auto { overflow: visible !important; }
+.vs-invoice-print table { width: 100% !important; table-layout: auto; }
+.vs-invoice-print th,
+.vs-invoice-print td { white-space: normal !important; overflow-wrap: anywhere; }

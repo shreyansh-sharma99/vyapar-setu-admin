@@ -5,13 +5,14 @@ import { Loader2, Save, Send } from 'lucide-react';
 import Button from '@/components/inputs/Button';
 import { Input } from '@/components/inputs/Input';
 import PurchaseToaster from '../components/PurchaseToaster';
-import PurchaseLineEditor from '../components/PurchaseLineEditor';
+import PurchaseOrderLineEditor from '../components/PurchaseOrderLineEditor';
 import SupplierPicker from '../components/SupplierPicker';
 import { TotalsEditor } from '../components/Totals';
 import { Field, FormError, NativeSelect, PageLoading, PageShell, Section, StatusBadge, TextArea } from '../components/ui';
 import useStores from '../components/useStores';
 import useSupplierInfo from '../components/useSupplierInfo';
 import { getProductApi } from '../components/lookupService';
+import { useStockInPricing } from '../components/stockInPricing';
 import { notify, notifyError } from '../components/toast';
 import {
   applyProduct,
@@ -98,9 +99,19 @@ function PurchaseOrderForm({ doc, prefill }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // GST of every line from the GST master (Master Settings → GST Rates) — the server saves the same.
+  const gstInfo = useStockInPricing(lines.map((l) => l.productId));
+  const gstLines = useMemo(
+    () =>
+      lines.map((l) => {
+        const info = gstInfo.prices[String(l.productId)];
+        return info && info.gstRate !== undefined ? { ...l, taxPercent: num(info.gstRate) } : l;
+      }),
+    [lines, gstInfo.prices]
+  );
   const totals = useMemo(
-    () => computeTotals(lines, { overallDiscountPercent, otherCharges, roundOff, isInterState: doc ? !!doc.isInterState : undefined }),
-    [lines, overallDiscountPercent, otherCharges, roundOff, doc]
+    () => computeTotals(gstLines, { overallDiscountPercent, otherCharges, roundOff, isInterState: doc ? !!doc.isInterState : undefined }),
+    [gstLines, overallDiscountPercent, otherCharges, roundOff, doc]
   );
 
   const save = async (markSent) => {
@@ -110,6 +121,10 @@ function PurchaseOrderForm({ doc, prefill }) {
     else if (!effectiveStoreId) problem = 'Select the store the goods should be delivered to.';
     else if (expectedDate && poDate && expectedDate < poDate) problem = 'Expected delivery date cannot be before the order date.';
     else problem = validateLines(lines);
+    if (!problem) {
+      const noCost = lines.find((l) => l.productId && !(Number(l.rate) > 0));
+      if (noCost) problem = `Enter the cost price for "${noCost.productName}".`;
+    }
     setFormError(problem);
     if (problem) {
       notifyError(problem);
@@ -121,7 +136,8 @@ function PurchaseOrderForm({ doc, prefill }) {
       storeId: effectiveStoreId,
       poDate,
       expectedDate: expectedDate || null,
-      items: linesToPayload(lines),
+      // no line discount on a PO (the column was removed)
+      items: linesToPayload(gstLines, { planned: true }).map((i) => ({ ...i, discountPercent: 0 })),
       ...docPricing({ overallDiscountPercent, otherCharges, roundOff }),
       notes,
       terms,
@@ -225,7 +241,7 @@ function PurchaseOrderForm({ doc, prefill }) {
       </div>
 
       <Section title="Items" bodyClassName="p-3 sm:p-4">
-        <PurchaseLineEditor lines={lines} onChange={setLines} storeId={effectiveStoreId} submitted={submitted} />
+        <PurchaseOrderLineEditor lines={lines} onChange={setLines} storeId={effectiveStoreId} submitted={submitted} />
       </Section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

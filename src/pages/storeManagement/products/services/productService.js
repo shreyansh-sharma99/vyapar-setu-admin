@@ -35,7 +35,7 @@ export const getProductByBarcodeApi = async (barcode) => {
   return response.data;
 };
 
-// ─── Catalog v2: duplicates, barcodes, variants, import / export ─────────────
+// ─── Catalog v2: duplicates, barcodes, import / export ─────────────
 
 /** GET /products/similar?name=&barcode=&excludeId=&limit= → data: [product + similarity + reasons] */
 export const getSimilarProductsApi = async (params) => {
@@ -47,18 +47,6 @@ export const getSimilarProductsApi = async (params) => {
 export const generateBarcodesApi = async (productIds) => {
   const body = Array.isArray(productIds) && productIds.length ? { productIds } : {};
   const response = await apiClient.post('/products/generate-barcodes', body);
-  return response.data;
-};
-
-/** GET /products/:id/variants → data: { variantGroupId, variants } */
-export const getProductVariantsApi = async (productId) => {
-  const response = await apiClient.get(`/products/${productId}/variants`);
-  return response.data;
-};
-
-/** POST /products/:id/variants { variants: [...] } */
-export const createProductVariantsApi = async (productId, variants) => {
-  const response = await apiClient.post(`/products/${productId}/variants`, { variants });
   return response.data;
 };
 

@@ -36,7 +36,7 @@ import { getPurchaseBillByIdApi, getPurchaseBillsApi } from '../purchaseBills/se
 import { confirmPurchaseReturn, createPurchaseReturn, fetchPurchaseReturn, updatePurchaseReturn } from './services/purchaseReturnSlice';
 
 const billLines = (bill) =>
-  (bill?.items || []).map((i) => ({ ...lineFromDoc(i), fromBucket: 'sellable', reason: '' }));
+  (bill?.items || []).map((i) => ({ ...lineFromDoc(i), fromBucket: 'auto', reason: '' }));
 
 function PurchaseReturnForm({ doc, init }) {
   const dispatch = useDispatch();
@@ -58,6 +58,10 @@ function PurchaseReturnForm({ doc, init }) {
   const [otherCharges, setOtherCharges] = useState(() => (doc ? num(doc.otherCharges) : 0));
   const [roundOff, setRoundOff] = useState(() => (doc ? num(doc.roundOff) !== 0 : true));
   const [notes, setNotes] = useState(() => doc?.notes || '');
+  // What the supplier will give back. Empty = cost + GST (follows the total); a smaller amount is a loss.
+  const [agreedInput, setAgreedInput] = useState(() =>
+    doc && doc.agreedAmount !== null && doc.agreedAmount !== undefined && Math.abs(num(doc.agreedAmount) - num(doc.totalAmount)) > 0.009 ? String(doc.agreedAmount) : ''
+  );
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -131,10 +135,15 @@ function PurchaseReturnForm({ doc, init }) {
     [lines, overallDiscountPercent, otherCharges, roundOff, doc]
   );
 
+  const goodsValue = num(totals.totalAmount);
+  const agreed = agreedInput === '' ? goodsValue : num(agreedInput);
+  const loss = Math.max(0, Math.round((goodsValue - agreed) * 100) / 100);
+
   const save = async (status) => {
     setSubmitted(true);
     let problem;
-    if (!supplier?.value) problem = 'Select a supplier.';
+    if (agreedInput !== '' && agreed > goodsValue + 0.009) problem = `The supplier can give at most ${formatINR(goodsValue)} (cost + GST).`;
+    else if (!supplier?.value) problem = 'Select a supplier.';
     else if (!effectiveStoreId) problem = 'Select the store the goods leave from.';
     else if (billLoading) problem = 'Bill items are still loading.';
     else problem = validateLines(lines);
@@ -149,6 +158,7 @@ function PurchaseReturnForm({ doc, init }) {
       purchaseBillId: billId || null,
       returnDate,
       items: linesToPayload(lines, { bucket: true }),
+      agreedAmount: agreedInput === '' ? null : agreed,
       ...docPricing({ overallDiscountPercent, otherCharges, roundOff }),
       notes,
     };
@@ -232,13 +242,36 @@ function PurchaseReturnForm({ doc, init }) {
             onRoundOffChange={setRoundOff}
           />
           <div className="flex flex-col gap-2 border-t border-[var(--vs-border)] pt-4">
+            <Field label="Supplier will give (₹)" hint={agreedInput === '' ? 'Cost + GST of the goods. Change it if the supplier gives less.' : null}>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={agreedInput === '' ? (goodsValue ? goodsValue.toFixed(2) : '') : agreedInput}
+                onChange={(e) => setAgreedInput(e.target.value)}
+                className={`!font-bold ${agreed > goodsValue + 0.009 ? '!border-red-500' : ''}`}
+              />
+            </Field>
+            {loss > 0 && (
+              <div className="rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
+                <span>Loss on this return</span>
+                <span className="font-mono font-bold">{formatINR(loss)}</span>
+              </div>
+            )}
+            {agreedInput !== '' && (
+              <button type="button" onClick={() => setAgreedInput('')} className="self-start text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+                Use cost + GST again
+              </button>
+            )}
+          </div>
+          <div className="flex flex-col gap-2 border-t border-[var(--vs-border)] pt-4">
             <Button onClick={() => save('confirmed')} disabled={saving} className="w-full" startIcon={saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}>
               Confirm return
             </Button>
             <Button variant="outline" onClick={() => save('draft')} disabled={saving} className="w-full" startIcon={<Save className="w-4 h-4" />}>
               Save draft
             </Button>
-            <p className="text-[11px] text-[var(--vs-text-secondary)]">Confirming takes the goods out of stock and reduces what you owe the supplier.</p>
+            <p className="text-[11px] text-[var(--vs-text-secondary)]">Confirming takes the goods out of stock and reduces what you owe the supplier by the amount they give.</p>
           </div>
         </Section>
       </div>

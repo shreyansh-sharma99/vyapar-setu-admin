@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -10,16 +10,7 @@ import {
   Edit2,
   Check,
   Send,
-  Calendar,
-  User,
-  FileText,
-  DollarSign,
-  Tag,
-  Building2,
-  Hash,
-  MapPin,
-  Phone,
-  Store as StoreIcon,
+  Loader2,
 } from 'lucide-react';
 import { decryptData, encryptData } from '@/utility/crypto';
 import Button from '@/components/inputs/Button';
@@ -36,20 +27,9 @@ import {
   generatePaymentLink,
   clearSalesInvoiceToast,
 } from './services/salesInvoiceSlice';
-import { downloadSalesInvoicePdfApi } from './services/salesInvoiceService';
-
-function InfoRow({ icon, label, value }) {
-  if (!value) return null;
-  return (
-    <div className="flex items-start gap-2.5">
-      <div className="mt-0.5 text-[var(--vs-text-secondary)] flex-shrink-0">{icon}</div>
-      <div className="flex flex-col">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--vs-text-secondary)]">{label}</span>
-        <span className="text-sm font-medium text-[var(--vs-text-primary)]">{value}</span>
-      </div>
-    </div>
-  );
-}
+import { InvoiceDocument } from '@/pages/Invoices/invoiceLayout/components/InvoiceTemplates';
+import { docFromInvoice, inr } from '@/pages/Invoices/invoiceLayout/components/invoiceDoc';
+import { downloadInvoiceLayoutPdf, printWidth } from './invoiceLayoutPdf';
 
 export default function SalesInvoiceDetails() {
   const { id: encryptedId } = useParams();
@@ -64,6 +44,7 @@ export default function SalesInvoiceDetails() {
   // Modals
   const [paymentModal, setPaymentModal] = useState({ isOpen: false, amount: 0, method: 'cash', reference: '', notes: '' });
   const [voidModal, setVoidModal] = useState({ isOpen: false, reason: '' });
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const showToast = (message, color = 'success') => {
     const id = Date.now();
@@ -92,23 +73,21 @@ export default function SalesInvoiceDetails() {
     }
   }, [reduxToast, dispatch, id]);
 
+  // PDF in the Invoice Layout design (same picture as the invoice on this page)
   const handleDownloadPdf = async () => {
-    if (!currentInvoice) return;
+    if (!currentInvoice || pdfBusy) return;
+    setPdfBusy(true);
     try {
-      showToast('Downloading invoice PDF...', 'info');
-      const blob = await downloadSalesInvoicePdfApi(currentInvoice._id);
-      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Invoice-${currentInvoice.invoiceNumber || 'INV'}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
+      await downloadInvoiceLayoutPdf({ invoice: currentInvoice });
       showToast('PDF downloaded successfully.', 'success');
-    } catch (err) {
+    } catch {
       showToast('Failed to download PDF.', 'danger');
+    } finally {
+      setPdfBusy(false);
     }
   };
+
+  const printDoc = useMemo(() => (currentInvoice ? docFromInvoice(currentInvoice) : null), [currentInvoice]);
 
   const handleEditClick = () => {
     if (!currentInvoice) return;
@@ -239,10 +218,11 @@ export default function SalesInvoiceDetails() {
               type="button"
               variant="outline"
               onClick={handleDownloadPdf}
-              startIcon={<Download className="w-3.5 h-3.5" />}
+              disabled={pdfBusy}
+              startIcon={pdfBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               className="!h-9 px-3"
             >
-              PDF
+              {pdfBusy ? 'Preparing PDF…' : 'Download PDF'}
             </Button>
 
             {currentInvoice.status === 'draft' && (
@@ -311,185 +291,23 @@ export default function SalesInvoiceDetails() {
           </div>
         </div>
 
-        {/* ── Main Content ──────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
-
-          <div className="lg:col-span-2 flex flex-col gap-6">
-
-            {/* Customer Info Card */}
-            <Card title="Customer Details" bodyClassName="p-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <InfoRow icon={<User className="w-3.5 h-3.5" />} label="Name" value={currentInvoice.customerSnapshot?.name || 'Walk-in'} />
-              <InfoRow icon={<Phone className="w-3.5 h-3.5" />} label="Phone" value={currentInvoice.customerSnapshot?.phone || currentInvoice.customerId?.phone} />
-              <InfoRow icon={<Mail className="w-3.5 h-3.5" />} label="Email" value={currentInvoice.customerSnapshot?.email || currentInvoice.customerId?.email} />
-              <InfoRow icon={<Building2 className="w-3.5 h-3.5" />} label="GSTIN" value={currentInvoice.customerSnapshot?.gstin} />
-              <InfoRow icon={<MapPin className="w-3.5 h-3.5" />} label="Billing Address" value={
-                currentInvoice.customerSnapshot?.billingAddress
-                  ? `${currentInvoice.customerSnapshot.billingAddress.street}, ${currentInvoice.customerSnapshot.billingAddress.city}, ${currentInvoice.customerSnapshot.billingAddress.state} - ${currentInvoice.customerSnapshot.billingAddress.pincode}`
-                  : '—'
-              } />
-              <InfoRow icon={<Hash className="w-3.5 h-3.5" />} label="State Code" value={currentInvoice.customerSnapshot?.stateCode} />
-            </Card>
-
-            {/* Line Items */}
-            <Card title="Product Items" bodyClassName="p-0" className="!rounded-b-none">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[600px] border-collapse border border-gray-300 dark:border-white/20">
-                  <thead className="bg-gray-50/80 dark:bg-slate-800/50">
-                    <tr className="text-xs font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
-                      <th className="py-3 px-4 text-left text-white bg-blue-400 border border-gray-300 dark:border-white/20 whitespace-nowrap">Product</th>
-                      <th className="py-3 px-4 text-center text-white bg-blue-400 border border-gray-300 dark:border-white/20 whitespace-nowrap">HSN</th>
-                      <th className="py-3 px-4 text-center text-white bg-blue-400 border border-gray-300 dark:border-white/20 whitespace-nowrap">Qty</th>
-                      <th className="py-3 px-4 text-center text-white bg-blue-400 border border-gray-300 dark:border-white/20 whitespace-nowrap">Rate</th>
-                      <th className="py-3 px-4 text-center text-white bg-blue-400 border border-gray-300 dark:border-white/20 whitespace-nowrap">Disc %</th>
-                      <th className="py-3 px-4 text-center text-white bg-blue-400 border border-gray-300 dark:border-white/20 whitespace-nowrap">GST %</th>
-                      <th className="py-3 px-4 text-right text-white bg-blue-400 border border-gray-300 dark:border-white/20 whitespace-nowrap">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentInvoice.lineItems?.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 px-4 font-medium text-[var(--vs-text-primary)] border border-gray-300 dark:border-white/20">
-                          <div>{item.productName || '—'}</div>
-                          {item.sku && <div className="text-[10px] text-[var(--vs-text-secondary)] mt-0.5">SKU: {item.sku}</div>}
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono text-xs text-[var(--vs-text-secondary)] border border-gray-300 dark:border-white/20">{item.hsnCode || '—'}</td>
-                        <td className="py-3 px-4 text-center border border-gray-300 dark:border-white/20">{item.qty} <span className="text-[10px] text-[var(--vs-text-secondary)]">{item.unit || 'pcs'}</span></td>
-                        <td className="py-3 px-4 text-center font-mono border border-gray-300 dark:border-white/20">₹{Number(item.rate || 0).toFixed(2)}</td>
-                        <td className="py-3 px-4 text-center text-[var(--vs-text-secondary)] border border-gray-300 dark:border-white/20">{item.discountPercent ?? 0}%</td>
-                        <td className="py-3 px-4 text-center text-[var(--vs-text-secondary)] border border-gray-300 dark:border-white/20">{item.taxPercent ?? 0}%</td>
-                        <td className="py-3 px-4 text-right font-semibold text-indigo-600 dark:text-indigo-400 font-mono border border-gray-300 dark:border-white/20">₹{Number(item.total || 0).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-
-            {/* Notes & Terms */}
-            {(currentInvoice.notes || currentInvoice.terms || currentInvoice.voidReason) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {currentInvoice.notes && (
-                  <Card title="Notes" titleClassName="!text-blue-600 dark:!text-blue-400" bodyClassName="p-4">
-                    <p className="text-sm text-[var(--vs-text-primary)] whitespace-pre-wrap">{currentInvoice.notes}</p>
-                  </Card>
-                )}
-                {currentInvoice.terms && (
-                  <Card title="Terms &amp; Conditions" titleClassName="!text-blue-600 dark:!text-blue-400" bodyClassName="p-4">
-                    <p className="text-sm text-[var(--vs-text-primary)] whitespace-pre-wrap">{currentInvoice.terms}</p>
-                  </Card>
-                )}
-                {currentInvoice.voidReason && (
-                  <div className="col-span-1 sm:col-span-2 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs">
-                    <h4 className="font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-1">
-                      Void Reason
-                    </h4>
-                    <p className="text-[var(--vs-text-primary)]">{currentInvoice.voidReason}</p>
-                  </div>
-                )}
-              </div>
-            )}
+        {/* Payment status */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm mb-4">
+          <span className="text-[var(--vs-text-secondary)]">Total <span className="font-bold text-[var(--vs-text-primary)]">{inr(currentInvoice.totalAmount)}</span></span>
+          <span className="text-[var(--vs-text-secondary)]">Paid <span className="font-bold text-emerald-600 dark:text-emerald-400">{inr(currentInvoice.paidAmount)}</span></span>
+          <span className="text-[var(--vs-text-secondary)]">Balance <span className="font-bold text-rose-600 dark:text-rose-400">{inr(currentInvoice.balanceAmount)}</span></span>
+        </div>
+        {currentInvoice.voidReason && (
+          <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs">
+            <span className="font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Void reason: </span>
+            <span className="text-[var(--vs-text-primary)]">{currentInvoice.voidReason}</span>
           </div>
+        )}
 
-          {/* Right Sidebar: Summary */}
-          <div className="flex flex-col gap-4">
-            {/* Invoice Meta */}
-            <Card title="Invoice Info" bodyClassName="px-4 py-4 flex flex-col gap-4">
-              <div className="flex flex-row justify-between gap-3.5">
-                <InfoRow icon={<Calendar className="w-3.5 h-3.5" />} label="Invoice Date" value={currentInvoice.invoiceDate ? new Date(currentInvoice.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
-                <InfoRow icon={<Calendar className="w-3.5 h-3.5" />} label="Due Date" value={currentInvoice.dueDate ? new Date(currentInvoice.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Immediate'} />
-              </div>
-              <div className="pt-2 flex flex-col gap-2">
-                <InfoRow icon={<MapPin className="w-3.5 h-3.5" />} label="Place of Supply" value={currentInvoice.placeOfSupply} />
-                {(currentInvoice.storeSnapshot?.name || currentInvoice.storeId?.name) && (
-                  <InfoRow
-                    icon={<StoreIcon className="w-3.5 h-3.5" />}
-                    label="Dispatch Warehouse"
-                    value={
-                      currentInvoice.storeSnapshot?.name
-                        ? `${currentInvoice.storeSnapshot.name} ${currentInvoice.storeSnapshot.code ? `[${currentInvoice.storeSnapshot.code}]` : ''}`
-                        : (currentInvoice.storeId?.name || '—')
-                    }
-                  />
-                )}
-              </div>
-            </Card>
-
-            {/* Tax Summary */}
-            <Card title="Price Summary" bodyClassName="px-5 py-4 flex flex-col gap-3 text-sm">
-              <div className="flex justify-between items-center text-[var(--vs-text-secondary)]">
-                <span>Subtotal</span>
-                <span className="font-mono">₹{Number(currentInvoice.subtotal || 0).toFixed(2)}</span>
-              </div>
-              {currentInvoice.discountAmount > 0 && (
-                <div className="flex justify-between items-center text-rose-500">
-                  <span>Discount</span>
-                  <span className="font-mono">-₹{Number(currentInvoice.discountAmount).toFixed(2)}</span>
-                </div>
-              )}
-              {currentInvoice.igstTotal > 0 && (
-                <div className="flex justify-between items-center text-[var(--vs-text-secondary)]">
-                  <span>IGST</span>
-                  <span className="font-mono">₹{Number(currentInvoice.igstTotal).toFixed(2)}</span>
-                </div>
-              )}
-              {currentInvoice.cgstTotal > 0 && (
-                <div className="flex justify-between items-center text-[var(--vs-text-secondary)]">
-                  <span>CGST</span>
-                  <span className="font-mono">₹{Number(currentInvoice.cgstTotal).toFixed(2)}</span>
-                </div>
-              )}
-              {currentInvoice.sgstTotal > 0 && (
-                <div className="flex justify-between items-center text-[var(--vs-text-secondary)]">
-                  <span>SGST</span>
-                  <span className="font-mono">₹{Number(currentInvoice.sgstTotal).toFixed(2)}</span>
-                </div>
-              )}
-              {currentInvoice.roundOff !== 0 && currentInvoice.roundOff !== undefined && (
-                <div className="flex justify-between items-center text-[var(--vs-text-secondary)]">
-                  <span>Round Off</span>
-                  <span className="font-mono">{Number(currentInvoice.roundOff) >= 0 ? '+' : ''}₹{Number(currentInvoice.roundOff).toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between items-center pt-3 border-t border-[var(--vs-border)] font-bold text-base">
-                <span className="text-[var(--vs-text-primary)]">Grand Total</span>
-                <span className="font-mono text-indigo-600 dark:text-indigo-400">₹{Number(currentInvoice.totalAmount || 0).toFixed(2)}</span>
-              </div>
-
-              <div className="border-t border-[var(--vs-border)] pt-3 flex flex-col gap-1.5 text-xs text-[var(--vs-text-secondary)]">
-                <div className="flex justify-between font-semibold">
-                  <span>Paid Amount</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-mono">
-                    ₹{Number(currentInvoice.paidAmount || 0).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between font-semibold">
-                  <span>Outstanding Balance</span>
-                  <span className="text-rose-600 dark:text-rose-400 font-mono">
-                    ₹{Number(currentInvoice.balanceAmount || 0).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </Card>
-
-            {/* GST Breakdown */}
-            {currentInvoice.isInterState !== undefined && (
-              <Card title="GST Info" titleClassName="!text-blue-600 dark:!text-blue-400" bodyClassName="p-4 flex flex-col gap-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-[var(--vs-text-secondary)]">Inter-State</span>
-                  <span className="font-semibold text-[var(--vs-text-primary)]">{currentInvoice.isInterState ? 'Yes' : 'No'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[var(--vs-text-secondary)]">Reverse Charge</span>
-                  <span className="font-semibold text-[var(--vs-text-primary)]">{currentInvoice.reverseCharge ? 'Yes' : 'No'}</span>
-                </div>
-                {currentInvoice.sellerGstin && (
-                  <div className="flex justify-between">
-                    <span className="text-[var(--vs-text-secondary)]">Seller GSTIN</span>
-                    <span className="font-mono font-semibold text-[var(--vs-text-primary)]">{currentInvoice.sellerGstin}</span>
-                  </div>
-                )}
-              </Card>
-            )}
+        {/* The invoice, in the design chosen in Sales → Invoice Layout */}
+        <div className="overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-950/60 p-3 sm:p-6">
+          <div className="mx-auto bg-white shadow-sm" style={{ width: printWidth(currentInvoice.print?.layout?.theme) }}>
+            {printDoc && <InvoiceDocument layout={currentInvoice.print?.layout || {}} doc={printDoc} />}
           </div>
         </div>
       </Card>
@@ -580,7 +398,9 @@ export default function SalesInvoiceDetails() {
             <div className="px-6 py-4 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-bold">Void Sales Invoice</h3>
               <p className="text-xs text-[var(--vs-text-secondary)] mt-0.5">
-                This will void the invoice and inventory changes.
+                {currentInvoice?.deliveryChallanId
+                  ? 'The delivery challan will be reopened — cancel it there to return the stock.'
+                  : 'This will void the invoice and inventory changes.'}
               </p>
             </div>
             <form onSubmit={handleVoidSubmit}>

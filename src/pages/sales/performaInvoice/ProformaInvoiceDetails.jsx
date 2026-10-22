@@ -35,6 +35,7 @@ import {
   clearProformaInvoiceToast,
 } from './services/proformaInvoiceSlice';
 import { downloadProformaPdfApi } from './services/proformaInvoiceService';
+import { firstAddress, customerAddress } from '../components/address';
 
 function InfoRow({ icon, label, value }) {
   if (!value) return null;
@@ -271,11 +272,7 @@ export default function ProformaInvoiceDetails() {
               <InfoRow icon={<Phone className="w-3.5 h-3.5" />} label="Phone" value={proforma.customerSnapshot?.phone || proforma.customerId?.phone} />
               <InfoRow icon={<Mail className="w-3.5 h-3.5" />} label="Email" value={proforma.customerSnapshot?.email || proforma.customerId?.email} />
               <InfoRow icon={<Building2 className="w-3.5 h-3.5" />} label="GSTIN" value={proforma.customerSnapshot?.gstin} />
-              <InfoRow icon={<MapPin className="w-3.5 h-3.5" />} label="Billing Address" value={
-                proforma.customerSnapshot?.billingAddress
-                  ? `${proforma.customerSnapshot.billingAddress.street}, ${proforma.customerSnapshot.billingAddress.city}, ${proforma.customerSnapshot.billingAddress.state} - ${proforma.customerSnapshot.billingAddress.pincode}`
-                  : '—'
-              } />
+              <InfoRow icon={<MapPin className="w-3.5 h-3.5" />} label="Billing Address" value={firstAddress(proforma.customerSnapshot?.billingAddress, customerAddress(proforma.customerId)) || '—'} />
               <InfoRow icon={<Hash className="w-3.5 h-3.5" />} label="State Code" value={proforma.customerSnapshot?.stateCode} />
             </Card>
 

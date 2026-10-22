@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   PlusCircle,
@@ -29,7 +29,13 @@ import { getProductByIdApi } from '../../storeManagement/products/services/produ
 import { getStores } from '@/pages/storeManagement/stores/services/storeSlice';
 import { adjustStock, resetInventoryStatus } from './services/inventorySlice';
 import { AntdThemed, StoreSelect, ProductSearchSelect, InventoryToaster } from './components/InventoryShared';
-import { decodeId, formatQty, formatCurrency, getStoreQty, useToasts } from './components/inventoryUtils';
+import { decodeId, formatQty, getStoreQty, useToasts } from './components/inventoryUtils';
+import { getBatchesApi } from './services/inventoryService';
+
+/** Quick reasons that mean new goods: not offered (new goods come in through Purchase or Opening Stock). */
+const NEW_GOODS_TAGS = ['Purchase', 'Return', 'Transfer'];
+
+const fmtDay = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 
 const quickReasonPresets = [
   {
@@ -145,10 +151,14 @@ export default function AdjustStock() {
     defaultValues: {
       action: 'increase',
       amount: '',
-      reason: 'Restock from supplier',
-      unitCost: '',
+      reason: 'Inventory audit correction',
     },
   });
+
+  // Tally style: Adjust Stock never brings in new goods; a count increase goes into
+  // an existing batch (same cost and MRP).
+  const [batchId, setBatchId] = useState('');
+  const [batchState, setBatchState] = useState({ key: '', list: [], error: '' });
 
   const currentAction = useWatch({ control, name: 'action' });
   const currentAmount = useWatch({ control, name: 'amount' });
@@ -195,10 +205,37 @@ export default function AdjustStock() {
   const showPreview =
     newStoreQty !== null && (currentAction === 'set' ? String(currentAmount ?? '').trim() !== '' : parsedAmount > 0);
   const showCostFields =currentAction === 'increase' || (currentAction === 'set' && newStoreQty > (storeQty ?? 0));
+  const needsBatch = showCostFields;
+
+  // Batches of the product in the chosen store (for a count increase).
+  const batchKey = needsBatch && product?._id && effectiveStoreId ? `${product._id}:${effectiveStoreId}` : '';
+  useEffect(() => {
+    if (!batchKey) return undefined;
+    let alive = true;
+    const [pid, sid] = batchKey.split(':');
+    getBatchesApi({ productId: pid, storeId: sid, onlyOpen: false })
+      .then((res) => {
+        if (alive) setBatchState({ key: batchKey, list: res?.data?.batches || [], error: '' });
+      })
+      .catch(() => {
+        if (alive) setBatchState({ key: batchKey, list: [], error: 'Could not load the batches.' });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [batchKey]);
+  const batches = batchState.key === batchKey ? batchState.list : [];
+  const batchesLoading = !!batchKey && batchState.key !== batchKey;
+  const chosenBatch = batches.find((b) => String(b._id) === String(batchId)) ? batchId : '';
+  const batchError = submitted && needsBatch && !chosenBatch ? 'Pick the batch the extra units belong to.' : '';
+
+  const reasonPresets = quickReasonPresets.filter((p) => !NEW_GOODS_TAGS.includes(p.tag));
+  const actions = ACTIONS.map((a) => (a.value === 'increase' ? { ...a, label: 'Count Correction (+)', hint: 'Found more than the system shows — added to an existing batch.' } : a));
 
   const onSubmit = (formData) => {
     setSubmitted(true);
     if (!product || !effectiveStoreId) return;
+    if (needsBatch && !chosenBatch) return;
 
     const payload = {
       productId: product._id,
@@ -207,7 +244,7 @@ export default function AdjustStock() {
       amount: Number(formData.amount),
       reason: formData.reason.trim(),
     };
-    if (showCostFields && String(formData.unitCost).trim() !== '') payload.unitCost = Number(formData.unitCost);
+    if (needsBatch) payload.batchId = chosenBatch;
 
     dispatch(adjustStock(payload))
       .unwrap()
@@ -241,6 +278,15 @@ export default function AdjustStock() {
         bodyClassName="p-4 sm:p-6"
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+          <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+            <Info className="w-4 h-4 shrink-0 mt-px" />
+            <span>
+              New goods come in through{' '}
+              <Link to="/purchase/receipts/create" className="font-semibold underline">Purchase (GRN)</Link> or{' '}
+              <Link to="/inventory/opening-stock/create" className="font-semibold underline">Opening Stock</Link>, with their MRP. Here you can
+              only remove stock or correct a count — extra units found in a count go into an existing batch.
+            </span>
+          </div>
           <AntdThemed>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col">
@@ -331,7 +377,7 @@ export default function AdjustStock() {
               Adjustment Action <span className="text-red-500">*</span>
             </Label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {ACTIONS.map((a) => {
+              {actions.map((a) => {
                 const Icon = a.icon;
                 const active = currentAction === a.value;
                 return (
@@ -396,35 +442,33 @@ export default function AdjustStock() {
               )}
             </div>
 
-            {showCostFields && (
+            {needsBatch && (
               <div>
-                <Label htmlFor="unitCost" className="text-gray-700 dark:text-gray-200">
-                  Unit Cost (₹) <span className="text-[11px] font-normal text-gray-400">optional</span>
+                <Label htmlFor="batchId" className="text-gray-700 dark:text-gray-200">
+                  Batch <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  id="unitCost"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder={product?.avgCost ? `Avg. ${formatCurrency(product.avgCost)}` : 'e.g. 120'}
-                  error={Boolean(errors.unitCost)}
-                  className="w-full"
-                  {...register('unitCost', {
-                    validate: (val) => {
-                      const str = String(val ?? '').trim();
-                      if (!str) return true;
-                      const num = Number(str);
-                      return (!Number.isNaN(num) && num >= 0) || 'Enter a valid cost.';
-                    },
-                  })}
-                />
-                {errors.unitCost ? (
-                  <ErrorText>{errors.unitCost.message}</ErrorText>
+                <select
+                  id="batchId"
+                  value={chosenBatch}
+                  onChange={(e) => setBatchId(e.target.value)}
+                  disabled={batchesLoading}
+                  className={`w-full h-10 rounded-xl border px-3 text-sm bg-white dark:bg-white/5 text-gray-900 dark:!text-white outline-none cursor-pointer ${batchError ? 'border-red-500' : 'border-gray-200 dark:border-white/10'}`}
+                >
+                  <option value="">{batchesLoading ? 'Loading batches...' : batches.length ? 'Select batch' : 'No batch in this store'}</option>
+                  {batches.map((b) => (
+                    <option key={b._id} value={b._id}>
+                      {[b.batchNo || 'No batch no', b.mrp > 0 ? `MRP ₹${b.mrp}` : 'MRP —', `${formatQty(b.qtyRemaining)} left`, fmtDay(b.receivedAt)].filter(Boolean).join(' · ')}
+                    </option>
+                  ))}
+                </select>
+                {batchError || batchState.error ? (
+                  <ErrorText>{batchError || batchState.error}</ErrorText>
                 ) : (
-                  <p className="text-xs text-gray-400 mt-1">Leave empty to use the current average cost.</p>
+                  <p className="text-xs text-gray-400 mt-1">Same cost and MRP as that batch. No batch here? Use Purchase (GRN).</p>
                 )}
               </div>
             )}
+
           </div>
 
           <div className="space-y-3">
@@ -455,7 +499,7 @@ export default function AdjustStock() {
                 Quick Reasons:
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {quickReasonPresets.map((preset) => {
+                {reasonPresets.map((preset) => {
                   const isSelected = (currentReason || '').trim().toLowerCase() === preset.title.toLowerCase();
                   return (
                     <div

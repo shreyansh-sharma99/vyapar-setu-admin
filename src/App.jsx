@@ -63,16 +63,24 @@ import SalesRegister from './pages/reports/SalesRegister';
 import Gstr1Report from './pages/reports/Gstr1Report';
 import HsnSummary from './pages/reports/HsnSummary';
 import AgeingReport from './pages/reports/AgeingReport';
+import Profit from './pages/reports/Profit';
+import BatchSales from './pages/reports/BatchSales';
+import PriceHistory from './pages/reports/PriceHistory';
+import PriceOverrides from './pages/reports/PriceOverrides';
 import StoreWiseStock from './pages/inventory/inventory/StoreWiseStock';
 import DamagedStock from './pages/inventory/inventory/DamagedStock';
 import ReorderReport from './pages/inventory/inventory/ReorderReport';
 import StockValuation from './pages/inventory/inventory/StockValuation';
+import OpeningStockList from './pages/inventory/openingStock/OpeningStockList';
+import CreateOpeningStock from './pages/inventory/openingStock/CreateOpeningStock';
+import OpeningStockDetails from './pages/inventory/openingStock/OpeningStockDetails';
 import StockTransferList from './pages/inventory/stockTransfers/StockTransferList';
 import CreateStockTransfer from './pages/inventory/stockTransfers/CreateStockTransfer';
 import StockTransferDetails from './pages/inventory/stockTransfers/StockTransferDetails';
-import ProductVariants from './pages/storeManagement/products/ProductVariants';
 import ProductImportExport from './pages/storeManagement/products/ProductImportExport';
 import BarcodeLabels from './pages/storeManagement/products/BarcodeLabels';
+import GstRates from './pages/masterSettings/GstRates';
+import PricesOffers from './pages/masterSettings/PricesOffers';
 import SupplierList from './pages/purchase/suppliers/SupplierList';
 import SupplierForm from './pages/purchase/suppliers/SupplierForm';
 import SupplierDetails from './pages/purchase/suppliers/SupplierDetails';
@@ -91,7 +99,6 @@ import PurchaseReturnDetails from './pages/purchase/purchaseReturns/PurchaseRetu
 import PaymentOutList from './pages/purchase/paymentsOut/PaymentOutList';
 import CreatePaymentOut from './pages/purchase/paymentsOut/CreatePaymentOut';
 import PaymentOutDetails from './pages/purchase/paymentsOut/PaymentOutDetails';
-import PayablesAgeing from './pages/purchase/reports/PayablesAgeing';
 import StaffList from './pages/staff/StaffList';
 import StaffForm from './pages/staff/StaffForm';
 import RoleList from './pages/staff/roles/RoleList';
@@ -156,11 +163,16 @@ function App() {
           <Route path="products/edit/:id" element={<UpdateProduct />} />
           <Route path="products/view/:id" element={<ProductDetails />} />
           <Route path="products/audit/:id" element={<ProductAuditReport />} />
-          <Route path="products/variants/:id" element={<ProductVariants />} />
           <Route path="products/import-export" element={<ProductImportExport />} />
           <Route path="products/labels" element={<BarcodeLabels />} />
+          <Route path="master/gst-rates" element={<GstRates />} />
+          <Route path="master/prices" element={<PricesOffers />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="inventory/adjust" element={<AdjustStock />} />
+          <Route path="inventory/opening-stock" element={<OpeningStockList />} />
+          <Route path="inventory/opening-stock/create" element={<CreateOpeningStock />} />
+          <Route path="inventory/opening-stock/edit/:id" element={<CreateOpeningStock />} />
+          <Route path="inventory/opening-stock/view/:id" element={<OpeningStockDetails />} />
           <Route path="inventory/audit-report" element={<StockAuditReport />} />
           <Route path="inventory/store-wise" element={<StoreWiseStock />} />
           <Route path="inventory/damaged" element={<DamagedStock />} />
@@ -193,7 +205,6 @@ function App() {
           <Route path="purchase/payments" element={<PaymentOutList />} />
           <Route path="purchase/payments/create" element={<CreatePaymentOut />} />
           <Route path="purchase/payments/view/:id" element={<PaymentOutDetails />} />
-          <Route path="purchase/payables-ageing" element={<PayablesAgeing />} />
           <Route path="staff" element={<StaffList />} />
           <Route path="staff/create" element={<StaffForm />} />
           <Route path="staff/edit/:id" element={<StaffForm />} />
@@ -243,6 +254,10 @@ function App() {
           <Route path="reports/gstr1" element={<Gstr1Report />} />
           <Route path="reports/hsn-summary" element={<HsnSummary />} />
           <Route path="reports/ageing" element={<AgeingReport />} />
+          <Route path="reports/profit" element={<Profit />} />
+          <Route path="reports/batch-sales" element={<BatchSales />} />
+          <Route path="reports/price-history" element={<PriceHistory />} />
+          <Route path="reports/price-overrides" element={<PriceOverrides />} />
           <Route path="reports" element={<Navigate to="/reports/sales-register" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Ban, CheckCircle2, Edit2, Printer, Trash2 } from 'lucide-react';
+import { Ban, CheckCircle2, Edit2, HandCoins, Printer, Trash2 } from 'lucide-react';
 import Button from '@/components/inputs/Button';
 import DeleteModal from '@/components/modal/DeleteModal';
 import PurchaseToaster from '../components/PurchaseToaster';
+import RefundReceivedModal from '../components/RefundReceivedModal';
 import LinesTable from '../components/LinesTable';
 import { DocTotals } from '../components/Totals';
 import { ConfirmModal, InfoRow, PageLoading, PageShell, Section, StatusBadge } from '../components/ui';
 import { notify, notifyError } from '../components/toast';
-import { PATHS, decId, editPath, errMsg, fmtDate, formatINR, formatQty, num, refId, storeName, supplierName, viewPath } from '../components/helpers';
+import { PATHS, decId, editPath, errMsg, fmtDate, formatINR, formatQty, methodLabel, num, refId, returnRefundLeft, storeName, supplierName, viewPath } from '../components/helpers';
 import { cancelPurchaseReturn, confirmPurchaseReturn, deletePurchaseReturn, fetchPurchaseReturn } from './services/purchaseReturnSlice';
 
 export default function PurchaseReturnDetails() {
@@ -18,7 +19,7 @@ export default function PurchaseReturnDetails() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { current, currentError, saving } = useSelector((state) => state.purchaseReturn);
-  const [modal, setModal] = useState(null);
+  const [modal, setModal] = useState(null); // 'confirm' | 'cancel' | 'delete' | 'refund'
 
   useEffect(() => {
     if (id) dispatch(fetchPurchaseReturn(id));
@@ -28,6 +29,8 @@ export default function PurchaseReturnDetails() {
   if (!current || current._id !== id) return <PageLoading title="Purchase return" error={currentError} />;
 
   const ret = current;
+  const refundLeft = returnRefundLeft(ret);
+  const agreed = ret.agreedAmount === null || ret.agreedAmount === undefined ? num(ret.totalAmount) : num(ret.agreedAmount);
 
   const run = async (thunk, fallback) => {
     try {
@@ -81,7 +84,7 @@ export default function PurchaseReturnDetails() {
   const modalCfg = {
     confirm: {
       title: 'Confirm return',
-      message: `Confirm ${ret.returnNumber}? The goods will be taken out of ${storeName(ret)} and ${formatINR(ret.totalAmount)} will be reduced from what you owe ${supplierName(ret)}.`,
+      message: `Confirm ${ret.returnNumber}? The goods will be taken out of ${storeName(ret)} and ${formatINR(agreed)} will be reduced from what you owe ${supplierName(ret)}.${num(ret.lossAmount) > 0 ? ` ${formatINR(ret.lossAmount)} is booked as a loss.` : ''}`,
       label: 'Confirm return',
       variant: 'primary',
       onConfirm: () => run(confirmPurchaseReturn(ret._id), 'Purchase return confirmed'),
@@ -111,7 +114,12 @@ export default function PurchaseReturnDetails() {
               </Button>
             </>
           )}
-          {ret.status !== 'cancelled' && (
+          {refundLeft > 0 && (
+            <Button size="sm" onClick={() => setModal('refund')} startIcon={<HandCoins className="w-4 h-4" />}>
+              Money received?
+            </Button>
+          )}
+          {ret.status !== 'cancelled' && !(num(ret.refundReceived) > 0) && (
             <Button size="sm" variant="outline" onClick={() => setModal('cancel')} startIcon={<Ban className="w-4 h-4" />}>
               Cancel
             </Button>
@@ -167,9 +175,57 @@ export default function PurchaseReturnDetails() {
             </Section>
           )}
         </div>
-        <Section title="Amount">
-          <DocTotals doc={ret} />
-        </Section>
+        <div className="flex flex-col gap-6">
+          <Section title="Money from the supplier" bodyClassName="p-4 flex flex-col gap-2.5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[var(--vs-text-secondary)]">Goods value (cost + GST)</span>
+              <span className="font-mono">{formatINR(ret.totalAmount)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--vs-text-secondary)]">Supplier gives</span>
+              <span className="font-mono font-semibold">{formatINR(agreed)}</span>
+            </div>
+            {num(ret.lossAmount) > 0 && (
+              <div className="flex justify-between text-rose-600 dark:text-rose-400">
+                <span>Loss</span>
+                <span className="font-mono font-semibold">{formatINR(ret.lossAmount)}</span>
+              </div>
+            )}
+            {ret.status === 'confirmed' && (
+              <>
+                {num(ret.billAdjustedAmount) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-[var(--vs-text-secondary)]">Cut from bill</span>
+                    <span className="font-mono">{formatINR(ret.billAdjustedAmount)}</span>
+                  </div>
+                )}
+                {num(ret.refundReceived) > 0 && (
+                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                    <span>
+                      Received{ret.refundReceivedAt ? ` on ${fmtDate(ret.refundReceivedAt)}` : ''}
+                      {ret.refundMethod ? ` · ${methodLabel(ret.refundMethod)}` : ''}
+                    </span>
+                    <span className="font-mono font-semibold">{formatINR(ret.refundReceived)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-baseline border-t border-[var(--vs-border)] pt-2.5">
+                  <span className="font-semibold">Still to receive</span>
+                  <span className={`font-mono text-lg font-bold ${refundLeft > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    {refundLeft > 0 ? formatINR(refundLeft) : 'Nothing'}
+                  </span>
+                </div>
+                {refundLeft > 0 && (
+                  <Button onClick={() => setModal('refund')} className="w-full print:hidden" startIcon={<HandCoins className="w-4 h-4" />}>
+                    Money received?
+                  </Button>
+                )}
+              </>
+            )}
+          </Section>
+          <Section title="Price details">
+            <DocTotals doc={ret} />
+          </Section>
+        </div>
       </div>
 
       {modalCfg && (
@@ -193,6 +249,16 @@ export default function PurchaseReturnDetails() {
         title="Delete purchase return"
         message={`Delete ${ret.returnNumber}? This cannot be undone.`}
       />
+      {modal === 'refund' && (
+        <RefundReceivedModal
+          ret={ret}
+          onClose={() => setModal(null)}
+          onDone={() => {
+            setModal(null);
+            dispatch(fetchPurchaseReturn(ret._id));
+          }}
+        />
+      )}
       <PurchaseToaster />
     </PageShell>
   );

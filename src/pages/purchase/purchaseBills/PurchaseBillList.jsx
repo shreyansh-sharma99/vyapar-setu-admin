@@ -8,21 +8,15 @@ import TableInfoCard from '@/components/table/TableInfoCard';
 import Card from '@/components/breadCrumbs/Card';
 import DeleteModal from '@/components/modal/DeleteModal';
 import PurchaseToaster from '../components/PurchaseToaster';
-import { FilterSelect, StatusBadge } from '../components/ui';
+import { StatusBadge } from '../components/ui';
 import { notify, notifyError } from '../components/toast';
-import { PATHS, editPath, errMsg, fmtDate, formatINR, isOverdue, num, refId, storeName, supplierName, viewPath } from '../components/helpers';
+import { PATHS, daysPast, editPath, errMsg, fmtDate, formatINR, isOverdue, num, refId, storeName, supplierName, viewPath } from '../components/helpers';
 import { fetchPurchaseBills, deletePurchaseBill } from './services/purchaseBillSlice';
 
-const FILTERS = [
-  { value: 'all', label: 'All bills' },
-  { value: 'unpaid,partially_paid', label: 'Due (unpaid + part paid)' },
-  { value: 'overdue', label: 'Overdue' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'unpaid', label: 'Unpaid' },
-  { value: 'partially_paid', label: 'Partially paid' },
-  { value: 'paid', label: 'Paid' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
+const DUE = 'unpaid,partially_paid'; // bills with money still to pay
+
+// Plain words for bill status (the shared badge is also used by orders / receipts).
+const BILL_STATUS_LABEL = { draft: 'Not finished', unpaid: 'To pay', partially_paid: 'Part paid', paid: 'Paid', cancelled: 'Cancelled' };
 
 const dateInput = 'h-10 px-3 text-sm rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] outline-none';
 
@@ -33,7 +27,7 @@ export default function PurchaseBillList() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('all'); // 'all' | DUE (unpaid + part paid) | 'overdue'
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -92,11 +86,12 @@ export default function PurchaseBillList() {
           {payable(b) && (
             <button
               type="button"
-              title="Record payment"
+              title="Pay this bill"
               onClick={() => navigate(`${PATHS.payments}/create`, { state: { supplierId: refId(b.supplierId), purchaseBillId: b._id, amount: b.balanceAmount } })}
-              className={`${iconBtn} text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10`}
+              className="ml-1 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 cursor-pointer"
             >
-              <IndianRupee className="w-4 h-4" />
+              <IndianRupee className="w-3.5 h-3.5" />
+              Pay
             </button>
           )}
           {['draft', 'cancelled'].includes(b.status) && (
@@ -120,7 +115,7 @@ export default function PurchaseBillList() {
     },
     { label: 'Bill date', key: 'billDate', value: 'checked', render: (b) => fmtDate(b.billDate) },
     {
-      label: 'Due date',
+      label: 'Pay by',
       key: 'dueDate',
       value: 'checked',
       render: (b) => {
@@ -128,7 +123,24 @@ export default function PurchaseBillList() {
         return (
           <span className={late ? 'font-semibold text-rose-600 dark:text-rose-400' : ''}>
             {fmtDate(b.dueDate)}
-            {late && <span className="block text-[10px] uppercase tracking-wide">Overdue</span>}
+            {late && <span className="block text-[10px] uppercase tracking-wide">Late</span>}
+          </span>
+        );
+      },
+    },
+    {
+      label: 'Due days',
+      key: 'dueDays',
+      value: 'checked',
+      render: (b) => {
+        if (b.status === 'paid') return <span className="font-semibold text-emerald-600 dark:text-emerald-400">Paid</span>;
+        if (!['unpaid', 'partially_paid'].includes(b.status)) return <span className="text-[var(--vs-text-secondary)]">—</span>;
+        // Days since the goods arrived (today − delivered day).
+        const days = daysPast(b.receivedDate || b.billDate);
+        const late = isOverdue(b.dueDate, b.balanceAmount);
+        return (
+          <span className={late ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-[var(--vs-text-primary)]'} title={`Goods arrived on ${fmtDate(b.receivedDate || b.billDate)}`}>
+            {days === 0 ? 'Today' : `${days} ${days === 1 ? 'day' : 'days'}`}
           </span>
         );
       },
@@ -138,12 +150,12 @@ export default function PurchaseBillList() {
     { label: 'Total', key: 'totalAmount', value: 'checked', render: (b) => <span className="font-semibold">{formatINR(b.totalAmount)}</span> },
     { label: 'Paid', key: 'paidAmount', value: 'checked', render: (b) => <span className="text-emerald-600 dark:text-emerald-400">{formatINR(num(b.paidAmount) + num(b.adjustedAmount))}</span> },
     {
-      label: 'Balance',
+      label: 'Still to pay',
       key: 'balanceAmount',
       value: 'checked',
       render: (b) => <span className={num(b.balanceAmount) > 0 && b.status !== 'draft' ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-[var(--vs-text-secondary)]'}>{formatINR(b.balanceAmount)}</span>,
     },
-    { label: 'Status', key: 'status', value: 'checked', render: (b) => <StatusBadge status={b.status} /> },
+    { label: 'Status', key: 'status', value: 'checked', render: (b) => <StatusBadge status={b.status} label={BILL_STATUS_LABEL[b.status]} /> },
   ];
 
   return (
@@ -155,7 +167,23 @@ export default function PurchaseBillList() {
           <div className="flex flex-wrap items-center gap-2">
             <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className={dateInput} title="From date" />
             <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className={dateInput} title="To date" />
-            <FilterSelect value={filter} onChange={changeFilter} options={FILTERS} />
+            <div className="inline-flex rounded-xl border border-[var(--vs-border)] p-1 bg-[var(--vs-bg-primary)]">
+              {[
+                { value: 'all', label: 'All bills' },
+                { value: DUE, label: 'Due bills' },
+              ].map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => changeFilter(t.value)}
+                  className={`px-4 h-8 text-sm font-semibold rounded-lg transition-colors cursor-pointer ${
+                    filter === t.value || (t.value === DUE && filter === 'overdue') ? 'bg-indigo-600 text-white shadow-sm' : 'text-[var(--vs-text-secondary)] hover:bg-[var(--vs-bg-secondary)]'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
         }
       >
@@ -163,18 +191,18 @@ export default function PurchaseBillList() {
           <TableInfoCard
             stats={[
               { label: 'Bills', value: stats?.bills ?? 0, icon: <FileText className="w-4 h-4 text-slate-500" />, isActive: filter === 'all', onClick: () => changeFilter('all') },
-              { label: 'Purchases', value: formatINR(stats?.purchases), icon: <ShoppingCart className="w-4 h-4 text-indigo-500" />, colorClass: 'text-indigo-600 dark:text-indigo-400' },
-              { label: 'Input tax (ITC)', value: formatINR(stats?.inputTax), icon: <Percent className="w-4 h-4 text-blue-500" />, colorClass: 'text-blue-600 dark:text-blue-400' },
+              { label: 'Total bought', value: formatINR(stats?.purchases), icon: <ShoppingCart className="w-4 h-4 text-indigo-500" />, colorClass: 'text-indigo-600 dark:text-indigo-400' },
+              { label: 'GST you can claim (ITC)', value: formatINR(stats?.inputTax), icon: <Percent className="w-4 h-4 text-blue-500" />, colorClass: 'text-blue-600 dark:text-blue-400' },
               {
-                label: 'Due',
+                label: 'Still to pay',
                 value: formatINR(stats?.due),
                 icon: <Clock className="w-4 h-4 text-amber-500" />,
                 colorClass: 'text-amber-600 dark:text-amber-400',
-                isActive: filter === 'unpaid,partially_paid',
-                onClick: () => changeFilter(filter === 'unpaid,partially_paid' ? 'all' : 'unpaid,partially_paid'),
+                isActive: filter === DUE,
+                onClick: () => changeFilter(filter === DUE ? 'all' : DUE),
               },
               {
-                label: 'Overdue',
+                label: 'Late',
                 value: formatINR(stats?.overdue),
                 icon: <AlertTriangle className="w-4 h-4 text-rose-500" />,
                 colorClass: 'text-rose-600 dark:text-rose-400',
@@ -209,7 +237,7 @@ export default function PurchaseBillList() {
             setPageSize(s);
             setPage(1);
           }}
-          actions={<Button onClick={() => navigate(`${PATHS.bills}/create`)}>Record Bill</Button>}
+          actions={<Button onClick={() => navigate(`${PATHS.bills}/create`)}>Record a bill</Button>}
         />
       </Card>
       <DeleteModal

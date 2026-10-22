@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Loader2,
   Plus,
@@ -10,6 +10,7 @@ import {
   QrCode,
   Store as StoreIcon,
   Lock,
+  ExternalLink,
 } from 'lucide-react';
 import { Label } from '@/components/inputs/Label';
 import { Input } from '@/components/inputs/Input';
@@ -22,16 +23,20 @@ import Checkbox from '@/components/inputs/Checkbox';
 import BarcodeScannerModal from '@/components/modal/BarcodeScannerModal';
 import { getSubcategoriesApi } from '../../subcategories/services/subcategoryService';
 import { getSimilarProductsApi } from '../services/productService';
+import { getTaxRatesApi } from '@/pages/masterSettings/services/gstRateService';
+import dayjs from 'dayjs';
 import DuplicateWarning from './DuplicateWarning';
-import PriceCheck from './PriceCheck';
 import {
-  computeCustomerPrice,
-  formatQty,
   toNumberOr,
   useDebouncedValue,
 } from '../utils/productUtils';
 
 const DEFAULT_THRESHOLD = '5';
+
+const formatGst = (gstRate, cessRate) => {
+  const gst = `${Number(gstRate) || 0}%`;
+  return Number(cessRate) > 0 ? `${gst} + ${Number(cessRate)}% cess` : gst;
+};
 
 const refId = (v) => (v && typeof v === 'object' ? v._id : v) || '';
 
@@ -81,14 +86,12 @@ const buildDefaults = (p) => ({
   tags: parseTags(p?.tags),
   isGstApplicable: String(p?.isGstApplicable ?? false),
   gstRateOverride: String(p?.gstRateOverride ?? 0),
-  isGstIncludedInPrice: String(p?.isGstIncludedInPrice ?? false),
+  // a new product: selling prices include GST (like the MRP); change later in Prices & Offers
+  isGstIncludedInPrice: String(p ? p.isGstIncludedInPrice ?? false : true),
   isCustomizable: String(p?.isCustomizable ?? false),
   unit: p?.unit || 'pcs',
   reorderQty: numText(p?.reorderQty, { zeroAsEmpty: true }),
 });
-
-const cellInputCls =
-  'w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500';
 
 /**
  * Shared create / edit product form.
@@ -121,27 +124,39 @@ export default function ProductForm({
     const parsed = parseCustomFields(product?.customizationFields);
     return parsed.length ? parsed : [{ label: '', fieldType: 'TextInput', isRequired: false }];
   });
-  const [storeEdits, setStoreEdits] = useState({});
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
   const [subcats, setSubcats] = useState({ categoryId: null, list: [] });
   const [similar, setSimilar] = useState({ key: '', items: [] });
   const [dismissedKey, setDismissedKey] = useState(null);
+  const [taxInfo, setTaxInfo] = useState({ productId: null, data: null });
+  // New product: its GST becomes the first GST master entry (from today). Prices change only
+  // in Master Settings → Prices & Offers.
+  const initialPricingMode = !isEdit;
+
+  // ── GST master (edit only): GST is changed in Master Settings → GST Rates ──
+  useEffect(() => {
+    if (!isEdit || !productId) return undefined;
+    let cancelled = false;
+    getTaxRatesApi(productId)
+      .then((res) => {
+        if (!cancelled) setTaxInfo({ productId, data: res?.data || null });
+      })
+      .catch(() => {
+        if (!cancelled) setTaxInfo({ productId, data: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, productId]);
+  const taxData = isEdit && taxInfo.productId === productId ? taxInfo.data : null;
+  const gstLocked = isEdit;
+  const masterGst = taxData?.current || null;
 
   // ── watched values ──
   const selectedCategoryId = watch('categoryId');
   const isGstApplicable = watch('isGstApplicable');
   const isCustomizable = watch('isCustomizable');
-  const unit = watch('unit');
   const barcode = watch('barcode');
-  const priceValues = {
-    basePrice: watch('basePrice'),
-    discountedPrice: watch('discountedPrice'),
-    mrp: watch('mrp'),
-    costPrice: watch('costPrice'),
-    isGstApplicable,
-    isGstIncludedInPrice: watch('isGstIncludedInPrice'),
-    gstRateOverride: watch('gstRateOverride'),
-  };
 
   // ── subcategories for the selected category ──
   useEffect(() => {
@@ -208,18 +223,11 @@ export default function ProductForm({
           stock: '',
           lowStockAlertThreshold: thresholdDefault,
           rackLocation: existing?.rackLocation || '',
-          ...(storeEdits[s._id] || {}),
         };
       }),
-    [stores, product, storeEdits, isEdit]
+    [stores, product, isEdit]
   );
 
-  const totalOpeningStock = storeRows.reduce((sum, r) => sum + toNumberOr(r.stock, 0), 0);
-  const totalCurrentStock = storeRows.reduce((sum, r) => sum + r.currentStock, 0);
-
-  const handleStoreRowChange = (storeId, field, value) => {
-    setStoreEdits((prev) => ({ ...prev, [storeId]: { ...(prev[storeId] || {}), [field]: value } }));
-  };
 
   // ── images / custom fields ──
   const handleUploadSuccess = (response) => {
@@ -256,23 +264,11 @@ export default function ProductForm({
       return;
     }
 
-    const base = toNumberOr(data.basePrice, 0);
-    const discounted = toNumberOr(data.discountedPrice, 0);
-    const mrp = toNumberOr(data.mrp, 0);
-    if (discounted > 0 && discounted > base) {
-      onValidationError?.('Discounted price cannot be more than the base price.');
-      return;
-    }
-    if (mrp > 0) {
-      const customerPrice = computeCustomerPrice(data);
-      if (customerPrice > mrp + 0.005) {
-        onValidationError?.(`Selling price ₹${customerPrice} (incl. GST) is above the MRP ₹${mrp}.`);
-        return;
-      }
-    }
-
-    const thresholds = storeRows.map((r) => Math.max(0, toNumberOr(r.lowStockAlertThreshold, Number(DEFAULT_THRESHOLD))));
-    const productThreshold = thresholds.length ? Math.min(...thresholds) : Number(DEFAULT_THRESHOLD);
+    // Add product: no low-stock alert yet (0 = not set) — each warehouse gets it from the purchase line
+    // ("Low stock alert" on the PO / GRN) or later from Edit product → Store Settings.
+    const alertOf = (r) => (isEdit ? Math.max(0, toNumberOr(r.lowStockAlertThreshold, Number(DEFAULT_THRESHOLD))) : 0);
+    const thresholds = storeRows.map(alertOf);
+    const productThreshold = !isEdit ? 0 : thresholds.length ? Math.min(...thresholds) : Number(DEFAULT_THRESHOLD);
 
     let tagList = [];
     if (Array.isArray(data.tags)) tagList = data.tags.map((t) => String(t).trim()).filter(Boolean);
@@ -281,7 +277,7 @@ export default function ProductForm({
     const storeStocks = storeRows.map((r) => {
       const row = {
         storeId: r.storeId,
-        lowStockAlertThreshold: Math.max(0, toNumberOr(r.lowStockAlertThreshold, Number(DEFAULT_THRESHOLD))),
+        lowStockAlertThreshold: alertOf(r),
         rackLocation: (r.rackLocation || '').trim(),
       };
       if (!isEdit) {
@@ -318,6 +314,34 @@ export default function ProductForm({
         : '[]',
       storeStocks,
     };
+
+    // Add and edit have no price, MRP, cost or stock: they come from purchases
+    // (and Prices & Offers) and are shown on the product page. Low-stock alerts per store come
+    // from the purchase lines, so edit leaves the store rows alone.
+    delete payload.basePrice;
+    delete payload.discountedPrice;
+    delete payload.mrp;
+    delete payload.costPrice;
+    if (isEdit) {
+      delete payload.storeStocks;
+      delete payload.lowStockAlertThreshold;
+      delete payload.isGstIncludedInPrice;
+    }
+    if (initialPricingMode) {
+      // First GST master entry from today; the first selling price comes from the first purchase.
+      payload.initialPricing = {
+        priceIncludesGst: data.isGstIncludedInPrice === 'true',
+        gstRate: data.isGstApplicable === 'true' ? toNumberOr(data.gstRateOverride, 0) : 0,
+        cessRate: 0,
+      };
+    }
+
+    // GST comes from the GST master — do not overwrite the product card from this form.
+    if (gstLocked) {
+      delete payload.isGstApplicable;
+      delete payload.gstRateOverride;
+      delete payload.isGstIncludedInPrice;
+    }
 
     onSubmit(payload);
   };
@@ -477,92 +501,30 @@ export default function ProductForm({
         {showSimilar && <DuplicateWarning items={similar.items} onDismiss={() => setDismissedKey(similar.key)} />}
       </Card>
 
-      {/* Pricing */}
-      <Card title="Pricing" bodyClassName="p-6 flex flex-col gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <Label htmlFor="basePrice">Base Price (₹)<span className="text-rose-500">*</span></Label>
-            <Input
-              id="basePrice"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="999"
-              error={errors.basePrice}
-              {...register('basePrice', {
-                required: 'Base price is required',
-                min: { value: 0, message: 'Price cannot be negative' },
-              })}
-            />
-            {errors.basePrice && <span className="text-xs text-red-500 mt-1 block">{errors.basePrice.message}</span>}
-          </div>
-
-          <div>
-            <Label htmlFor="discountedPrice">Discounted Price (₹)</Label>
-            <Input
-              id="discountedPrice"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0 = no discount"
-              error={errors.discountedPrice}
-              {...register('discountedPrice', { min: { value: 0, message: 'Price cannot be negative' } })}
-            />
-            {errors.discountedPrice ? (
-              <span className="text-xs text-red-500 mt-1 block">{errors.discountedPrice.message}</span>
-            ) : (
-              <span className="text-[11px] text-[var(--vs-text-secondary)] mt-1 block">Leave empty or 0 to sell at the base price.</span>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="mrp">MRP (₹)</Label>
-            <Input
-              id="mrp"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Printed MRP"
-              error={errors.mrp}
-              {...register('mrp', { min: { value: 0, message: 'MRP cannot be negative' } })}
-            />
-            {errors.mrp && <span className="text-xs text-red-500 mt-1 block">{errors.mrp.message}</span>}
-          </div>
-
-          <div>
-            <Label htmlFor="costPrice">Cost Price (₹)</Label>
-            <Input
-              id="costPrice"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Purchase cost per unit"
-              error={errors.costPrice}
-              {...register('costPrice', { min: { value: 0, message: 'Cost cannot be negative' } })}
-            />
-            {errors.costPrice ? (
-              <span className="text-xs text-red-500 mt-1 block">{errors.costPrice.message}</span>
-            ) : (
-              <span className="text-[11px] text-[var(--vs-text-secondary)] mt-1 block">Per {unit || 'unit'}, before GST.</span>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="minOrderQty">Min Order Qty</Label>
-            <Input id="minOrderQty" type="number" min="1" placeholder="1" {...register('minOrderQty', { min: 1 })} />
-          </div>
-
-          <div>
-            <Label htmlFor="hsnSacCode">HSN / SAC Code</Label>
-            <Input id="hsnSacCode" type="text" placeholder="e.g. 85171200" {...register('hsnSacCode')} />
-          </div>
-        </div>
-
-        <PriceCheck values={priceValues} />
-      </Card>
-
       {/* GST */}
-      <Card title="GST Configuration" bodyClassName="p-6">
+      <Card title="GST & HSN" bodyClassName="p-6 flex flex-col gap-4">
+        {gstLocked && productId && (
+          <div className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/70 dark:bg-indigo-950/30 text-xs text-indigo-700 dark:text-indigo-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="flex items-start gap-2">
+              <Lock className="w-4 h-4 shrink-0 mt-px" />
+              <span>
+                GST rates are managed in Master Settings → GST Rates and cannot be changed here.
+                {masterGst && (
+                  <>
+                    {' '}Current: <span className="font-bold">{formatGst(masterGst.gstRate, masterGst.cessRate)}</span>
+                    {masterGst.source === 'master' && masterGst.effectiveFrom ? ` · from ${dayjs(masterGst.effectiveFrom).format('DD MMM YYYY')}` : ''}
+                  </>
+                )}
+              </span>
+            </span>
+            <Link
+              to="/master/gst-rates"
+              className="inline-flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400 hover:underline shrink-0"
+            >
+              Change in GST master <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="isGstApplicable">Is GST Applicable?</Label>
@@ -570,7 +532,7 @@ export default function ProductForm({
               name="isGstApplicable"
               control={control}
               render={({ field }) => (
-                <Select id="isGstApplicable" options={yesNo} value={field.value} onChange={field.onChange} />
+                <Select id="isGstApplicable" options={yesNo} value={field.value} onChange={field.onChange} disabled={gstLocked} />
               )}
             />
           </div>
@@ -578,21 +540,36 @@ export default function ProductForm({
           {isGstApplicable === 'true' && (
             <div>
               <Label htmlFor="gstRateOverride">GST Rate (%)</Label>
-              <Input id="gstRateOverride" type="number" step="0.01" placeholder="18" {...register('gstRateOverride', { min: 0, max: 100 })} />
+              <Input
+                id="gstRateOverride"
+                type="number"
+                step="0.01"
+                placeholder="18"
+                readOnly={gstLocked}
+                className={gstLocked ? 'opacity-60 cursor-not-allowed' : ''}
+                {...register('gstRateOverride', { min: 0, max: 100 })}
+              />
             </div>
           )}
 
-          <div>
-            <Label htmlFor="isGstIncludedInPrice">Is GST Included In Price?</Label>
-            <Controller
-              name="isGstIncludedInPrice"
-              control={control}
-              render={({ field }) => (
-                <Select id="isGstIncludedInPrice" options={yesNo} value={field.value} onChange={field.onChange} />
-              )}
-            />
-          </div>
         </div>
+        {(
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="hsnSacCode">HSN / SAC Code</Label>
+              <Input id="hsnSacCode" type="text" placeholder="e.g. 85171200" {...register('hsnSacCode')} />
+            </div>
+            <div>
+              <Label htmlFor="minOrderQty">Min Order Qty</Label>
+              <Input id="minOrderQty" type="number" min="1" placeholder="1" {...register('minOrderQty', { min: 1 })} />
+            </div>
+          </div>
+        )}
+        {!isEdit && (
+          <p className="text-[11px] text-[var(--vs-text-secondary)] m-0">
+            Selling price, MRP, cost and stock are entered on the purchase (GRN / bill) or opening stock, and shown on the product page.
+          </p>
+        )}
       </Card>
 
       {/* Stores */}
@@ -621,125 +598,18 @@ export default function ProductForm({
         </div>
       )}
 
-      {stores && stores.length > 0 && (
-        <Card
-          title={isEdit ? 'Store Stock & Locations' : 'Opening Stock per Store'}
-          description={
-            isEdit
-              ? 'Stock levels are shown for reference. You can change the low-stock alert and rack location here.'
-              : 'Enter the opening stock, low-stock alert and rack location for each store or warehouse.'
-          }
-          rightNode={
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-mono">
-              Total: {formatQty(isEdit ? totalCurrentStock : totalOpeningStock)} {unit || 'units'}
-            </span>
-          }
-          bodyClassName="p-6 flex flex-col gap-4"
-        >
-          {isEdit && (
-            <div className="flex items-start gap-2 p-3 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/70 dark:bg-indigo-950/30 text-xs text-indigo-700 dark:text-indigo-300">
-              <Lock className="w-4 h-4 shrink-0" />
-              <span>
-                Change stock from <strong>Inventory → Adjust Stock</strong>. Editing the product does not change stock quantities.
-              </span>
-            </div>
-          )}
-
-          <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-x-auto bg-white dark:bg-gray-800/50">
-            <table className="w-full text-left text-xs min-w-[640px]">
-              <thead className="bg-gray-50 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 font-semibold">
-                <tr>
-                  <th className="py-3 px-3">Store / Warehouse</th>
-                  {isEdit ? (
-                    <>
-                      <th className="py-3 px-3 w-32">Current Stock</th>
-                      <th className="py-3 px-3 w-28">Damaged</th>
-                    </>
-                  ) : (
-                    <th className="py-3 px-3 w-32">Opening Stock</th>
-                  )}
-                  <th className="py-3 px-3 w-32">Low Stock Alert</th>
-                  <th className="py-3 px-3 w-44">Rack / Shelf Location</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-                {storeRows.map((row) => (
-                  <tr key={row.storeId} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.01]">
-                    <td className="py-3 px-3">
-                      <div className="font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
-                        <StoreIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                        <span>{row.storeName}</span>
-                        {row.isDefault && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-                            Default
-                          </span>
-                        )}
-                        {row.isActive === false && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/10 text-gray-500">Inactive</span>
-                        )}
-                      </div>
-                      {row.code && <span className="text-[10px] font-mono text-gray-400 ml-5">{row.code}</span>}
-                    </td>
-                    {isEdit ? (
-                      <>
-                        <td className="py-3 px-3">
-                          <span className="inline-flex items-center gap-1 font-mono font-semibold text-[var(--vs-text-primary)]">
-                            {formatQty(row.currentStock)}
-                            <span className="text-[10px] text-[var(--vs-text-secondary)]">{unit || ''}</span>
-                          </span>
-                          {!row.hasRow && <span className="block text-[10px] text-[var(--vs-text-secondary)]">New store</span>}
-                        </td>
-                        <td className="py-3 px-3 font-mono">
-                          {row.damagedStock > 0 ? (
-                            <span className="text-amber-600 dark:text-amber-400 font-semibold">{formatQty(row.damagedStock)}</span>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                      </>
-                    ) : (
-                      <td className="py-3 px-3">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder="0"
-                          value={row.stock}
-                          onChange={(e) => handleStoreRowChange(row.storeId, 'stock', e.target.value)}
-                          className={`${cellInputCls} font-mono`}
-                        />
-                      </td>
-                    )}
-                    <td className="py-3 px-3">
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        placeholder="0"
-                        value={row.lowStockAlertThreshold}
-                        onChange={(e) => handleStoreRowChange(row.storeId, 'lowStockAlertThreshold', e.target.value)}
-                        className={`${cellInputCls} font-mono`}
-                      />
-                    </td>
-                    <td className="py-3 px-3">
-                      <input
-                        type="text"
-                        placeholder="e.g. Aisle 4, Shelf B"
-                        value={row.rackLocation}
-                        onChange={(e) => handleStoreRowChange(row.storeId, 'rackLocation', e.target.value)}
-                        className={cellInputCls}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-[11px] text-[var(--vs-text-secondary)] m-0">
-            Low stock alert: you are warned when stock falls to this level. 0 means alert only when the store is out of stock.
-          </p>
-        </Card>
+      {!isEdit && stores && stores.length > 0 && (
+        <div className="p-4 rounded-2xl border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/70 dark:bg-indigo-950/30 text-xs text-indigo-700 dark:text-indigo-300 flex items-start gap-2">
+          <StoreIcon className="w-4 h-4 shrink-0 mt-px" />
+          <span>
+            Stock comes in through{' '}
+            <Link to="/purchase/receipts/create" className="font-semibold underline">Purchase (GRN)</Link> or{' '}
+            <Link to="/inventory/opening-stock/create" className="font-semibold underline">Opening Stock</Link>. Low-stock alerts are set per warehouse on
+            the purchase order / goods receipt ("Low stock alert" column).
+          </span>
+        </div>
       )}
+
 
       {/* Descriptions & tags */}
       <Card title="Descriptions & Tags" bodyClassName="p-6">

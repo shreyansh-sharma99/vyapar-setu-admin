@@ -5,7 +5,7 @@ import { Store as StoreIcon, Sigma } from 'lucide-react';
 import Card from '@/components/breadCrumbs/Card';
 import Table from '@/components/table/Table';
 import { getStoreWiseStock } from './services/inventorySlice';
-import { InventoryNav, InventoryToaster } from './components/InventoryShared';
+import { InventoryToaster } from './components/InventoryShared';
 import {
   formatCurrency,
   formatQty,
@@ -117,7 +117,6 @@ export default function StoreWiseStock() {
   return (
     <div>
       <Card h1="Store-wise Stock" bodyClassName="px-4 pb-4 pt-3">
-        <InventoryNav current="store-wise" />
 
         {/* Store totals (all matching products, not just this page) */}
         {stores.length > 0 && (

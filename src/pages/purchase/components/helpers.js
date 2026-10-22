@@ -9,7 +9,6 @@ export const PATHS = {
   bills: '/purchase/bills',
   returns: '/purchase/returns',
   payments: '/purchase/payments',
-  ageing: '/purchase/payables-ageing',
 };
 
 /** URL-safe encrypted id, same scheme as the sales pages. */
@@ -81,6 +80,15 @@ export const isOverdue = (dueDate, balance) => {
   return new Date(dueDate) < start;
 };
 
+/** Money the supplier still has to give back for a confirmed return. */
+export const returnRefundLeft = (r) => {
+  if (!r || r.status !== 'confirmed') return 0;
+  const agreed = r.agreedAmount === null || r.agreedAmount === undefined ? num(r.totalAmount) : num(r.agreedAmount);
+  // Returns confirmed before refunds were tracked: what was not set off against the bill.
+  const due = num(r.refundDue) > 0 ? num(r.refundDue) : r.refundStatus === 'received' ? 0 : Math.max(0, agreed - num(r.billAdjustedAmount));
+  return Math.max(0, Math.round((due - num(r.refundReceived)) * 100) / 100);
+};
+
 export const daysPast = (date) => {
   if (!date) return 0;
   const ms = Date.now() - new Date(date).getTime();
@@ -134,6 +142,7 @@ export const LEDGER_TYPES = {
   purchase_bill: 'Purchase bill',
   payment: 'Payment',
   purchase_return: 'Purchase return',
+  refund_received: 'Money received back',
   adjustment: 'Adjustment',
 };
 
@@ -160,6 +169,12 @@ export const emptyLine = () => ({
   cessPercent: 0,
   fromBucket: 'sellable',
   reason: '',
+  // purchase order plan for the goods receipt (per pc)
+  sellingPrice: '',
+  mrp: '',
+  expiryDate: '',
+  lowStockAlert: '',
+  productMrp: 0,
 });
 
 /** [{ unit, factor }] — base unit first, then pack units. */
@@ -174,7 +189,8 @@ export const unitsOf = (p) => {
   return list;
 };
 
-export const productTax = (p) => (p?.isGstApplicable ? num(p.gstRateOverride) : 0);
+/** GST of a product: today's GST master rate when the lookup sent it, else the product card. */
+export const productTax = (p) => (p?.gst && p.gst.current !== undefined && p.gst.current !== null ? num(p.gst.current) : p?.isGstApplicable ? num(p.gstRateOverride) : 0);
 
 /** Fills a line from a product row (lookup or product details). */
 export const applyProduct = (line, p, { keepQtyRate = false } = {}) => ({
@@ -187,6 +203,7 @@ export const applyProduct = (line, p, { keepQtyRate = false } = {}) => ({
   units: unitsOf(p),
   rate: keepQtyRate ? line.rate : round2(num(p.lastPurchasePrice) || num(p.costPrice)),
   taxPercent: productTax(p),
+  productMrp: num(p.mrp),
 });
 
 /** Turns a saved document line into an editable line. */
@@ -210,6 +227,11 @@ export const lineFromDoc = (item) => {
     cessPercent: num(item.cessPercent),
     fromBucket: item.fromBucket || 'sellable',
     reason: item.reason || '',
+    sellingPrice: num(item.sellingPrice) > 0 ? num(item.sellingPrice) : '',
+    mrp: num(item.mrp) > 0 ? num(item.mrp) : '',
+    expiryDate: toInputDate(item.expiryDate),
+    lowStockAlert: item.lowStockAlert === null || item.lowStockAlert === undefined ? '' : num(item.lowStockAlert),
+    productMrp: num(p?.mrp),
   };
 };
 
@@ -277,8 +299,11 @@ export const validateLines = (lines) => {
   return '';
 };
 
-/** Payload lines for PO / bill / return. */
-export const linesToPayload = (lines, { bucket = false } = {}) =>
+/**
+ * Payload lines for PO / bill / return. planned = purchase order: also the SP / MRP / expiry /
+ * low-stock alert planned for the goods receipt (empty ones are left out).
+ */
+export const linesToPayload = (lines, { bucket = false, planned = false } = {}) =>
   lines
     .filter((l) => l.productId)
     .map((l) => {
@@ -294,8 +319,15 @@ export const linesToPayload = (lines, { bucket = false } = {}) =>
       if (l.hsnCode) out.hsnCode = String(l.hsnCode).slice(0, 10);
       if (l.taxPercent !== '' && l.taxPercent !== null && l.taxPercent !== undefined) out.taxPercent = num(l.taxPercent);
       if (bucket) {
-        out.fromBucket = l.fromBucket || 'sellable';
+        // 'auto': the server returns damaged units first when the store has them
+        out.fromBucket = l.fromBucket === 'sellable' || l.fromBucket === 'damaged' ? l.fromBucket : 'auto';
         out.reason = l.reason || '';
+      }
+      if (planned) {
+        if (num(l.sellingPrice) > 0) out.sellingPrice = num(l.sellingPrice);
+        if (num(l.mrp) > 0) out.mrp = num(l.mrp);
+        if (l.expiryDate) out.expiryDate = l.expiryDate;
+        if (l.lowStockAlert !== '' && l.lowStockAlert !== null && l.lowStockAlert !== undefined) out.lowStockAlert = num(l.lowStockAlert);
       }
       return out;
     });

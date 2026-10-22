@@ -11,6 +11,7 @@ import {
   BarChart3,
   Settings,
   UserCog,
+  SlidersHorizontal,
   ChevronRight,
   X,
 } from 'lucide-react';
@@ -42,6 +43,7 @@ const menuGroups = [
         icon: Boxes,
         submenu: [
           { name: 'Stock Overview', href: '/inventory' },
+          { name: 'Opening Stock', href: '/inventory/opening-stock' },
           { name: 'Adjust Stock', href: '/inventory/adjust' },
           { name: 'Store-wise Stock', href: '/inventory/store-wise' },
           { name: 'Stock Transfers', href: '/inventory/transfers' },
@@ -60,8 +62,6 @@ const menuGroups = [
           { name: 'Goods Receipts (GRN)', href: '/purchase/receipts' },
           { name: 'Purchase Bills', href: '/purchase/bills' },
           { name: 'Purchase Returns', href: '/purchase/returns' },
-          { name: 'Payments Out', href: '/purchase/payments' },
-          { name: 'Payables Ageing', href: '/purchase/payables-ageing' },
         ],
       },
       {
@@ -87,6 +87,10 @@ const menuGroups = [
           { name: 'GSTR-1 Summary', href: '/reports/gstr1' },
           { name: 'HSN Summary', href: '/reports/hsn-summary' },
           { name: 'Accounts Ageing', href: '/reports/ageing' },
+          { name: 'Profit', href: '/reports/profit' },
+          { name: 'Batch-wise Sales', href: '/reports/batch-sales' },
+          { name: 'Price History', href: '/reports/price-history' },
+          { name: 'Price Overrides', href: '/reports/price-overrides' },
         ],
       },
       {
@@ -96,6 +100,14 @@ const menuGroups = [
           { name: 'General Invoice Setting', href: '/sales/general-invoice-setting' },
           { name: 'Invoice Settings', href: '/sales/invoice-setting' },
           { name: 'Invoice Layout', href: '/sales/invoice-layout' },
+        ],
+      },
+      {
+        name: 'Master Settings',
+        icon: SlidersHorizontal,
+        submenu: [
+          { name: 'GST Rates', href: '/master/gst-rates' },
+          { name: 'Prices & Offers', href: '/master/prices' },
         ],
       },
       {

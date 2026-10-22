@@ -12,7 +12,7 @@ export default function LinesTable({ columns, rows, emptyText = 'Nothing to show
             {columns.map((c) => (
               <th
                 key={c.key || c.label}
-                className={`py-2.5 px-3 text-[11px] font-bold uppercase tracking-wider text-[var(--vs-text-secondary)] border-b border-[var(--vs-border)] whitespace-nowrap ${alignCls(c.align)}`}
+                className={`py-2.5 px-3 text-[11px] font-bold uppercase tracking-wider text-[var(--vs-text-secondary)] border border-[var(--vs-border)] whitespace-nowrap ${alignCls(c.align)}`}
               >
                 {c.label}
               </th>
@@ -28,9 +28,9 @@ export default function LinesTable({ columns, rows, emptyText = 'Nothing to show
             </tr>
           ) : (
             rows.map((row, i) => (
-              <tr key={rowKey(row, i)} className="border-b border-[var(--vs-border)] last:border-b-0 hover:bg-gray-50/60 dark:hover:bg-white/[0.02]">
+              <tr key={rowKey(row, i)} className="hover:bg-gray-50/60 dark:hover:bg-white/[0.02]">
                 {columns.map((c) => (
-                  <td key={c.key || c.label} className={`py-2.5 px-3 align-top ${alignCls(c.align)} ${c.className || ''}`}>
+                  <td key={c.key || c.label} className={`py-2.5 px-3 align-top border border-[var(--vs-border)] ${alignCls(c.align)} ${c.className || ''}`}>
                     {c.render ? c.render(row, i) : row[c.key] ?? '—'}
                   </td>
                 ))}

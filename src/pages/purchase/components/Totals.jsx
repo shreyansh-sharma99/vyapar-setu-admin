@@ -50,10 +50,13 @@ export function TotalsEditor({ totals, overallDiscountPercent, onOverallDiscount
         <span>Other charges (freight etc.)</span>
         <input type="number" min="0" step="0.01" value={otherCharges} onChange={(e) => onOtherChargesChange(e.target.value)} className={smallInput} />
       </div>
-      <label className="flex items-center justify-between gap-3 text-sm text-[var(--vs-text-secondary)] cursor-pointer">
-        <span>Round off total</span>
-        <input type="checkbox" checked={roundOff} onChange={(e) => onRoundOffChange(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 cursor-pointer" />
-      </label>
+      {/* below the freight input, lined up on the right */}
+      <div className="flex justify-end -mt-1">
+        <label className="inline-flex items-center gap-2 text-sm text-[var(--vs-text-secondary)] cursor-pointer select-none">
+          <input type="checkbox" checked={roundOff} onChange={(e) => onRoundOffChange(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 cursor-pointer" />
+          <span>Round off total</span>
+        </label>
+      </div>
       {roundOff && totals.roundOff !== 0 && <Row label="Round off" value={formatINR(totals.roundOff)} />}
       <div className="border-t border-[var(--vs-border)] pt-3">
         <Row label="Total" value={formatINR(totals.totalAmount)} tone="text-indigo-600 dark:text-indigo-400" bold />

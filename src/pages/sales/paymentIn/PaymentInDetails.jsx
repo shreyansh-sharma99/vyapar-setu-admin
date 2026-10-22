@@ -18,6 +18,7 @@ import {
   clearPaymentInToast,
 } from './services/paymentInSlice';
 import { getSalesInvoices } from '../salesInvoices/services/salesInvoiceSlice';
+import { firstAddress, customerAddress } from '../components/address';
 
 // ─── Animated Modal ─────────────────────────────────────────────────────────────
 function AnimatedModal({ isOpen, onClose, children, maxWidth = 'max-w-md' }) {
@@ -284,10 +285,11 @@ export default function PaymentInDetails() {
 
   // Customer billing string
   const customer = payment.customerId || payment.customerSnapshot;
-  const billingAddr = payment.customerSnapshot?.billingAddress || customer?.billingAddress;
-  const billingStr = billingAddr
-    ? [billingAddr.street, billingAddr.city, billingAddr.state, billingAddr.pincode, billingAddr.country].filter(Boolean).join(', ')
-    : '';
+  const billingStr = firstAddress(
+    payment.customerSnapshot?.billingAddress,
+    payment.salesInvoiceId?.customerSnapshot?.billingAddress,
+    customerAddress(payment.customerId),
+  );
 
   return (
     <div className="flex flex-col gap-6 mx-auto text-[var(--vs-text-primary)]">

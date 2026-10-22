@@ -31,6 +31,7 @@ import {
   ActorCell,
   BucketBadge,
   ValueCell,
+  BatchCell,
 } from '@/pages/inventory/inventory/components/AuditReportShared';
 import { formatDateTime, buildAuditParams, useAuditCsvExport, useStockSources } from '@/pages/inventory/inventory/components/auditReportUtils';
 import { formatCurrency } from '@/pages/inventory/inventory/components/inventoryUtils';
@@ -215,6 +216,7 @@ export default function ProductAuditReport() {
         ),
       value: 'checked',
     },
+    { label: 'Batch', key: 'batches', render: (log) => <BatchCell log={log} />, value: 'checked' },
     { label: 'Done By', key: 'actorName', render: (log) => <ActorCell log={log} />, value: 'checked' },
     {
       label: 'Remarks',

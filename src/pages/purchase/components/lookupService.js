@@ -2,7 +2,8 @@ import apiClient from '@/utility/Http';
 
 /** GET /lookups/products?q=&storeId=&limit= */
 export const searchProductsApi = async (q, { storeId, limit = 20 } = {}) => {
-  const params = { q: q || '', limit };
+  // withGst: today's GST from the GST master (Master Settings → GST Rates), not the product card
+  const params = { q: q || '', limit, withGst: true };
   if (storeId) params.storeId = storeId;
   const response = await apiClient.get('/lookups/products', { params });
   return response.data?.data || [];

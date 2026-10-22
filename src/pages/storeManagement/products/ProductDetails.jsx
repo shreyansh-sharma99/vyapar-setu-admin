@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   ArrowLeft,
@@ -17,39 +17,46 @@ import {
   Truck,
   Ruler,
   Printer,
-  Shapes,
-  Plus,
+  ExternalLink,
 } from 'lucide-react';
-import { getProductById, clearCurrentProduct, getProductVariants } from './services/productSlice';
+import { getProductById, clearCurrentProduct } from './services/productSlice';
 import Card from '../../../components/breadCrumbs/Card';
 import Button from '@/components/inputs/Button';
 import Loader from '@/components/loader/Loader';
 import { decryptData } from '@/utility/crypto';
 import { formatDateWithTiming } from '@/utility/dateTiming';
 import { FaHistory } from 'react-icons/fa';
-import { computeCustomerPrice, encodeId, formatINR, formatQty, getStockState, toNumberOr } from './utils/productUtils';
+import { computeCustomerPrice, encodeId, formatINR, formatQty, getStockState, toNumberOr, useToasts } from './utils/productUtils';
+import TodayPriceCard from './components/TodayPriceCard';
+import BatchesCard from './components/BatchesCard';
+import ToastStack from './components/ToastStack';
+import PriceHistory from '@/pages/masterSettings/components/PriceHistory';
+import GstHistory from '@/pages/masterSettings/components/GstHistory';
+import useProductPricing from '@/pages/masterSettings/components/useProductPricing';
+import { getTaxRatesApi } from '@/pages/masterSettings/services/gstRateService';
+import { formatDay } from '@/pages/masterSettings/components/gstUtils';
 
 const InfoItem = ({ icon: Icon, label, children }) => (
-  <div className="flex items-center gap-3 min-w-0">
-    <div className="p-2 rounded-xl bg-gray-50 dark:bg-white/[0.04] text-gray-500 dark:text-gray-400 shrink-0">
-      <Icon className="w-4 h-4" />
+  <div className="flex items-center gap-2.5 min-w-0">
+    <div className="p-1.5 rounded-lg bg-gray-50 dark:bg-white/[0.04] text-gray-500 dark:text-gray-400 shrink-0">
+      <Icon className="w-3.5 h-3.5" />
     </div>
     <div className="flex flex-col min-w-0">
-      <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">{label}</span>
-      <span className="text-sm font-semibold text-[var(--vs-text-primary)] break-words">{children}</span>
+      <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{label}</span>
+      <span className="text-[13px] font-semibold text-[var(--vs-text-primary)] break-words">{children}</span>
     </div>
   </div>
 );
 
 const PriceTile = ({ label, value, accent = false, muted = false, hint }) => (
-  <div className="flex flex-col">
+  <div className={`flex flex-col px-3.5 py-3 ${accent ? 'bg-indigo-50/60 dark:bg-indigo-500/[0.06]' : 'bg-[var(--vs-bg-primary)]'}`}>
     <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 tracking-wider">{label}</span>
     <span
-      className={`mt-1 font-bold ${accent ? 'text-2xl text-indigo-600 dark:text-indigo-400' : muted ? 'text-base text-gray-400' : 'text-lg text-[var(--vs-text-primary)]'}`}
+      className={`mt-1 font-bold ${accent ? 'text-lg text-indigo-600 dark:text-indigo-400' : muted ? 'text-sm text-gray-400' : 'text-base text-[var(--vs-text-primary)]'}`}
     >
       {value}
     </span>
-    {hint && <span className="text-[10px] text-[var(--vs-text-secondary)]">{hint}</span>}
+    {hint && <span className="text-[10px] leading-snug text-[var(--vs-text-secondary)] mt-0.5">{hint}</span>}
   </div>
 );
 
@@ -70,14 +77,27 @@ export default function ProductDetails() {
   const dispatch = useDispatch();
 
   const id = encryptedId ? decryptData(decodeURIComponent(encryptedId)) : null;
-  const { currentProduct, loading, variants, variantsLoading, variantGroupId } = useSelector((state) => state.product);
+  const { currentProduct, loading } = useSelector((state) => state.product);
   const [selectedImage, setSelectedImage] = useState(null);
   const [loadedId, setLoadedId] = useState(null);
+  const pricing = useProductPricing(id);
+  const { toasts, showToast } = useToasts();
+  // GST master: today's rate and the next one that starts later (Master Settings → GST Rates).
+  const [taxInfo, setTaxInfo] = useState({ id: null, data: null });
+  useEffect(() => {
+    if (!id) return undefined;
+    let alive = true;
+    getTaxRatesApi(id)
+      .then((res) => alive && setTaxInfo({ id, data: res?.data || null }))
+      .catch(() => alive && setTaxInfo({ id, data: null }));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
 
   useEffect(() => {
     if (id) {
       dispatch(getProductById(id)).finally(() => setLoadedId(id));
-      dispatch(getProductVariants(id));
     }
     return () => {
       dispatch(clearCurrentProduct());
@@ -130,16 +150,20 @@ export default function ProductDetails() {
     (st) => toNumberOr(st.stock, 0) !== 0 || toNumberOr(st.damagedStock, 0) > 0 || st.rackLocation
   );
   const customerPrice = toNumberOr(p.finalPrice, 0) > 0 ? toNumberOr(p.finalPrice, 0) : computeCustomerPrice(p);
-  const avgCost = toNumberOr(p.avgCost, 0);
-  const cost = toNumberOr(p.costPrice, 0);
-  const marginBase = avgCost > 0 ? avgCost : cost;
+  // From the last purchase (PO → GRN / bill): cost before GST, GST on it, MRP and SP
+  const cost = toNumberOr(p.lastPurchasePrice, 0) || toNumberOr(p.costPrice, 0) || toNumberOr(p.avgCost, 0);
+  const tax = taxInfo.id === id ? taxInfo.data : null;
+  // today's GST from the GST master (falls back to the product card)
+  const gstRate = tax?.current ? toNumberOr(tax.current.gstRate, 0) : p.isGstApplicable ? toNumberOr(p.gstRateOverride, 0) : 0;
+  const nextGst = (tax?.rows || []).filter((r) => r.status === 'upcoming').sort((a, b) => new Date(a.effectiveFrom) - new Date(b.effectiveFrom))[0] || null;
+  const costGst = Math.round(cost * gstRate) / 100;
+  const costIncl = cost + costGst;
+  const mrp = toNumberOr(p.mrp, 0);
+  const profit = customerPrice > 0 && costIncl > 0 ? customerPrice - costIncl : null;
   const supplierName = (s) => (s && typeof s === 'object' ? s.name || s.companyName : '') || '';
   const lastSupplier = supplierName(p.lastSupplierId);
+  const showPricing = !!pricing.data;
   const preferredSupplier = supplierName(p.preferredSupplierId);
-  const variantAttributes = Array.isArray(p.variantAttributes) ? p.variantAttributes : [];
-  const otherVariants = (variants || []).filter((v) => String(v._id) !== String(p._id));
-
-  const goToVariants = () => navigate(`/products/variants/${encodeId(p._id)}`);
 
   return (
     <div className="flex flex-col gap-6">
@@ -151,9 +175,9 @@ export default function ProductDetails() {
         buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
         bodyClassName="p-4 sm:p-6"
       >
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Images */}
-          <div className="w-full lg:max-w-md flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Images + GST, tags, units, description */}
+          <div className="w-full lg:w-[300px] xl:w-[340px] shrink-0 flex flex-col gap-3">
             <div className="w-full aspect-square rounded-2xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02]">
               {activeImage ? (
                 <img src={getImageUrl(activeImage)} alt={p.name} className="w-full h-full object-contain" />
@@ -171,21 +195,100 @@ export default function ProductDetails() {
                     key={idx}
                     type="button"
                     onClick={() => setSelectedImage(img)}
-                    className={`relative w-20 h-20 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all ${getImageUrl(activeImage) === getImageUrl(img) ? 'border-indigo-600 scale-95 shadow-md' : 'border-transparent hover:border-gray-300 dark:hover:border-white/20'}`}
+                    className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 flex-shrink-0 transition-all ${getImageUrl(activeImage) === getImageUrl(img) ? 'border-indigo-600 scale-95 shadow-md' : 'border-transparent hover:border-gray-300 dark:hover:border-white/20'}`}
                   >
                     <img src={getImageUrl(img)} alt="" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
             )}
+
+            {/* Alternate units */}
+            {Array.isArray(p.alternateUnits) && p.alternateUnits.length > 0 && (
+              <div className="rounded-xl border border-[var(--vs-border)] bg-gray-50/60 dark:bg-white/[0.02] p-3 flex flex-col gap-2">
+                <div className="text-[11px] font-bold !text-[var(--vs-active-text)] uppercase tracking-wider">Alternate Units</div>
+                <div className="flex flex-wrap gap-2">
+                  {p.alternateUnits.map((u) => (
+                    <span
+                      key={u.unit}
+                      className="inline-flex flex-col px-3 py-1.5 rounded-lg text-xs bg-[var(--vs-bg-secondary)] border border-[var(--vs-border)]"
+                    >
+                      <span className="font-semibold text-[var(--vs-text-primary)]">
+                        1 {u.unit} = {formatQty(u.factor)} {unit}
+                      </span>
+                      {u.barcode && <span className="font-mono text-[10px] text-[var(--vs-text-secondary)]">{u.barcode}</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* GST */}
+            <div className="rounded-xl border border-[var(--vs-border)] bg-gray-50/60 dark:bg-white/[0.02] p-3 flex flex-col gap-2">
+              <div className="text-[11px] font-bold !text-[var(--vs-active-text)] uppercase tracking-wider">GST Settings</div>
+              <div className="grid grid-cols-1 gap-1 text-xs font-medium text-[var(--vs-text-secondary)]">
+                <div>GST Applicable: <span className="font-bold text-[var(--vs-text-primary)]">{p.isGstApplicable ? 'Yes' : 'No'}</span></div>
+                {p.isGstApplicable && (
+                  <div>GST Rate: <span className="font-bold text-[var(--vs-text-primary)]">{p.gstRateOverride}%</span></div>
+                )}
+                <div>GST Included in Price: <span className="font-bold text-[var(--vs-text-primary)]">{p.isGstIncludedInPrice ? 'Yes' : 'No'}</span></div>
+              </div>
+            </div>
+
+            {tagsList.length > 0 && (
+              <div className="rounded-xl border border-[var(--vs-border)] bg-gray-50/60 dark:bg-white/[0.02] p-3 flex flex-col gap-2">
+                <div className="text-[11px] font-bold !text-[var(--vs-active-text)] uppercase tracking-wider">Tags</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {tagsList.map((tag, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400">
+                      <Tag className="w-3 h-3" />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {p.isCustomizable && customizationFields.length > 0 && (
+              <div className="rounded-xl border border-[var(--vs-border)] bg-gray-50/60 dark:bg-white/[0.02] p-3 flex flex-col gap-2">
+                <div className="text-[11px] font-bold !text-[var(--vs-active-text)] uppercase tracking-wider">Customizable Fields</div>
+                <div className="overflow-x-auto rounded-xl border border-[var(--vs-border)]">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[var(--vs-bg-secondary)] text-[11px] uppercase tracking-wider text-[var(--vs-text-secondary)] font-bold">
+                        <th className="py-2 px-3 border border-[var(--vs-border)]">Field Label</th>
+                        <th className="py-2 px-3 border border-[var(--vs-border)]">Field Type</th>
+                        <th className="py-2 px-3 border border-[var(--vs-border)]">Required</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-[var(--vs-text-secondary)]">
+                      {customizationFields.map((field, idx) => (
+                        <tr key={idx}>
+                          <td className="py-2 px-3 font-semibold text-[var(--vs-text-primary)] border border-[var(--vs-border)]">{field.label}</td>
+                          <td className="py-2 px-3 border border-[var(--vs-border)]">{field.fieldType}</td>
+                          <td className="py-2 px-3 border border-[var(--vs-border)]">{field.isRequired ? 'Yes' : 'No'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {p.fullDescription && (
+              <div className="rounded-xl border border-[var(--vs-border)] bg-gray-50/60 dark:bg-white/[0.02] p-3 flex flex-col gap-2">
+                <div className="text-[11px] font-bold !text-[var(--vs-active-text)] uppercase tracking-wider">Full Product Description</div>
+                <p className="text-xs text-[var(--vs-text-secondary)] whitespace-pre-line leading-relaxed m-0 max-h-60 overflow-y-auto">{p.fullDescription}</p>
+              </div>
+            )}
           </div>
 
           {/* Details */}
-          <div className="flex-1 flex flex-col gap-6 min-w-0">
+          <div className="flex-1 flex flex-col gap-4 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-gray-100 dark:border-white/10 pb-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="text-2xl font-bold !text-[var(--vs-active-text)] break-words">{p.name}</h2>
+                  <h2 className="text-xl font-bold !text-[var(--vs-active-text)] break-words leading-tight">{p.name}</h2>
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isActive
                       ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
@@ -194,18 +297,6 @@ export default function ProductDetails() {
                     {isActive ? 'Active' : 'Inactive'}
                   </span>
                 </div>
-                {variantAttributes.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {variantAttributes.map((a) => (
-                      <span
-                        key={`${a.name}-${a.value}`}
-                        className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
-                      >
-                        {a.name}: {a.value}
-                      </span>
-                    ))}
-                  </div>
-                )}
                 {p.shortDescription && (
                   <p className="text-sm text-[var(--vs-text-secondary)] mt-1.5 font-medium">{p.shortDescription}</p>
                 )}
@@ -231,27 +322,56 @@ export default function ProductDetails() {
               </div>
             </div>
 
-            {/* Prices */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50/50 dark:bg-white/[0.02] p-4 rounded-2xl border border-gray-200 dark:border-white/10">
-              <PriceTile label="Customer Pays" value={formatINR(customerPrice)} accent hint={p.isGstApplicable && !p.isGstIncludedInPrice ? 'Incl. GST' : undefined} />
-              <PriceTile label="Base Price" value={formatINR(p.basePrice)} />
+            {/* Today's price (Price master) */}
+            {showPricing && <TodayPriceCard data={pricing.data} />}
+            {tax && (
+              <div className="px-4 py-2.5 rounded-xl border border-sky-200 dark:border-sky-800/50 bg-sky-50/60 dark:bg-sky-950/20 text-xs flex flex-wrap items-center gap-x-5 gap-y-1">
+                <span>
+                  <span className="font-bold uppercase tracking-wider text-[10px] text-sky-700 dark:text-sky-300">GST today </span>
+                  <span className="font-bold text-[var(--vs-text-primary)]">{gstRate > 0 ? `${gstRate}%` : 'No GST'}</span>
+                  {tax.current?.effectiveFrom && <span className="text-[var(--vs-text-secondary)]"> · since {formatDay(tax.current.effectiveFrom)}</span>}
+                </span>
+                {nextGst && (
+                  <span className="text-[var(--vs-text-secondary)]">
+                    Next change {formatDay(nextGst.effectiveFrom)} → <span className="font-semibold text-[var(--vs-text-primary)]">{Number(nextGst.gstRate)}%</span>
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Prices (from the last purchase) */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-[var(--vs-border)] rounded-xl border border-[var(--vs-border)] overflow-hidden">
               <PriceTile
-                label="Discounted Price"
-                value={toNumberOr(p.discountedPrice, 0) > 0 ? formatINR(p.discountedPrice) : '—'}
-                muted={!(toNumberOr(p.discountedPrice, 0) > 0)}
+                label="Selling Price (SP)"
+                value={customerPrice > 0 ? formatINR(customerPrice) : '—'}
+                accent={customerPrice > 0}
+                muted={!(customerPrice > 0)}
+                hint={customerPrice > 0 ? (gstRate > 0 ? 'Customer pays, incl. GST' : 'Customer pays') : 'Set on the purchase (SP column)'}
               />
-              <PriceTile label="MRP" value={toNumberOr(p.mrp, 0) > 0 ? formatINR(p.mrp) : '—'} muted={!(toNumberOr(p.mrp, 0) > 0)} />
-              <PriceTile label="Cost Price" value={cost > 0 ? formatINR(cost) : '—'} muted={!(cost > 0)} />
+              <PriceTile label="MRP" value={mrp > 0 ? formatINR(mrp) : '—'} muted={!(mrp > 0)} />
               <PriceTile
-                label="Average Cost"
-                value={avgCost > 0 ? formatINR(avgCost) : '—'}
-                muted={!(avgCost > 0)}
-                hint={marginBase > 0 && customerPrice > 0 ? `Margin ${formatINR(customerPrice - marginBase)} per ${unit}` : undefined}
+                label="Cost Price (CP)"
+                value={cost > 0 ? formatINR(cost) : '—'}
+                muted={!(cost > 0)}
+                hint={cost > 0 ? `Before GST, per ${unit}` : 'Comes from the purchase'}
+              />
+              <PriceTile
+                label={`GST on cost${gstRate > 0 ? ` (${gstRate}%)` : ''}`}
+                value={cost > 0 ? formatINR(costGst) : '—'}
+                muted={!(cost > 0)}
+                hint={!p.isGstApplicable ? 'No GST' : undefined}
+              />
+              <PriceTile label="Cost incl. GST" value={cost > 0 ? formatINR(costIncl) : '—'} muted={!(cost > 0)} />
+              <PriceTile
+                label="Margin / Profit"
+                value={profit === null ? '—' : formatINR(profit)}
+                muted={profit === null}
+                hint={profit === null ? undefined : `Per ${unit} (SP − cost incl. GST)${costIncl > 0 ? ` · ${Math.round((profit / costIncl) * 1000) / 10}%` : ''}`}
               />
             </div>
 
             {/* Key details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-y-3 gap-x-5">
               <InfoItem icon={Hash} label="SKU">
                 <span className="font-mono">{p.sku || 'N/A'}</span>
               </InfoItem>
@@ -296,87 +416,40 @@ export default function ProductDetails() {
               </InfoItem>
             </div>
 
-            {/* Alternate units */}
-            {Array.isArray(p.alternateUnits) && p.alternateUnits.length > 0 && (
-              <div className="border-t border-gray-100 dark:border-white/10 pt-4 flex flex-col gap-2">
-                <h4 className="text-xs font-bold !text-[var(--vs-active-text)] uppercase tracking-wider">Alternate Units</h4>
-                <div className="flex flex-wrap gap-2">
-                  {p.alternateUnits.map((u) => (
-                    <span
-                      key={u.unit}
-                      className="inline-flex flex-col px-3 py-1.5 rounded-lg text-xs bg-[var(--vs-bg-secondary)] border border-[var(--vs-border)]"
-                    >
-                      <span className="font-semibold text-[var(--vs-text-primary)]">
-                        1 {u.unit} = {formatQty(u.factor)} {unit}
-                      </span>
-                      {u.barcode && <span className="font-mono text-[10px] text-[var(--vs-text-secondary)]">{u.barcode}</span>}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* GST */}
-            <div className="border-t border-gray-100 dark:border-white/10 pt-4 flex flex-col gap-2">
-              <h4 className="text-xs font-bold !text-[var(--vs-active-text)] uppercase tracking-wider">GST Settings</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-medium text-[var(--vs-text-secondary)]">
-                <div>GST Applicable: <span className="font-bold text-[var(--vs-text-primary)]">{p.isGstApplicable ? 'Yes' : 'No'}</span></div>
-                {p.isGstApplicable && (
-                  <div>GST Rate: <span className="font-bold text-[var(--vs-text-primary)]">{p.gstRateOverride}%</span></div>
-                )}
-                <div>GST Included in Price: <span className="font-bold text-[var(--vs-text-primary)]">{p.isGstIncludedInPrice ? 'Yes' : 'No'}</span></div>
-              </div>
-            </div>
-
-            {tagsList.length > 0 && (
-              <div className="border-t border-gray-100 dark:border-white/10 pt-4 flex flex-col gap-2">
-                <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tags</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {tagsList.map((tag, idx) => (
-                    <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400">
-                      <Tag className="w-3 h-3" />
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {p.isCustomizable && customizationFields.length > 0 && (
-              <div className="border-t border-gray-100 dark:border-white/10 pt-4 flex flex-col gap-2">
-                <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Customizable Fields</h4>
-                <div className="overflow-x-auto border border-gray-200 dark:border-white/10 rounded-xl">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 font-bold">
-                        <th className="py-2 px-3">Field Label</th>
-                        <th className="py-2 px-3">Field Type</th>
-                        <th className="py-2 px-3">Required</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-white/5 text-[var(--vs-text-secondary)]">
-                      {customizationFields.map((field, idx) => (
-                        <tr key={idx}>
-                          <td className="py-2.5 px-3 font-semibold text-[var(--vs-text-primary)]">{field.label}</td>
-                          <td className="py-2.5 px-3">{field.fieldType}</td>
-                          <td className="py-2.5 px-3">{field.isRequired ? 'Yes' : 'No'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {p.fullDescription && (
-              <div className="border-t border-gray-100 dark:border-white/10 pt-4 flex flex-col gap-2">
-                <h4 className="text-xs font-bold !text-[var(--vs-active-text)] uppercase tracking-wider">Full Product Description</h4>
-                <p className="text-sm text-[var(--vs-text-secondary)] whitespace-pre-line leading-relaxed">{p.fullDescription}</p>
-              </div>
-            )}
           </div>
         </div>
       </Card>
+
+      {/* every batch with its own selling price (#batches — the product list links here) */}
+      <BatchesCard productId={p._id} />
+
+      {showPricing && (
+        <Card
+          h1="Price & Offers"
+          rightNode={
+            <Link to="/master/prices" className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+              Change in Prices &amp; Offers <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          }
+          bodyClassName="p-4 sm:p-5"
+        >
+          <PriceHistory productId={p._id} data={pricing.data} loading={pricing.loading} error={pricing.error} readOnly />
+        </Card>
+      )}
+
+      {/* GST audit history: every GST rate of this product, who set it and when */}
+      <Card
+        h1="GST History"
+        rightNode={
+          <Link to="/master/gst-rates" className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+            Change in GST Rates <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
+        }
+        bodyClassName="p-4 sm:p-5"
+      >
+        <GstHistory productId={p._id} notify={showToast} readOnly />
+      </Card>
+
 
       {/* Store-wise stock */}
       <Card h1="Store-wise Stock" bodyClassName="p-4 sm:p-5 flex flex-col gap-4">
@@ -391,19 +464,19 @@ export default function ProductDetails() {
         </div>
 
         {storeStocks.length > 0 ? (
-          <div className="overflow-x-auto border border-gray-200 dark:border-white/10 rounded-xl">
+          <div className="overflow-x-auto rounded-xl border border-[var(--vs-border)]">
             <table className="w-full text-left border-collapse text-xs min-w-[640px]">
               <thead>
-                <tr className="bg-gray-50 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 font-bold">
-                  <th className="py-2.5 px-3.5">Store / Warehouse</th>
-                  <th className="py-2.5 px-3.5 text-center">Sellable</th>
-                  <th className="py-2.5 px-3.5 text-center">Damaged</th>
-                  <th className="py-2.5 px-3.5 text-center">Low Stock Alert</th>
-                  <th className="py-2.5 px-3.5">Rack / Shelf</th>
-                  <th className="py-2.5 px-3.5">Stock Share</th>
+                <tr className="bg-[var(--vs-bg-secondary)] text-[11px] uppercase tracking-wider text-[var(--vs-text-secondary)] font-bold">
+                  <th className="py-2 px-3 border border-[var(--vs-border)]">Store / Warehouse</th>
+                  <th className="py-2 px-3 border border-[var(--vs-border)] text-center">Sellable</th>
+                  <th className="py-2 px-3 border border-[var(--vs-border)] text-center">Damaged</th>
+                  <th className="py-2 px-3 border border-[var(--vs-border)] text-center">Low Stock Alert</th>
+                  <th className="py-2 px-3 border border-[var(--vs-border)]">Rack / Shelf</th>
+                  <th className="py-2 px-3 border border-[var(--vs-border)]">Stock Share</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-white/5 text-[var(--vs-text-secondary)]">
+              <tbody className="text-[var(--vs-text-secondary)]">
                 {storeStocks.map((st, idx) => {
                   const stock = toNumberOr(st.stock, 0);
                   const damaged = toNumberOr(st.damagedStock, 0);
@@ -413,7 +486,7 @@ export default function ProductDetails() {
                   const storeLocation = st.storeId?.address?.city || st.storeId?.address?.area || '';
                   return (
                     <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.01] transition-colors">
-                      <td className="py-3 px-3.5">
+                      <td className="py-2.5 px-3 border border-[var(--vs-border)]">
                         <div className="flex flex-col gap-0.5">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-[var(--vs-text-primary)] text-xs">{st.storeId?.name || 'Store'}</span>
@@ -434,7 +507,7 @@ export default function ProductDetails() {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-3.5 text-center">
+                      <td className="py-2.5 px-3 border border-[var(--vs-border)] text-center">
                         <span
                           className={`inline-flex items-center gap-1 font-mono font-bold text-xs px-2.5 py-0.5 rounded-full border ${state === 'in'
                             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
@@ -445,15 +518,15 @@ export default function ProductDetails() {
                           {formatQty(stock)} {unit}
                         </span>
                       </td>
-                      <td className="py-3 px-3.5 text-center font-mono">
+                      <td className="py-2.5 px-3 border border-[var(--vs-border)] text-center font-mono">
                         {damaged > 0 ? <span className="font-bold text-amber-600 dark:text-amber-400">{formatQty(damaged)}</span> : <span className="text-gray-400">—</span>}
                       </td>
-                      <td className="py-3 px-3.5 text-center font-mono">
+                      <td className="py-2.5 px-3 border border-[var(--vs-border)] text-center font-mono">
                         {formatQty(threshold)}
                         {state === 'low' && <span className="ml-1 text-amber-600 font-bold">(Low)</span>}
                         {state === 'out' && <span className="ml-1 text-rose-500 font-bold">(Out)</span>}
                       </td>
-                      <td className="py-3 px-3.5">
+                      <td className="py-2.5 px-3 border border-[var(--vs-border)]">
                         {st.rackLocation ? (
                           <span className="flex items-center gap-1 font-medium">
                             <MapPin className="w-3 h-3 text-gray-400" />
@@ -463,7 +536,7 @@ export default function ProductDetails() {
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="py-3 px-3.5">
+                      <td className="py-2.5 px-3 border border-[var(--vs-border)]">
                         <div className="flex items-center gap-2 min-w-[100px]">
                           <div className="flex-1 bg-gray-100 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
                             <div className="bg-indigo-600 dark:bg-indigo-400 h-1.5 rounded-full" style={{ width: `${Math.min(100, Math.max(0, sharePct))}%` }} />
@@ -484,64 +557,7 @@ export default function ProductDetails() {
           </div>
         )}
       </Card>
-
-      {/* Variants */}
-      <Card
-        h1="Variants"
-        description="Size, colour or pack versions of this product. Each variant has its own SKU, barcode, price and stock."
-        rightNode={
-          <Button size="xs" startIcon={variantGroupId ? <Shapes className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />} onClick={goToVariants}>
-            {variantGroupId ? 'Manage Variants' : 'Create Variants'}
-          </Button>
-        }
-        bodyClassName="p-4 sm:p-5"
-      >
-        {variantsLoading ? (
-          <Loader />
-        ) : otherVariants.length === 0 ? (
-          <div className="text-xs text-[var(--vs-text-secondary)] p-3 rounded-xl border border-dashed border-[var(--vs-border)]">
-            No variants yet. Use “Create Variants” to add sizes, colours or packs of this product.
-          </div>
-        ) : (
-          <div className="overflow-x-auto border border-gray-200 dark:border-white/10 rounded-xl">
-            <table className="w-full text-left border-collapse text-xs min-w-[640px]">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 font-bold">
-                  <th className="py-2.5 px-3.5">Variant</th>
-                  <th className="py-2.5 px-3.5">SKU</th>
-                  <th className="py-2.5 px-3.5">Barcode</th>
-                  <th className="py-2.5 px-3.5 text-right">Price</th>
-                  <th className="py-2.5 px-3.5 text-right">MRP</th>
-                  <th className="py-2.5 px-3.5 text-right">Stock</th>
-                  <th className="py-2.5 px-3.5">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-white/5 text-[var(--vs-text-secondary)]">
-                {otherVariants.map((v) => (
-                  <tr key={v._id} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.01]">
-                    <td className="py-2.5 px-3.5">
-                      <Link to={`/products/view/${encodeId(v._id)}`} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
-                        {v.name}
-                      </Link>
-                      {Array.isArray(v.variantAttributes) && v.variantAttributes.length > 0 && (
-                        <div className="text-[10px]">{v.variantAttributes.map((a) => `${a.name}: ${a.value}`).join(' · ')}</div>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3.5 font-mono">{v.sku || '—'}</td>
-                    <td className="py-2.5 px-3.5 font-mono">{v.barcode || '—'}</td>
-                    <td className="py-2.5 px-3.5 text-right">
-                      {formatINR(toNumberOr(v.discountedPrice, 0) > 0 ? v.discountedPrice : v.basePrice)}
-                    </td>
-                    <td className="py-2.5 px-3.5 text-right">{toNumberOr(v.mrp, 0) > 0 ? formatINR(v.mrp) : '—'}</td>
-                    <td className="py-2.5 px-3.5 text-right font-mono">{formatQty(v.currentStock)}</td>
-                    <td className="py-2.5 px-3.5 capitalize">{v.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

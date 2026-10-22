@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { ArrowLeft, Plus, Trash2, Save, Send, Store as StoreIcon, AlertTriangle } from 'lucide-react';
 import { decryptData } from '@/utility/crypto';
@@ -13,6 +13,10 @@ import { CToaster, CToast, CToastBody } from '@coreui/react';
 import { getCustomers } from '../../customer/services/customerSlice';
 import ProductSearchPicker, { BarcodeScanInput } from '../components/ProductSearchPicker';
 import { getProductForLineApi } from '../services/productLookupService';
+import BatchPickerModal from '../components/BatchPickerModal';
+import LinePriceNote from '../components/LinePriceNote';
+import { NO_BATCH, datedFieldsFromSaved, useDatedSalesLines } from '../components/datedPricing';
+import { canChangePrice } from '@/utility/shopPermissions';
 import { getStores } from '@/pages/storeManagement/stores/services/storeSlice';
 import {
   createSalesInvoice,
@@ -66,8 +70,6 @@ export default function CreateSalesInvoice() {
   const [overallDiscountPercent, setOverallDiscountPercent] = useState(0);
   const [roundOff, setRoundOff] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState('none');
-  const [notes, setNotes] = useState('Thank you for your business.');
-  const [terms, setTerms] = useState('');
 
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -97,6 +99,15 @@ export default function CreateSalesInvoice() {
       cessPercent: 0,
     },
   ]);
+
+  // The server sets price / offer / GST for the invoice date; the rate can be
+  // typed only with "Change price while billing" (+ a reason). Products with more than one MRP
+  // on the shelf ask "Which MRP?".
+  const authUser = useSelector((state) => state.auth.user);
+  const mayChangePrice = canChangePrice(authUser);
+  const dated = useDatedSalesLines({ lineItems, setLineItems, date: invoiceDate, storeId: selectedStoreId, productCache });
+  const viewLines = dated.viewLines;
+  const lockRate = !mayChangePrice;
 
   // Load dependency data
   useEffect(() => {
@@ -244,8 +255,6 @@ export default function CreateSalesInvoice() {
       setOverallDiscountPercent(currentInvoice.overallDiscountPercent || 0);
       setRoundOff(!!currentInvoice.roundOff);
       setPaymentMethod(currentInvoice.paymentMethod || 'none');
-      setNotes(currentInvoice.notes || '');
-      setTerms(currentInvoice.terms || '');
       if (currentInvoice.lineItems && currentInvoice.lineItems.length > 0) {
         setLineItems(
           currentInvoice.lineItems.map((item) => ({
@@ -260,6 +269,7 @@ export default function CreateSalesInvoice() {
             isGstApplicable: item.isGstApplicable !== false,
             taxPercent: item.taxPercent || 0,
             cessPercent: item.cessPercent || 0,
+            ...datedFieldsFromSaved(item, currentInvoice.storeId?._id || currentInvoice.storeId),
           }))
         );
       }
@@ -360,17 +370,23 @@ export default function CreateSalesInvoice() {
     productId: product._id,
     productName: product.name,
     sku: product.sku || '',
-    hsnCode: product.hsnCode || '8471',
+    hsnCode: product.hsnSacCode || product.hsnCode || '',
     unit: product.unit || 'pcs',
     rate: product.discountedPrice || product.basePrice || 0,
     isGstApplicable: !!product.isGstApplicable,
     taxPercent: product.isGstApplicable ? (product.gstRateOverride || 0) : 0,
     cessPercent: product.cessPercent || 0,
+    // a new product: no picked batch, no typed price
+    ...NO_BATCH,
+    priceOverride: false,
+    priceOverrideReason: '',
   });
 
   // Scanned product: fill the first empty row, otherwise add a new row.
   const handleScannedProduct = (product) => {
     cacheProduct(product);
+    const emptyAt = lineItems.findIndex((item) => !item.productId);
+    dated.afterProductPicked(emptyAt !== -1 ? emptyAt : lineItems.length, product);
     setLineItems((prev) => {
       const emptyIndex = prev.findIndex((item) => !item.productId);
       if (emptyIndex !== -1) {
@@ -381,6 +397,11 @@ export default function CreateSalesInvoice() {
   };
 
   const handleLineItemChange = (index, field, value) => {
+    // Dated pricing: a typed rate / discount is a manual price (needs a reason).
+    if (field === 'rate' || field === 'discountPercent') {
+      dated.editPrice(index, field, value);
+      return;
+    }
     const updated = [...lineItems];
 
     if (field === 'productId') {
@@ -392,6 +413,7 @@ export default function CreateSalesInvoice() {
           ...updated[index],
           ...productLineFields(product),
         };
+        dated.afterProductPicked(index, product);
       } else {
         updated[index] = {
           ...updated[index],
@@ -437,7 +459,7 @@ export default function CreateSalesInvoice() {
     let subtotal = 0;
     let taxAmount = 0;
 
-    lineItems.forEach((item) => {
+    viewLines.forEach((item) => {
       const qty = Number(item.qty || 0);
       const rate = Number(item.rate || 0);
       const discountPct = Number(item.discountPercent || 0);
@@ -475,7 +497,7 @@ export default function CreateSalesInvoice() {
   const handleSaveInvoice = (status = 'draft') => {
     setIsSubmitted(true);
     const hasInvalidCustomerFields = !customerSnapshot.name || !customerSnapshot.phone || !customerSnapshot.billingAddress.pincode;
-    const invalidItem = lineItems.find((item) => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0);
+    const invalidItem = viewLines.find((item) => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0);
     const gstin = customerSnapshot.gstin;
     const invalidGstin = gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/.test(gstin);
 
@@ -497,6 +519,12 @@ export default function CreateSalesInvoice() {
       } else if (invalidGstin) {
         showToast('Please enter a valid 15-character GSTIN.', 'danger');
       }
+      return;
+    }
+
+    const priceProblem = dated.priceProblem();
+    if (priceProblem) {
+      showToast(priceProblem, 'danger');
       return;
     }
 
@@ -529,9 +557,8 @@ export default function CreateSalesInvoice() {
       roundOff,
       paymentMethod,
       status,
-      notes,
-      terms,
-      lineItems: lineItems.map((item) => ({
+      lineItems: viewLines.map((item) => ({
+        ...dated.payloadExtras(item),
         productId: item.productId,
         productName: item.productName,
         hsnCode: item.hsnCode,
@@ -732,26 +759,11 @@ export default function CreateSalesInvoice() {
 
 
 
-            {/* Terms and notes */}
-            <Card title="Terms & Notes" className="flex flex-1 flex-col" >
-              <div className="flex flex-col gap-1 flex-1">
-                <Label>Notes</Label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full h-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none resize-none text-[var(--vs-text-primary)] focus:border-indigo-500/60"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1 flex-1">
-                <Label>Terms & Conditions</Label>
-                <textarea
-                  value={terms}
-                  onChange={(e) => setTerms(e.target.value)}
-                  className="w-full h-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none resize-none text-[var(--vs-text-primary)] focus:border-indigo-500/60"
-                />
-              </div>
-            </Card>
+            {/* Terms & notes print from Sales → Invoice Layout */}
+            <div className="px-3 py-2.5 rounded-xl border border-dashed border-[var(--vs-border)] text-xs text-[var(--vs-text-secondary)]">
+              Terms &amp; Notes, design and bank details on the invoice come from{' '}
+              <Link to="/sales/invoice-layout" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">Invoice Layout</Link>.
+            </div>
 
           </div>
 
@@ -964,7 +976,7 @@ export default function CreateSalesInvoice() {
                 </tr>
               </thead>
               <tbody>
-                {lineItems && lineItems?.map((item, idx) => {
+                {viewLines.map((item, idx) => {
                   const qty = Number(item.qty || 0);
                   const rate = Number(item.rate || 0);
                   const disc = Number(item.discountPercent || 0);
@@ -986,6 +998,14 @@ export default function CreateSalesInvoice() {
                           error={isSubmitted && !item.productId}
                         />
                         {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-1">Product is required</div>}
+                        <LinePriceNote
+                          line={item}
+                          showBatch
+                          onChangeBatch={() => dated.changeBatch(idx)}
+                          onReason={(r) => dated.setReason(idx, r)}
+                          onReset={() => dated.resetPrice(idx)}
+                          submitted={isSubmitted}
+                        />
                         {item.productId && (() => {
                           const stockInfo = getProductStoreStock(item.productId);
                           if (!stockInfo) return null;
@@ -1036,6 +1056,8 @@ export default function CreateSalesInvoice() {
                           step="0.01"
                           value={item.rate}
                           onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
+                          readOnly={lockRate}
+                          title={lockRate ? 'Price comes from the Price master' : undefined}
                           className={`text-center !h-9 !rounded-lg ${isSubmitted && Number(item.rate) < 0 ? '!border-red-500 focus:!border-red-500 focus:!ring-red-500/20' : ''}`}
                         />
                         {isSubmitted && Number(item.rate) < 0 && <div className="text-red-500 text-xs mt-1 text-center">Invalid Rate</div>}
@@ -1047,6 +1069,7 @@ export default function CreateSalesInvoice() {
                           max="100"
                           value={item.discountPercent}
                           onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
+                          readOnly={lockRate}
                           className="text-center !h-9 !rounded-lg"
                         />
                       </td>
@@ -1075,7 +1098,7 @@ export default function CreateSalesInvoice() {
 
           {/* Mobile Cards View (Visible on mobile) */}
           <div className="flex flex-col gap-4 md:hidden">
-            {lineItems.map((item, idx) => {
+            {viewLines.map((item, idx) => {
               const qty = Number(item.qty || 0);
               const rate = Number(item.rate || 0);
               const disc = Number(item.discountPercent || 0);
@@ -1112,6 +1135,14 @@ export default function CreateSalesInvoice() {
                       error={isSubmitted && !item.productId}
                     />
                     {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-0.5">Product is required</div>}
+                    <LinePriceNote
+                      line={item}
+                      showBatch
+                      onChangeBatch={() => dated.changeBatch(idx)}
+                      onReason={(r) => dated.setReason(idx, r)}
+                      onReset={() => dated.resetPrice(idx)}
+                      submitted={isSubmitted}
+                    />
                     {item.productId && (() => {
                       const stockInfo = getProductStoreStock(item.productId);
                       if (!stockInfo) return null;
@@ -1166,6 +1197,8 @@ export default function CreateSalesInvoice() {
                         step="0.01"
                         value={item.rate}
                         onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
+                          readOnly={lockRate}
+                          title={lockRate ? 'Price comes from the Price master' : undefined}
                         className={`${isSubmitted && Number(item.rate) < 0 ? '!border-red-500' : ''}`}
                       />
                       {isSubmitted && Number(item.rate) < 0 && <div className="text-red-500 text-xs mt-0.5">Invalid Rate</div>}
@@ -1178,6 +1211,7 @@ export default function CreateSalesInvoice() {
                         max="100"
                         value={item.discountPercent}
                         onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
+                          readOnly={lockRate}
                       />
                     </div>
                     <div className="flex flex-col gap-1">
@@ -1204,6 +1238,8 @@ export default function CreateSalesInvoice() {
         )}
       </Card>
       </Card>
+
+      <BatchPickerModal picker={dated.picker} onPick={dated.pickBatch} onClose={dated.closePicker} />
 
       {/* Toast Notifications */}
       <CToaster className="p-3" style={{ zIndex: 99999, position: 'fixed', bottom: '20px', right: '20px' }}>

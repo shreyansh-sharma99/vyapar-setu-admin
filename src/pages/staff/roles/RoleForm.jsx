@@ -16,7 +16,7 @@ import {
   updateRole,
   clearCurrentRole,
 } from '../services/staffSlice';
-import { MATRIX_LEVELS, LEVEL_LABELS, moduleHasLevel, cleanRolePermissions } from './rolePermissions';
+import { MATRIX_LEVELS, LEVEL_LABELS, moduleHasLevel, moduleExtras, cleanRolePermissions } from './rolePermissions';
 
 const checkboxCls = 'h-4 w-4 rounded border-gray-300 text-indigo-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50';
 
@@ -58,7 +58,10 @@ function RoleFormBody({ isEditMode, roleId, initial, modules, staffCount }) {
     if (!moduleHasLevel(module, level)) return;
     if (level === 'view') {
       if (on) draft.add(`${module.key}.view`);
-      else MATRIX_LEVELS.forEach((l) => draft.delete(`${module.key}.${l}`));
+      else {
+        MATRIX_LEVELS.forEach((l) => draft.delete(`${module.key}.${l}`));
+        moduleExtras(module).forEach((x) => draft.delete(`${module.key}.${x.key}`));
+      }
       return;
     }
     if (on) {
@@ -93,6 +96,22 @@ function RoleFormBody({ isEditMode, roleId, initial, modules, staffCount }) {
       return next;
     });
   };
+
+  /** Extra permission (e.g. sales.change_price) — brings view along. */
+  const toggleExtra = (module, extraKey, on) => {
+    setPerms((prev) => {
+      const next = new Set(prev);
+      if (on) {
+        next.add(`${module.key}.${extraKey}`);
+        if (moduleHasLevel(module, 'view')) next.add(`${module.key}.view`);
+      } else {
+        next.delete(`${module.key}.${extraKey}`);
+      }
+      return next;
+    });
+  };
+
+  const extraModules = modules.filter((m) => moduleExtras(m).length > 0);
 
   const setAll = (on) => {
     if (!on) { setPerms(new Set()); return; }
@@ -271,6 +290,28 @@ function RoleFormBody({ isEditMode, roleId, initial, modules, staffCount }) {
             </tbody>
           </table>
         </div>
+        {extraModules.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--vs-text-secondary)] m-0">Extra permissions</p>
+            {extraModules.map((m) => moduleExtras(m).map((x) => (
+              <label
+                key={`${m.key}.${x.key}`}
+                className="flex items-center gap-3 p-3 rounded-xl border border-[var(--vs-border)] cursor-pointer hover:bg-[var(--vs-bg-secondary)]/60"
+              >
+                <input
+                  type="checkbox"
+                  checked={has(m.key, x.key)}
+                  onChange={(e) => toggleExtra(m, x.key, e.target.checked)}
+                  className={checkboxCls}
+                />
+                <span className="text-sm text-[var(--vs-text-primary)]">
+                  <span className="font-medium">{x.label}</span>
+                  <span className="text-xs text-[var(--vs-text-secondary)]"> · {m.label || m.key} (also gives View)</span>
+                </span>
+              </label>
+            )))}
+          </div>
+        )}
         {fieldError('permissions')}
         <p className="text-[11px] text-[var(--vs-text-secondary)] m-0 flex items-center gap-1.5">
           <ShieldCheck className="w-3.5 h-3.5" />

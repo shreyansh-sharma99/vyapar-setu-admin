@@ -17,7 +17,7 @@ import {
   StoreSelect,
   ProductCell,
   ProductSearchSelect,
-  InventoryNav,
+  
   InventoryToaster,
 } from './components/InventoryShared';
 import {
@@ -321,7 +321,6 @@ export default function DamagedStock() {
   return (
     <div>
       <Card h1="Damaged Stock" bodyClassName="px-4 pb-4 pt-3">
-        <InventoryNav current="damaged" />
         <AntdThemed>
           <FilterBar>
             <FilterField label="Store / Warehouse">

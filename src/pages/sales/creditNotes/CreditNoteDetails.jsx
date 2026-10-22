@@ -22,6 +22,7 @@ import { downloadCreditNotePdfApi } from './services/creditNoteService';
 import { Input } from '@/components/inputs/Input';
 import { Label } from '@/components/inputs/Label';
 import { getSalesInvoices } from '../salesInvoices/services/salesInvoiceSlice';
+import { firstAddress, customerAddress } from '../components/address';
 
 // ─── Status Config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -257,10 +258,12 @@ export default function CreditNoteDetails() {
 
   const currentConfirm = confirmModal.type ? confirmConfig[confirmModal.type] : null;
 
-  const billingAddr = creditNote.customerSnapshot?.billingAddress || creditNote.salesInvoiceId?.customerSnapshot?.billingAddress;
-  const billingStr = billingAddr
-    ? [billingAddr.street, billingAddr.city, billingAddr.state, billingAddr.pincode, billingAddr.country].filter(Boolean).join(', ')
-    : '';
+  const billingStr = firstAddress(
+    creditNote.customerSnapshot?.billingAddress,
+    creditNote.salesInvoiceId?.customerSnapshot?.billingAddress,
+    creditNote.salesReturnId?.customerSnapshot?.billingAddress,
+    customerAddress(creditNote.customerId),
+  );
 
   return (
     <div className="flex flex-col gap-6 mx-auto text-[var(--vs-text-primary)]">

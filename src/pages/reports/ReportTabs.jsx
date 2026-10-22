@@ -6,6 +6,10 @@ const reportTabs = [
   { label: 'GSTR-1 Summary', value: '/reports/gstr1' },
   { label: 'HSN Summary', value: '/reports/hsn-summary' },
   { label: 'Accounts Ageing', value: '/reports/ageing' },
+  { label: 'Profit', value: '/reports/profit' },
+  { label: 'Batch-wise Sales', value: '/reports/batch-sales' },
+  { label: 'Price History', value: '/reports/price-history' },
+  { label: 'Price Overrides', value: '/reports/price-overrides' },
 ];
 
 export default function ReportTabs() {

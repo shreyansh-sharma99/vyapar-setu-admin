@@ -73,7 +73,7 @@ export default function PaymentOutList() {
   return (
     <div>
       <Card
-        h1="Payments Out"
+        h1="Supplier Payments"
         description="Money paid to suppliers"
         bodyClassName="px-4 pb-4 pt-2"
         rightNode={

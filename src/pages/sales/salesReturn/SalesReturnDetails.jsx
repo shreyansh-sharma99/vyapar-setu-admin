@@ -17,6 +17,7 @@ import {
   deleteSalesReturn,
   clearReturnToast,
 } from './services/salesReturnSlice';
+import { firstAddress, customerAddress } from '../components/address';
 
 // ─── Status Config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -162,9 +163,11 @@ export default function SalesReturnDetails() {
 
   const currentConfirm = confirmModal.type ? confirmConfig[confirmModal.type] : null;
 
-  const billingAddr = salesReturn.customerSnapshot?.billingAddress;
-  const billingStr = [billingAddr?.street, billingAddr?.city, billingAddr?.state, billingAddr?.pincode, billingAddr?.country]
-    .filter(Boolean).join(', ');
+  const billingStr = firstAddress(
+    salesReturn.customerSnapshot?.billingAddress,
+    salesReturn.salesInvoiceId?.customerSnapshot?.billingAddress,
+    customerAddress(salesReturn.customerId),
+  );
 
   return (
     <div className="flex flex-col gap-6 mx-auto text-[var(--vs-text-primary)]">

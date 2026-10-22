@@ -9,6 +9,7 @@ import { decryptData, encryptData } from '@/utility/crypto';
 import Button from '@/components/inputs/Button';
 import Card from '../../../components/breadCrumbs/Card';
 import Loader from '@/components/loader/Loader';
+import LineBatchInfo from '../components/LineBatchInfo';
 import DeleteModal from '@/components/modal/DeleteModal';
 import { CToaster, CToast, CToastBody } from '@coreui/react';
 import {
@@ -19,6 +20,7 @@ import {
   deleteDeliveryChallan,
   clearChallanToast,
 } from './services/deliveryChallanSlice';
+import { firstAddress, customerAddress } from '../components/address';
 
 // ─── Status Config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -172,9 +174,7 @@ export default function DeliveryChallanDetails() {
 
   const currentConfirm = confirmModal.type ? confirmConfig[confirmModal.type] : null;
 
-  const billingAddr = challan.customerSnapshot?.billingAddress;
-  const billingStr = [billingAddr?.street, billingAddr?.city, billingAddr?.state, billingAddr?.pincode, billingAddr?.country]
-    .filter(Boolean).join(', ');
+  const billingStr = firstAddress(challan.customerSnapshot?.billingAddress, customerAddress(challan.customerId));
 
   return (
     <div className="flex flex-col gap-6 mx-auto text-[var(--vs-text-primary)]">
@@ -254,6 +254,7 @@ export default function DeliveryChallanDetails() {
                       <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors">
                         <td className="py-3 px-4 font-medium text-[var(--vs-text-primary)] border border-gray-300 dark:border-white/20">
                           <div>{item.productName || '—'}</div>
+                          <LineBatchInfo item={item} showPrice={false} />
                         </td>
                         <td className="py-3 px-4 text-center font-mono text-xs text-[var(--vs-text-secondary)] border border-gray-300 dark:border-white/20">{item.hsnCode || '—'}</td>
                         <td className="py-3 px-4 text-center font-semibold text-indigo-600 dark:text-indigo-400 border border-gray-300 dark:border-white/20">{item.qty}</td>

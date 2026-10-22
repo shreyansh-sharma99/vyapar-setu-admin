@@ -214,11 +214,6 @@ export default function ProductList() {
       render: (item) => (
         <div className="flex flex-col">
           <span>{item.name}</span>
-          {Array.isArray(item.variantAttributes) && item.variantAttributes.length > 0 && (
-            <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
-              {item.variantAttributes.map((a) => `${a.name}: ${a.value}`).join(' · ')}
-            </span>
-          )}
         </div>
       ),
     },
@@ -310,6 +305,16 @@ export default function ProductList() {
               </span>
             )}
             {damaged > 0 && <span className="text-[10px] text-[var(--vs-text-secondary)]">{formatQty(damaged)} damaged</span>}
+            {toNumberOr(item.openBatches, 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => navigate(`/products/view/${encodeId(item._id)}#batches`)}
+                title="See the batches and their prices"
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 hover:underline cursor-pointer"
+              >
+                {item.openBatches} batch{item.openBatches === 1 ? '' : 'es'}
+              </button>
+            )}
           </div>
         );
       },

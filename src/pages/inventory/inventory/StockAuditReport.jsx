@@ -17,10 +17,10 @@ import {
   ActorCell,
   BucketBadge,
   ValueCell,
+  BatchCell,
 } from './components/AuditReportShared';
 import { formatDateTime, buildAuditParams, useAuditCsvExport, useStockSources } from './components/auditReportUtils';
 import { formatCurrency } from './components/inventoryUtils';
-import { InventoryNav } from './components/InventoryShared';
 
 export default function StockAuditReport() {
   const dispatch = useDispatch();
@@ -149,6 +149,7 @@ export default function StockAuditReport() {
         ),
       value: 'checked',
     },
+    { label: 'Batch', key: 'batches', render: (log) => <BatchCell log={log} />, value: 'checked' },
     {
       label: 'Change',
       key: 'delta',
@@ -189,7 +190,6 @@ export default function StockAuditReport() {
         h1="Stock Audit & Movement Report"
         bodyClassName="px-4 pb-4 pt-3"
       >
-        <InventoryNav current="audit" />
 
         <AuditFilterPanel
           open={showFilters}

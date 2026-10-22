@@ -190,6 +190,30 @@ export const BucketBadge = ({ bucket }) =>
   );
 
 /** Signed movement value (+ in / − out) with unit cost below. */
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const shortDay = (d) => {
+  const x = d ? new Date(d) : null;
+  return x && !Number.isNaN(x.getTime()) ? `${x.getDate()} ${SHORT_MONTHS[x.getMonth()]}` : '';
+};
+
+/** Batches a movement touched: "B-0925 (25 Sep) · MRP ₹120 ×3", one per line. */
+export const BatchCell = ({ log }) => {
+  const batches = (log.batches || []).filter((b) => b.batchNo || Number(b.mrp) > 0);
+  if (!batches.length) return <span className="text-gray-400">-</span>;
+  return (
+    <div className="flex flex-col gap-0.5 text-[11px] leading-tight whitespace-nowrap">
+      {batches.map((b, i) => (
+        <span key={`${b.batchId || 'b'}-${i}`}>
+          <span className="font-mono font-semibold text-[var(--vs-text-primary)]">{b.batchNo || 'No batch no'}</span>
+          {b.receivedAt && <span className="text-[var(--vs-text-secondary)]"> ({shortDay(b.receivedAt)})</span>}
+          {Number(b.mrp) > 0 && <span className="text-[var(--vs-text-secondary)]"> · MRP ₹{Number(b.mrp)}</span>}
+          {batches.length > 1 && <span className="text-[var(--vs-text-secondary)]"> ×{Number(b.qty)}</span>}
+        </span>
+      ))}
+    </div>
+  );
+};
+
 export const ValueCell = ({ log }) => {
   if (!log.value && !log.unitCost) return <span className="text-gray-400">-</span>;
   const isIn = Number(log.value) >= 0;

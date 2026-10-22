@@ -120,73 +120,85 @@ export default function StoreList() {
     dispatch(updateStore({ id: store._id, payload: { isActive } }));
   };
 
+  const dash = <span className="text-[var(--vs-text-secondary)] text-xs">—</span>;
   const headers = [
     {
-      label: 'Store / Warehouse',
+      label: 'Store Name',
       key: 'name',
       sortable: true,
       render: (store) => (
-        <div className="flex items-center gap-3 min-w-[200px]">
+        <div className="flex items-center gap-2.5 min-w-[160px]">
           <div
-            className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${store.isDefault
+            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${store.isDefault
               ? 'bg-indigo-600 text-white'
               : 'bg-[var(--vs-active-bg)] text-[var(--vs-active-text)]'
               }`}
           >
             <Building2 className="w-4 h-4" />
           </div>
-          <div className="flex flex-col leading-tight">
-            <span className="font-semibold text-[var(--vs-text-primary)]">{store.name}</span>
-            <span className="font-mono text-[11px] font-semibold tracking-wider text-[var(--vs-active-text)]">
-              {store.code || '—'}
-            </span>
-          </div>
+          <span className="font-semibold text-[var(--vs-text-primary)]">{store.name}</span>
         </div>
       ),
       value: 'checked',
     },
     {
-      label: 'Location',
-      key: 'location',
+      label: 'Store Code',
+      key: 'code',
+      sortable: true,
+      cellClassName: 'text-center',
+      render: (store) =>
+        store.code ? (
+          <span className="font-mono text-xs font-semibold tracking-wider text-[var(--vs-active-text)]">{store.code}</span>
+        ) : dash,
+      value: 'checked',
+    },
+    {
+      label: 'City / State / PIN',
+      key: 'city',
       render: (store) => {
         const a = store.address || {};
-        const line1 = [a.street, a.area].filter(Boolean).join(', ');
-        const line2 = [a.city, a.state, a.pincode].filter(Boolean).join(', ');
-        if (!line1 && !line2) return <span className="text-[var(--vs-text-secondary)] text-xs">—</span>;
-        return (
-          <div className="flex items-start gap-1.5 text-xs min-w-[180px]">
-            <MapPin className="w-3.5 h-3.5 text-[var(--vs-text-secondary)] shrink-0 mt-0.5" />
-            <div className="flex flex-col">
-              {line2 && <span className="font-medium text-[var(--vs-text-primary)]">{line2}</span>}
-              {line1 && <span className="text-[var(--vs-text-secondary)] line-clamp-1">{line1}</span>}
-            </div>
-          </div>
-        );
+        const text = [a.city, a.state, a.pincode].filter(Boolean).join(', ');
+        return text ? (
+          <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--vs-text-primary)]">
+            <MapPin className="w-3.5 h-3.5 text-[var(--vs-text-secondary)] shrink-0" />
+            {text}
+          </span>
+        ) : dash;
       },
       value: 'checked',
     },
     {
-      label: 'Contact',
+      label: 'Address',
+      key: 'address',
+      render: (store) => {
+        const a = store.address || {};
+        const text = [a.street, a.area].filter(Boolean).join(', ');
+        return text ? <span className="text-xs text-[var(--vs-text-secondary)]">{text}</span> : dash;
+      },
+      value: 'checked',
+    },
+    {
+      label: 'Contact Person',
       key: 'contactPerson',
       render: (store) =>
-        store.contactPerson || store.phone ? (
-          <div className="flex flex-col gap-0.5 text-xs">
-            {store.contactPerson && (
-              <span className="flex items-center gap-1.5 text-[var(--vs-text-primary)]">
-                <User className="w-3 h-3 text-[var(--vs-text-secondary)]" />
-                {store.contactPerson}
-              </span>
-            )}
-            {store.phone && (
-              <span className="flex items-center gap-1.5 text-[var(--vs-text-secondary)]">
-                <Phone className="w-3 h-3" />
-                {store.phone}
-              </span>
-            )}
-          </div>
-        ) : (
-          <span className="text-[var(--vs-text-secondary)] text-xs">—</span>
-        ),
+        store.contactPerson ? (
+          <span className="flex items-center gap-1.5 text-xs text-[var(--vs-text-primary)]">
+            <User className="w-3 h-3 text-[var(--vs-text-secondary)]" />
+            {store.contactPerson}
+          </span>
+        ) : dash,
+      value: 'checked',
+    },
+    {
+      label: 'Phone',
+      key: 'phone',
+      render: (store) =>
+        store.phone ? (
+          <span className="flex items-center gap-1.5 text-xs text-[var(--vs-text-primary)]">
+            <Phone className="w-3 h-3 text-[var(--vs-text-secondary)]" />
+            {store.phone}
+          </span>
+        ) : dash,
       value: 'checked',
     },
     {

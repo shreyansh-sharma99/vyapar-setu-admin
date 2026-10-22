@@ -11,6 +11,7 @@ import { FilterSelect, StatusBadge } from '../components/ui';
 import { notify, notifyError } from '../components/toast';
 import { PATHS, editPath, errMsg, fmtDate, formatINR, refId, storeName, supplierName, viewPath } from '../components/helpers';
 import { fetchGoodsReceipts, deleteGoodsReceipt } from './services/goodsReceiptSlice';
+import { grnTotals } from '../components/itemTable';
 
 const FILTERS = [
   { value: 'all', label: 'All receipts' },
@@ -103,7 +104,7 @@ export default function GoodsReceiptList() {
     { label: 'PO', key: 'poNumber', value: 'checked', render: (g) => <span className="font-mono text-xs">{g.poNumber || g.purchaseOrderId?.poNumber || '—'}</span> },
     { label: 'Supplier invoice', key: 'supplierInvoiceNo', value: 'checked', render: (g) => g.supplierInvoiceNo || '—' },
     { label: 'Store', key: 'store', value: 'checked', render: (g) => storeName(g) },
-    { label: 'Value', key: 'totalValue', value: 'checked', render: (g) => <span className="font-semibold">{formatINR(g.totalValue)}</span> },
+    { label: 'Amount incl. GST', key: 'totalWithTax', value: 'checked', render: (g) => <span className="font-semibold">{formatINR(grnTotals(g).incl)}</span> },
     { label: 'Status', key: 'status', value: 'checked', render: (g) => <StatusBadge status={g.status} /> },
     {
       label: 'Bill',

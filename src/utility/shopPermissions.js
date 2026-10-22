@@ -18,10 +18,11 @@ export const MENU_PERMISSIONS = {
   '/subcategories': 'catalog',
   '/brands': 'catalog',
   '/manufacturers': 'catalog',
+  '/master': 'catalog',
   '/products': 'catalog',
   '/stores': 'stores',
   '/inventory/transfers': 'stock_transfer',
-  '/inventory': 'inventory',
+  '/inventory': 'inventory', // also /inventory/opening-stock
   '/purchase/suppliers': 'suppliers',
   '/purchase': 'purchase',
   '/sales': 'sales',
@@ -74,6 +75,17 @@ export const can = (user, module, level = 'view') => {
     return PERMISSION_LEVELS.some((l) => l !== 'view' && permissions.includes(`${module}.${l}`));
   }
   return false;
+};
+
+/**
+ * May the user type a different price while billing? Owner always; staff only with the
+ * extra role permission `sales.change_price`. (The backend checks the same rule.)
+ */
+export const canChangePrice = (user) => {
+  if (!user) return false;
+  if (isOwner(user)) return true;
+  // Not via can(): a legacy `sales.manage` key must not grant this extra.
+  return Array.isArray(user.permissions) && user.permissions.includes('sales.change_price');
 };
 
 const normalisePath = (path) => {

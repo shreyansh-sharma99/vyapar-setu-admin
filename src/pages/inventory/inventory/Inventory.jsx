@@ -26,7 +26,7 @@ import {
   StoreSelect,
   StockStatusPill,
   ProductCell,
-  InventoryNav,
+  
   InventoryToaster,
 } from './components/InventoryShared';
 import {
@@ -201,7 +201,10 @@ export default function Inventory() {
         key: 'threshold',
         value: 'checked',
         cellClassName: 'text-center',
-        render: (item) => <span className="text-xs font-medium">{formatQty(item.threshold)}</span>,
+        // 0 = no alert set yet for this product (set on the purchase or in Edit product)
+        render: (item) => (Number(item.threshold) > 0
+          ? <span className="text-xs font-medium">{formatQty(item.threshold)}</span>
+          : <span className="text-xs text-[var(--vs-text-secondary)]" title="No low-stock alert set">—</span>),
       },
       {
         label: 'Status',
@@ -257,7 +260,6 @@ export default function Inventory() {
   return (
     <div>
       <Card h1="Inventory" bodyClassName="px-4 pb-4 pt-3">
-        <InventoryNav current="list" />
         <AntdThemed>
           <FilterBar>
             <FilterField label="Store / Warehouse">

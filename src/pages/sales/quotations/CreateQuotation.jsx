@@ -11,6 +11,9 @@ import { Label } from '@/components/inputs/Label';
 import Select from '@/components/inputs/Select';
 import { getCustomers } from '../../customer/services/customerSlice';
 import { getProducts } from '../../storeManagement/products/services/productSlice';
+import LinePriceNote from '../components/LinePriceNote';
+import { datedFieldsFromSaved, useDatedSalesLines } from '../components/datedPricing';
+import { canChangePrice } from '@/utility/shopPermissions';
 import {
   createQuotation,
   updateQuotation,
@@ -59,6 +62,15 @@ export default function CreateQuotation() {
     { productId: '', productName: '', hsnCode: '', sku: '', qty: 1, unit: 'pcs', rate: 0, discountPercent: 0, isGstApplicable: true, taxPercent: 18, cessPercent: 0 },
   ]);
 
+  // Price / offer / GST come from the masters for the document date; the
+  // rate can be typed only with "Change price while billing" (+ a reason).
+  const authUser = useSelector((state) => state.auth.user);
+  const mayChangePrice = canChangePrice(authUser);
+  const productCache = Object.fromEntries((products || []).map((p) => [String(p._id), p]));
+  const dated = useDatedSalesLines({ lineItems, setLineItems, date: quotationDate, storeId: '', productCache, withBatches: false });
+  const viewLines = dated.viewLines;
+  const lockRate = !mayChangePrice;
+
   // ─── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     dispatch(getCustomers({ page: 1, limit: 1000 }));
@@ -98,6 +110,7 @@ export default function CreateQuotation() {
           isGstApplicable: item.isGstApplicable !== false,
           taxPercent: item.taxPercent || 0,
           cessPercent: item.cessPercent || 0,
+          ...datedFieldsFromSaved(item),
         })));
       }
     }
@@ -151,6 +164,11 @@ export default function CreateQuotation() {
   };
 
   const handleLineItemChange = (index, field, value) => {
+    // Dated pricing: a typed rate / discount is a manual price (needs a reason).
+    if (field === 'rate' || field === 'discountPercent') {
+      dated.editPrice(index, field, value);
+      return;
+    }
     const updated = [...lineItems];
     if (field === 'productId') {
       const product = products.find((p) => p._id === value);
@@ -160,12 +178,14 @@ export default function CreateQuotation() {
           productId: product._id,
           productName: product.name,
           sku: product.sku || '',
-          hsnCode: product.hsnCode || '8471',
+          hsnCode: product.hsnSacCode || product.hsnCode || '',
           unit: product.unit || 'pcs',
           rate: product.discountedPrice || product.basePrice || 0,
           isGstApplicable: !!product.isGstApplicable,
           taxPercent: product.isGstApplicable ? (product.gstRateOverride || 0) : 0,
           cessPercent: product.cessPercent || 0,
+          priceOverride: false,
+          priceOverrideReason: '',
         };
       } else {
         updated[index] = { ...updated[index], productId: '', productName: '', sku: '', hsnCode: '', rate: 0 };
@@ -182,7 +202,7 @@ export default function CreateQuotation() {
   // ─── Calculations ─────────────────────────────────────────────────────────────
   const calculateTotals = () => {
     let subtotal = 0, taxAmount = 0;
-    lineItems.forEach((item) => {
+    viewLines.forEach((item) => {
       const qty = Number(item.qty || 0), rate = Number(item.rate || 0);
       const discPct = Number(item.discountPercent || 0), taxPct = Number(item.taxPercent || 0);
       const taxable = qty * rate * (1 - discPct / 100);
@@ -200,10 +220,13 @@ export default function CreateQuotation() {
   const handleSave = (status = 'draft') => {
     setIsSubmitted(true);
     const hasInvalidCustomer = !customerSnapshot.name || !customerSnapshot.phone;
-    const invalidItem = lineItems.find((item) => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0);
+    const invalidItem = viewLines.find((item) => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0);
     const gstin = customerSnapshot.gstin;
     const invalidGstin = gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/.test(gstin);
     if (hasInvalidCustomer || invalidItem || invalidGstin) return;
+
+    // a typed price needs a reason (its box turns red)
+    if (dated.priceProblem()) return;
 
     const payload = {
       customerId: selectedCustomerId || null,
@@ -218,7 +241,8 @@ export default function CreateQuotation() {
       status,
       notes,
       terms,
-      lineItems: lineItems.map((item) => ({
+      lineItems: viewLines.map((item) => ({
+        ...dated.payloadExtras(item),
         productId: item.productId,
         productName: item.productName,
         hsnCode: item.hsnCode,
@@ -467,7 +491,7 @@ export default function CreateQuotation() {
                 </tr>
               </thead>
               <tbody>
-                {lineItems.map((item, idx) => {
+                {viewLines.map((item, idx) => {
                   const qty = Number(item.qty || 0), rate = Number(item.rate || 0);
                   const disc = Number(item.discountPercent || 0), gst = Number(item.taxPercent || 0);
                   const taxable = qty * rate * (1 - disc / 100);
@@ -482,15 +506,16 @@ export default function CreateQuotation() {
                           {products.map((p) => (<option key={p._id} value={p._id}>{p.name} {p.barcode ? `(${p.barcode})` : ''}</option>))}
                         </select>
                         {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-1">Product is required</div>}
+                        <LinePriceNote line={item} onReason={(r) => dated.setReason(idx, r)} onReset={() => dated.resetPrice(idx)} submitted={isSubmitted} />
                       </td>
                       <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
                         <Input type="number" min="1" value={item.qty} onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))} className={`text-center !h-9 !rounded-lg ${isSubmitted && Number(item.qty) <= 0 ? '!border-red-500' : ''}`} />
                       </td>
                       <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
-                        <Input type="number" min="0" step="0.01" value={item.rate} onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))} className={`text-center !h-9 !rounded-lg ${isSubmitted && Number(item.rate) < 0 ? '!border-red-500' : ''}`} />
+                        <Input type="number" min="0" step="0.01" value={item.rate} onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))} readOnly={lockRate} className={`text-center !h-9 !rounded-lg ${isSubmitted && Number(item.rate) < 0 ? '!border-red-500' : ''}`} />
                       </td>
                       <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
-                        <Input type="number" min="0" max="100" value={item.discountPercent} onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))} className="text-center !h-9 !rounded-lg" />
+                        <Input type="number" min="0" max="100" value={item.discountPercent} onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))} readOnly={lockRate} className="text-center !h-9 !rounded-lg" />
                       </td>
                       <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top text-center pt-4 font-medium text-[var(--vs-text-primary)]">
                         {item.isGstApplicable ? `${item.taxPercent}%` : '-'}
@@ -513,7 +538,7 @@ export default function CreateQuotation() {
 
           {/* Mobile Cards */}
           <div className="flex flex-col gap-4 md:hidden">
-            {lineItems.map((item, idx) => {
+            {viewLines.map((item, idx) => {
               const qty = Number(item.qty || 0), rate = Number(item.rate || 0);
               const disc = Number(item.discountPercent || 0), gst = Number(item.taxPercent || 0);
               const lineTotal = qty * rate * (1 - disc / 100) * (1 + gst / 100);
@@ -530,11 +555,12 @@ export default function CreateQuotation() {
                       {products.map((p) => (<option key={p._id} value={p._id}>{p.name}</option>))}
                     </select>
                     {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-0.5">Product is required</div>}
+                    <LinePriceNote line={item} onReason={(r) => dated.setReason(idx, r)} onReset={() => dated.resetPrice(idx)} submitted={isSubmitted} />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1"><Label>Qty *</Label><Input type="number" min="1" value={item.qty} onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))} /></div>
-                    <div className="flex flex-col gap-1"><Label>Rate (₹) *</Label><Input type="number" min="0" step="0.01" value={item.rate} onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))} /></div>
-                    <div className="flex flex-col gap-1"><Label>Discount (%)</Label><Input type="number" min="0" max="100" value={item.discountPercent} onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))} /></div>
+                    <div className="flex flex-col gap-1"><Label>Rate (₹) *</Label><Input type="number" min="0" step="0.01" value={item.rate} onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))} readOnly={lockRate} /></div>
+                    <div className="flex flex-col gap-1"><Label>Discount (%)</Label><Input type="number" min="0" max="100" value={item.discountPercent} onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))} readOnly={lockRate} /></div>
                     <div className="flex flex-col gap-1"><Label>GST</Label><div className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-slate-800/50 px-3 py-2.5 text-sm text-center font-medium text-[var(--vs-text-primary)]">{item.isGstApplicable ? `${item.taxPercent}%` : '-'}</div></div>
                   </div>
                   <div className="flex justify-between items-center border-t border-gray-200 dark:border-white/5 pt-2 text-sm font-semibold">

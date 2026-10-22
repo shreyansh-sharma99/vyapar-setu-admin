@@ -13,6 +13,9 @@ import { getCustomers } from '../../customer/services/customerSlice';
 import { getStores } from '@/pages/storeManagement/stores/services/storeSlice';
 import ProductSearchPicker, { BarcodeScanInput } from '../components/ProductSearchPicker';
 import { getProductForLineApi, getStockInStore } from '../services/productLookupService';
+import BatchPickerModal from '../components/BatchPickerModal';
+import LinePriceNote from '../components/LinePriceNote';
+import { NO_BATCH, datedFieldsFromSaved, useDatedSalesLines } from '../components/datedPricing';
 import {
   createDeliveryChallan,
   updateDeliveryChallan,
@@ -99,6 +102,9 @@ export default function CreateDeliveryChallan() {
     : (isEditMode ? '' : (defaultStore?._id || ''));
   const dispatchStore = (stores || []).find((s) => String(s._id) === String(dispatchStoreId)) || null;
   const dispatchStoreInactive = dispatchStore?.isActive === false;
+
+  // A product with more than one MRP on the shelf asks "Which MRP?".
+  const dated = useDatedSalesLines({ lineItems, setLineItems, date: challanDate, storeId: dispatchStoreId, productCache, withPrices: false });
   const storeOptions = activeStores.map((s) => ({
     value: s._id,
     label: `${s.name}${s.code ? ` [${s.code}]` : ''}${s.isDefault ? ' (Default)' : ''}`,
@@ -161,6 +167,7 @@ export default function CreateDeliveryChallan() {
           hsnCode: item.hsnCode || '',
           unit: item.unit || '',
           qty: item.qty || 1,
+          ...datedFieldsFromSaved(item, currentChallan.storeId?._id || currentChallan.storeId),
         })));
       }
     }
@@ -234,8 +241,9 @@ export default function CreateDeliveryChallan() {
   const productLineFields = (product) => ({
     productId: product._id,
     productName: product.name,
-    hsnCode: product.hsnCode || product.hsnSacCode || '8471',
+    hsnCode: product.hsnSacCode || product.hsnCode || '',
     unit: product.unit || '',
+    ...NO_BATCH,
   });
 
   const handleLineItemChange = (index, field, value) => {
@@ -246,6 +254,7 @@ export default function CreateDeliveryChallan() {
       if (product) {
         cacheProduct(product);
         updated[index] = { ...updated[index], ...productLineFields(product) };
+        dated.afterProductPicked(index, product);
       } else {
         updated[index] = { ...updated[index], productId: '', productName: '', hsnCode: '', unit: '' };
       }
@@ -258,6 +267,8 @@ export default function CreateDeliveryChallan() {
   // Scanned product: fill the first empty row, otherwise add a new row.
   const handleScannedProduct = (product) => {
     cacheProduct(product);
+    const emptyAt = lineItems.findIndex((item) => !item.productId);
+    dated.afterProductPicked(emptyAt !== -1 ? emptyAt : lineItems.length, product);
     setLineItems((prev) => {
       const emptyIndex = prev.findIndex((item) => !item.productId);
       if (emptyIndex !== -1) {
@@ -315,6 +326,7 @@ export default function CreateDeliveryChallan() {
         hsnCode: item.hsnCode,
         ...(item.unit ? { unit: item.unit } : {}),
         qty: Number(item.qty),
+        ...dated.payloadExtras(item),
       })),
     };
 
@@ -552,6 +564,7 @@ export default function CreateDeliveryChallan() {
                           error={isSubmitted && !item.productId}
                         />
                         {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-1">Product is required</div>}
+                        <LinePriceNote line={dated.viewLines[idx]} showBatch onChangeBatch={() => dated.changeBatch(idx)} />
                         <StockBadge available={getAvailable(item.productId)} qty={item.qty} unit={item.unit} storeName={dispatchStore?.code || dispatchStore?.name} hasProduct={!!item.productId} hasStore={!!dispatchStoreId} />
                       </td>
                       <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
@@ -591,6 +604,7 @@ export default function CreateDeliveryChallan() {
                     error={isSubmitted && !item.productId}
                   />
                   {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-0.5">Product is required</div>}
+                  <LinePriceNote line={dated.viewLines[idx]} showBatch onChangeBatch={() => dated.changeBatch(idx)} />
                   <StockBadge available={getAvailable(item.productId)} qty={item.qty} unit={item.unit} storeName={dispatchStore?.code || dispatchStore?.name} hasProduct={!!item.productId} hasStore={!!dispatchStoreId} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -606,6 +620,7 @@ export default function CreateDeliveryChallan() {
           )}
         </Card>
       </Card>
+      <BatchPickerModal picker={dated.picker} onPick={dated.pickBatch} onClose={dated.closePicker} />
     </div>
   );
 }

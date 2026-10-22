@@ -40,7 +40,3 @@ export const getSupplierOpenBillsApi = async (id) => {
   return response.data;
 };
 
-export const getPayablesAgeingApi = async () => {
-  const response = await apiClient.get('/suppliers/payables-ageing');
-  return response.data;
-};

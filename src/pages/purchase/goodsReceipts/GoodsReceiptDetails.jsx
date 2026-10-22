@@ -10,6 +10,8 @@ import { ConfirmModal, InfoRow, PageLoading, PageShell, Section, StatusBadge } f
 import { notify, notifyError } from '../components/toast';
 import { PATHS, decId, editPath, errMsg, fmtDate, formatINR, formatQty, num, refId, storeName, supplierName, viewPath } from '../components/helpers';
 import { cancelGoodsReceipt, deleteGoodsReceipt, fetchGoodsReceipt, postGoodsReceipt } from './services/goodsReceiptSlice';
+import { spChangeCount, stockInDetailColumns } from '../components/stockInColumns';
+import { grnLineTax, grnTotals } from '../components/itemTable';
 
 export default function GoodsReceiptDetails() {
   const { id: encryptedId } = useParams();
@@ -33,6 +35,8 @@ export default function GoodsReceiptDetails() {
     try {
       const res = await dispatch(thunk).unwrap();
       notify(res?.message || fallback);
+      // e.g. "Invoice X is already recorded as bill Y — check you did not add the goods twice"
+      if (res?.warning) notify(res.warning, 'warning');
       setModal(null);
       dispatch(fetchGoodsReceipt(grn._id));
     } catch (e) {
@@ -84,14 +88,34 @@ export default function GoodsReceiptDetails() {
         ),
     },
     { key: 'accepted', label: 'Accepted', align: 'right', render: (l) => <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatQty(l.acceptedQty)}</span> },
-    { key: 'cost', label: 'Unit cost', align: 'right', render: (l) => formatINR(l.unitCost) },
-    { key: 'value', label: 'Value', align: 'right', render: (l) => <span className="font-semibold">{formatINR(l.value)}</span> },
+    { key: 'cost', label: 'Cost price', align: 'right', render: (l) => formatINR(l.unitCost) },
+    { key: 'gst', label: 'GST', align: 'center', render: (l) => (num(l.taxPercent) > 0 ? `${num(l.taxPercent)}%` : 'No GST') },
+    { key: 'incl', label: 'Price incl. GST', align: 'right', render: (l) => formatINR(num(l.unitCost) * (1 + num(l.taxPercent) / 100)) },
+    ...stockInDetailColumns(grn.items || []),
+    { key: 'value', label: 'Before GST', align: 'right', render: (l) => formatINR(l.value) },
+    { key: 'tax', label: 'GST amount', align: 'right', render: (l) => formatINR(grnLineTax(l)) },
+    { key: 'total', label: 'Amount incl. GST', align: 'right', render: (l) => <span className="font-semibold">{formatINR(num(l.value) + grnLineTax(l))}</span> },
   ];
+  const totals = grnTotals(grn);
+  const footer = (
+    <tfoot className="bg-[var(--vs-bg-secondary)] font-semibold">
+      <tr>
+        <td colSpan={columns.length - 3} className="py-2.5 px-3 border border-[var(--vs-border)] text-xs font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
+          Total
+        </td>
+        <td className="py-2.5 px-3 border border-[var(--vs-border)] text-right">{formatINR(totals.excl)}</td>
+        <td className="py-2.5 px-3 border border-[var(--vs-border)] text-right">{formatINR(totals.gst)}</td>
+        <td className="py-2.5 px-3 border border-[var(--vs-border)] text-right text-indigo-600 dark:text-indigo-400">{formatINR(totals.incl)}</td>
+      </tr>
+    </tfoot>
+  );
 
   const modalCfg = {
     post: {
       title: 'Add goods to stock',
-      message: `Post ${grn.grnNumber}? The accepted quantities will be added to ${storeName(grn)} stock.`,
+      message: `Post ${grn.grnNumber}? The accepted quantities will be added to ${storeName(grn)} stock.${
+        spChangeCount(grn.items) ? ` The new selling price of ${spChangeCount(grn.items)} product(s) applies from today.` : ''
+      }`,
       label: 'Add to stock',
       variant: 'primary',
       onConfirm: () => run(postGoodsReceipt(grn._id), 'Goods added to stock'),
@@ -181,13 +205,15 @@ export default function GoodsReceiptDetails() {
         <Section title="Supplier document" bodyClassName="p-4 grid grid-cols-2 gap-3">
           <InfoRow label="Invoice / challan no" value={grn.supplierInvoiceNo || '—'} />
           <InfoRow label="Invoice date" value={fmtDate(grn.supplierInvoiceDate)} />
-          <InfoRow label="Total value" value={formatINR(grn.totalValue)} />
+          <InfoRow label="Before GST" value={formatINR(totals.excl)} />
+          <InfoRow label="GST" value={formatINR(totals.gst)} />
+          <InfoRow label="Total incl. GST" value={formatINR(totals.incl)} />
           {grn.status === 'cancelled' && <InfoRow label="Cancel reason" value={grn.cancelReason || '—'} />}
         </Section>
       </div>
 
       <Section title="Items" bodyClassName="p-3">
-        <LinesTable columns={columns} rows={grn.items || []} minWidth={1000} />
+        <LinesTable columns={columns} rows={grn.items || []} minWidth={1300} footer={footer} />
       </Section>
 
       {grn.notes && (

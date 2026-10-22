@@ -121,3 +121,20 @@ export const getBrandOptionsApi = async (params = { limit: 100 }) => {
   const response = await apiClient.get('/brands', { params });
   return response.data;
 };
+
+/**
+ * Batches (cost layers) of a product, in the order they are sold.
+ * GET /inventory/batches?productId&storeId&onlyOpen → data: { product, batches: [{ _id, storeId, storeName, batchNo, receivedAt, expiryDate, mrp, unitCost, qtyRemaining, clearancePrice }] }
+ */
+export const getBatchesApi = async ({ productId, storeId, onlyOpen = true } = {}) => {
+  const params = { productId, onlyOpen };
+  if (storeId) params.storeId = storeId;
+  const response = await apiClient.get('/inventory/batches', { params });
+  return response.data;
+};
+
+/** PATCH /inventory/batches/:batchId/clearance { clearancePrice | null, reason } */
+export const setClearancePriceApi = async (batchId, clearancePrice, reason = '') => {
+  const response = await apiClient.patch(`/inventory/batches/${batchId}/clearance`, { clearancePrice, reason });
+  return response.data;
+};

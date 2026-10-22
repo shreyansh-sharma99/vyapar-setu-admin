@@ -34,3 +34,14 @@ export const deletePurchaseReturnApi = async (id) => {
   const response = await apiClient.delete(`/purchase-returns/${id}`);
   return response.data;
 };
+
+export const getPurchaseReturnStatsApi = async (params) => {
+  const response = await apiClient.get('/purchase-returns/stats', { params });
+  return response.data;
+};
+
+/** The supplier gave money back for a return: { amount, date, method, reference } */
+export const recordReturnRefundApi = async (id, payload) => {
+  const response = await apiClient.patch(`/purchase-returns/${id}/refund`, payload);
+  return response.data;
+};

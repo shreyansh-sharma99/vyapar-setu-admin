@@ -17,6 +17,9 @@ export const moduleLevels = (module) => (Array.isArray(module?.levels) ? module.
 
 export const moduleHasLevel = (module, level) => moduleLevels(module).includes(level);
 
+/** Extra (non-CRUD) permissions of a module, e.g. sales → [{ key: 'change_price', label }]. */
+export const moduleExtras = (module) => (Array.isArray(module?.extras) ? module.extras : []);
+
 /** Levels a permission list grants on one module (legacy manage expanded, view implied). */
 export const levelsFor = (perms, moduleKey) => {
   const list = Array.isArray(perms) ? perms : [];
@@ -33,14 +36,18 @@ export const levelsFor = (perms, moduleKey) => {
   return out;
 };
 
-/** Keep only keys the catalog knows, always with view when anything else is ticked. */
+/** Keep only keys the catalog knows (CRUD levels and extras), always with view when anything else is ticked. */
 export const cleanRolePermissions = (perms, modules) => {
+  const list = Array.isArray(perms) ? perms : [];
   const out = [];
   (modules || []).forEach((m) => {
-    const granted = levelsFor(perms, m.key);
+    const granted = levelsFor(list, m.key);
+    const extras = moduleExtras(m).filter((e) => list.includes(`${m.key}.${e.key}`));
+    if (extras.length) granted.add('view');
     MATRIX_LEVELS.forEach((l) => {
       if (granted.has(l) && moduleHasLevel(m, l)) out.push(`${m.key}.${l}`);
     });
+    extras.forEach((e) => out.push(`${m.key}.${e.key}`));
   });
   return out;
 };

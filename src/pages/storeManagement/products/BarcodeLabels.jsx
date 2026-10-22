@@ -10,6 +10,7 @@ import Checkbox from '@/components/inputs/Checkbox';
 import { Input } from '@/components/inputs/Input';
 import { Label } from '@/components/inputs/Label';
 import { generateBarcodesApi, getProductByIdApi, lookupProductsApi } from './services/productService';
+import { getStockInPricingApi } from '@/pages/purchase/components/stockInPricing';
 import AsyncSearchSelect from './components/AsyncSearchSelect';
 import BarcodeSvg from './components/BarcodeSvg';
 import ToastStack from './components/ToastStack';
@@ -107,8 +108,10 @@ function LabelBox({ item, template, fields, shopName }) {
   if (!item) return <div style={box} />;
 
   const p = item.product;
-  const price = sellingPrice(p);
-  const mrp = toNumberOr(p.mrp, 0);
+  // "Print for a batch": that batch's SP (what the customer pays) and MRP
+  const batch = item.batchId ? (item.batches || []).find((b) => String(b._id) === String(item.batchId)) : null;
+  const price = batch ? batchCustomerPrice(batch, item.gstRate) : sellingPrice(p);
+  const mrp = batch && toNumberOr(batch.mrp, 0) > 0 ? toNumberOr(batch.mrp, 0) : toNumberOr(p.mrp, 0);
   const showPrice = fields.price && price > 0;
   const showMrp = fields.mrp && mrp > 0;
   const showSku = fields.sku && p.sku;
@@ -172,6 +175,13 @@ function LabelBox({ item, template, fields, shopName }) {
     </div>
   );
 }
+
+/** Customer price of a batch (incl. GST); 0 when the batch has no SP. */
+const batchCustomerPrice = (b, gstRate) => {
+  const sp = toNumberOr(b.sellingPrice, 0);
+  if (!(sp > 0)) return 0;
+  return b.priceIncludesGst !== false ? sp : Math.round(sp * (1 + toNumberOr(gstRate, 0) / 100) * 100) / 100;
+};
 
 /** Pages of labels at exact mm sizes. */
 function LabelPages({ labels, template, fields, shopName, maxPages }) {
@@ -252,8 +262,17 @@ export default function BarcodeLabels() {
           .filter(Boolean);
         setItems((prev) => {
           const have = new Set(prev.map((i) => i.product._id));
-          return [...prev, ...loaded.filter((p) => !have.has(p._id)).map((p) => ({ product: p, qty: 1 }))];
+          return [...prev, ...loaded.filter((p) => !have.has(p._id)).map((p) => ({ product: p, qty: 1, batchId: '', batches: [], gstRate: 0 }))];
         });
+        // their open batches, for "Print for a batch"
+        if (loaded.length) {
+          getStockInPricingApi(loaded.map((p) => p._id))
+            .then((res) => {
+              const prices = res?.data?.prices || {};
+              if (!cancelled) setItems((prev) => prev.map((i) => (prices[i.product._id] ? { ...i, batches: prices[i.product._id].batches || [], gstRate: prices[i.product._id].gstRate } : i)));
+            })
+            .catch(() => {});
+        }
       })
       .finally(() => {
         if (!cancelled) setPreloading(false);
@@ -263,15 +282,29 @@ export default function BarcodeLabels() {
     };
   }, [preselectIds]);
 
+  /** Open batches (all stores) with their own SP / MRP, for "Print for a batch". */
+  const loadBatches = (pid) => {
+    getStockInPricingApi([pid])
+      .then((res) => {
+        const info = res?.data?.prices?.[pid];
+        if (!info) return;
+        setItems((prev) => prev.map((i) => (String(i.product._id) === String(pid) ? { ...i, batches: info.batches || [], gstRate: info.gstRate } : i)));
+      })
+      .catch(() => {});
+  };
+
   const addProduct = (opt) => {
     if (!opt?.raw) return;
     const p = opt.raw;
+    const isNew = !items.some((i) => i.product._id === p._id);
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.product._id === p._id);
       if (idx >= 0) return prev.map((i, k) => (k === idx ? { ...i, qty: i.qty + 1 } : i));
-      return [...prev, { product: p, qty: 1 }];
+      return [...prev, { product: p, qty: 1, batchId: '', batches: [], gstRate: 0 }];
     });
+    if (isNew) loadBatches(p._id);
   };
+  const setBatch = (id, batchId) => setItems((prev) => prev.map((i) => (i.product._id === id ? { ...i, batchId } : i)));
 
   const setQty = (id, qty) =>
     setItems((prev) => prev.map((i) => (i.product._id === id ? { ...i, qty: Math.max(0, Math.min(999, Math.floor(toNumberOr(qty, 0)))) } : i)));
@@ -413,7 +446,7 @@ export default function BarcodeLabels() {
                       </td>
                     </tr>
                   ) : (
-                    items.map(({ product: p, qty }) => (
+                    items.map(({ product: p, qty, batches = [], batchId = '', gstRate = 0 }) => (
                       <tr key={p._id}>
                         <td className="py-2 px-3">
                           <div className="font-semibold">{p.name}</div>
@@ -427,8 +460,34 @@ export default function BarcodeLabels() {
                           )}
                         </td>
                         <td className="py-2 px-3 text-right">
-                          {formatINR(sellingPrice(p))}
-                          {toNumberOr(p.mrp, 0) > 0 && <div className="text-[10px] text-[var(--vs-text-secondary)]">MRP {formatINR(p.mrp)}</div>}
+                          {(() => {
+                            const b = batchId ? batches.find((x) => String(x._id) === String(batchId)) : null;
+                            const price = b ? batchCustomerPrice(b, gstRate) : sellingPrice(p);
+                            const mrp = b && toNumberOr(b.mrp, 0) > 0 ? b.mrp : p.mrp;
+                            return (
+                              <>
+                                {formatINR(price)}
+                                {toNumberOr(mrp, 0) > 0 && <div className="text-[10px] text-[var(--vs-text-secondary)]">MRP {formatINR(mrp)}</div>}
+                              </>
+                            );
+                          })()}
+                          {batches.length > 0 && (
+                            <select
+                              value={batchId}
+                              onChange={(e) => setBatch(p._id, e.target.value)}
+                              title="Print for a batch: the label shows that batch's price and MRP"
+                              className="mt-1 h-7 max-w-[190px] rounded border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[11px] cursor-pointer"
+                            >
+                              <option value="">Default price</option>
+                              {batches.map((b) => (
+                                <option key={b._id} value={b._id}>
+                                  {[b.batchNo || 'Batch', b.storeName, toNumberOr(b.sellingPrice, 0) > 0 ? `SP ₹${batchCustomerPrice(b, gstRate)}` : '', toNumberOr(b.mrp, 0) > 0 ? `MRP ₹${toNumberOr(b.mrp, 0)}` : '']
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </td>
                         <td className="py-2 px-3">
                           <div className="flex items-center justify-center gap-1">
