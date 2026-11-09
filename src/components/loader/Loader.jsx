@@ -24,7 +24,7 @@ const Loader = ({ className }) => {
     .loader:before {
       width: 100%;
       height: 100%;
-      box-shadow: inset 0 0 0 1em #3b82f6;
+      box-shadow: inset 0 0 0 1em var(--ui-primary);
       animation-name: pulsIn;
     }
   
@@ -33,27 +33,27 @@ const Loader = ({ className }) => {
       height: calc(100% - 2em);
       top: 1em;
       left: 1em;
-      background-color: #3b82f6;
+      background-color: var(--ui-primary);
     }
   
     @keyframes pulsIn {
       0% {
-        box-shadow: inset 0 0 0 1em #3b82f6;
+        box-shadow: inset 0 0 0 1em var(--ui-primary);
         opacity: 1;
       }
       50%, 100% {
-        box-shadow: inset 0 0 0 0 #3b82f6;
+        box-shadow: inset 0 0 0 0 var(--ui-primary);
         opacity: 0;
       }
     }
   
     @keyframes pulsOut {
       0%, 50% {
-        box-shadow: 0 0 0 0 #3b82f6;
+        box-shadow: 0 0 0 0 var(--ui-primary);
         opacity: 0;
       }
       100% {
-        box-shadow: 0 0 0 1em #3b82f6;
+        box-shadow: 0 0 0 1em var(--ui-primary);
         opacity: 1;
       }
     }

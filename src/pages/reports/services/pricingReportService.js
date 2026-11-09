@@ -3,14 +3,11 @@ import apiClient from '@/utility/Http';
 
 // ─── Dated pricing reports: batches, profit, price audit ─────────────────────
 
-/** GET /reports/batch-sales?productId&storeId&dateFrom&dateTo → { product, rows, totals } */
+/** GET /reports/batch-sales?productId&dateFrom&dateTo → { product, rows, totals } */
 export const getBatchSalesApi = async (params) => (await apiClient.get('/reports/batch-sales', { params })).data;
 
 /** GET /reports/profit?groupBy=invoice|product|day&dateFrom&dateTo → { rows, totals, withoutCost } */
 export const getProfitApi = async (params) => (await apiClient.get('/reports/profit', { params })).data;
-
-/** GET /reports/price-history?productId&kind&dateFrom&dateTo → { rows, total, truncated } */
-export const getPriceHistoryApi = async (params) => (await apiClient.get('/reports/price-history', { params })).data;
 
 /** GET /reports/price-overrides?dateFrom&dateTo&by → { rows, people, totals } */
 export const getPriceOverridesApi = async (params) => (await apiClient.get('/reports/price-overrides', { params })).data;

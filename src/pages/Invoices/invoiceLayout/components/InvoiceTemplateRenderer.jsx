@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Eye, X, ZoomIn, ZoomOut, RotateCcw, FileText } from 'lucide-react';
-import Button from '@/components/inputs/Button';
+import { Button } from '@/components/ui';
 import { InvoiceDocument } from './InvoiceTemplates';
 import { sampleDoc } from './invoiceDoc';
 

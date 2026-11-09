@@ -2,11 +2,8 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { Label } from '@/components/inputs/Label';
-import { Input } from '@/components/inputs/Input';
-import Button from '@/components/inputs/Button';
-import Card from '@/components/breadCrumbs/Card';
+import { ArrowLeft } from 'lucide-react';
+import { Button, Field, FormActions, FormGrid, Input, PageHeader, Section, Textarea } from '@/components/ui';
 import FileInput from '@/components/inputs/FileInput';
 import { createCategory, resetCategoryStatus } from './services/categorySlice';
 
@@ -78,86 +75,70 @@ export default function CreateCategory() {
   };
 
   return (
-    <div className="flex flex-col gap-6  mx-auto">
-      <Card
-        h1="Create Category"
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-6"
-      >
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-2">
-          <div>
-            <Label htmlFor="name">Category Name<span className="text-red-500">*</span></Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="Enter category name"
-              error={errors.name}
-              {...register('name', { required: 'Category name is required' })}
-            />
-            {errors.name && (
-              <span className="text-xs text-red-500 mt-1 block">{errors.name.message}</span>
-            )}
-          </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Create Category"
+        actions={
+          <Button variant="secondary" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>
+            Back
+          </Button>
+        }
+      />
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        <Section title="Category details" description="Name and a short description">
+          <FormGrid cols={2}>
+            <Field label="Category Name" required error={errors.name?.message}>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Enter category name"
+                {...register('name', { required: 'Category name is required' })}
+              />
+            </Field>
+            <Field label="Description" className="col-span-full">
+              <Textarea
+                id="description"
+                placeholder="Enter category description"
+                rows={4}
+                {...register('description')}
+              />
+            </Field>
+          </FormGrid>
+        </Section>
 
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <textarea
-              id="description"
-              placeholder="Enter category description"
-              rows="4"
-              className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/25 transition-all duration-200 outline-none focus:border-indigo-500/60 focus:bg-indigo-500/[0.04] dark:focus:bg-indigo-500/[0.08] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
-              {...register('description')}
-            />
-          </div>
-
-          <div>
-            <Label>Category Image</Label>
-            <FileInput
-              fileName={selectedFile?.name}
-              imagePreview={imagePreview}
-              onChange={handleFileChange}
-              onUploadSuccess={handleUploadSuccess}
-              onRemove={() => {
-                setSelectedFile(null);
-                setFileError(null);
-                setImagePreview(null);
-                setUploadedImageUrl(null);
-              }}
-            />
-            {fileError && (
-              <span className="text-xs text-red-500 mt-1 block">{fileError}</span>
-            )}
-          </div>
-
-          {error && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-xs text-red-600 dark:text-red-400">
-              {error}
-            </div>
+        <Section title="Category Image" description="Optional">
+          <FileInput
+            fileName={selectedFile?.name}
+            imagePreview={imagePreview}
+            onChange={handleFileChange}
+            onUploadSuccess={handleUploadSuccess}
+            onRemove={() => {
+              setSelectedFile(null);
+              setFileError(null);
+              setImagePreview(null);
+              setUploadedImageUrl(null);
+            }}
+          />
+          {fileError && (
+            <p role="alert" className="m-0 mt-1.5 text-xs font-medium text-danger">{fileError}</p>
           )}
+        </Section>
 
-          <div className="mt-4 flex justify-end gap-3 ">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate('/categories')}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={loading}
-              startIcon={loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            >
-              Create Category
-            </Button>
+        {error && (
+          <div role="alert" className="rounded-control bg-danger-soft px-4 py-3 text-sm text-danger">
+            {error}
           </div>
-        </form>
-      </Card>
+        )}
+
+        <FormActions>
+          <Button variant="secondary" onClick={() => navigate('/categories')} disabled={loading}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={loading}>
+            Create Category
+          </Button>
+        </FormActions>
+      </form>
     </div>
   );
 }

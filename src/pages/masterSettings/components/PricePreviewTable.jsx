@@ -1,17 +1,16 @@
 import { ArrowRight } from 'lucide-react';
+import { Badge, LINE_TD, LINE_TH, LineItemsTable, LineRow } from '@/components/ui';
 import ProductThumb from './ProductThumb';
 import { formatMoney } from './priceUtils';
 
 const BADGE = {
-  skip: ['Skipped', 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10'],
-  replace: ['Replaces same-day price', 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800'],
-  change: ['Changes', 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800'],
-  same: ['Same price', 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800'],
+  skip: ['Skipped', 'neutral'],
+  replace: ['Replaces same-day price', 'primary'],
+  change: ['Changes', 'warning'],
+  same: ['Same price', 'info'],
 };
 
-const Badge = ({ kind }) => (
-  <span className={`inline-flex px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${BADGE[kind][1]}`}>{BADGE[kind][0]}</span>
-);
+const KindBadge = ({ kind }) => <Badge tone={BADGE[kind][1]}>{BADGE[kind][0]}</Badge>;
 
 const kindOf = (r) => (r.skip ? 'skip' : r.replaces ? 'replace' : r.changed ? 'change' : 'same');
 
@@ -19,55 +18,53 @@ const kindOf = (r) => (r.skip ? 'skip' : r.replaces ? 'replace' : r.changed ? 'c
 export default function PricePreviewTable({ rows = [], productsById = {}, offer = false }) {
   if (rows.length === 0) {
     return (
-      <div className="text-xs text-[var(--vs-text-secondary)] p-3 rounded-xl border border-dashed border-[var(--vs-border)]">
-        None of the selected products can get this {offer ? 'offer' : 'price'}.
-      </div>
+      <div className="rounded-control bg-fill-2 p-3 text-sm text-ink-subtle">None of the selected products can get this {offer ? 'offer' : 'price'}.</div>
     );
   }
 
   return (
-    <div className="overflow-x-auto border border-gray-200 dark:border-white/10 rounded-xl">
-      <table className="w-full text-left border-collapse text-xs min-w-[640px]">
-        <thead>
-          <tr className="bg-gray-50 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 font-bold">
-            <th className="py-2.5 px-3.5">Product</th>
-            <th className="py-2.5 px-3.5">SKU</th>
-            <th className="py-2.5 px-3.5 text-right">{offer ? 'Price' : 'Old price'}</th>
-            <th className="py-2.5 px-3.5 text-center w-8" aria-label="to" />
-            <th className="py-2.5 px-3.5">{offer ? 'Customer pays' : 'New price'}</th>
-            {!offer && <th className="py-2.5 px-3.5">Change</th>}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-white/5 text-[var(--vs-text-secondary)]">
-          {rows.map((r) => (
-            <tr key={r.productId} className={r.skip ? 'opacity-50' : 'hover:bg-gray-50/50 dark:hover:bg-white/[0.01]'}>
-              <td className="py-2.5 px-3.5">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <ProductThumb product={productsById[String(r.productId)]} size="sm" />
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-semibold text-[var(--vs-text-primary)] break-words">{r.name}</span>
-                    {r.skip && r.skipReason && <span className="text-[11px] italic">{r.skipReason}</span>}
-                  </div>
-                </div>
-              </td>
-              <td className="py-2.5 px-3.5 font-mono">{r.sku || '—'}</td>
-              <td className="py-2.5 px-3.5 text-right font-mono whitespace-nowrap">{formatMoney(offer ? r.price : r.oldPrice)}</td>
-              <td className="py-2.5 px-3.5 text-center">
-                <ArrowRight className="w-3.5 h-3.5 inline text-gray-400" />
-              </td>
-              <td className={`py-2.5 px-3.5 font-mono whitespace-nowrap ${r.skip ? '' : 'font-bold text-[var(--vs-text-primary)]'}`}>
-                {formatMoney(offer ? r.offerPrice : r.newPrice)}
-                {!offer && <span className="block text-[10px] font-normal font-sans">{r.priceIncludesGst !== false ? 'incl. GST' : '+ GST'}</span>}
-              </td>
-              {!offer && (
-                <td className="py-2.5 px-3.5">
-                  <Badge kind={kindOf(r)} />
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <LineItemsTable
+      minWidth={640}
+      head={
+        <tr>
+          <th className={LINE_TH}>Product</th>
+          <th className={LINE_TH}>SKU</th>
+          <th className={`${LINE_TH} text-right`}>{offer ? 'Price' : 'Old price'}</th>
+          <th className={`${LINE_TH} w-8 text-center`} aria-label="to" />
+          <th className={LINE_TH}>{offer ? 'Customer pays' : 'New price'}</th>
+          {!offer && <th className={LINE_TH}>Change</th>}
+        </tr>
+      }
+    >
+      {rows.map((r) => (
+        <LineRow key={r.productId} className={r.skip ? 'opacity-50' : ''}>
+          <td className={LINE_TD}>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <ProductThumb product={productsById[String(r.productId)]} size="sm" />
+              <div className="flex min-w-0 flex-col">
+                <span className="break-words font-semibold text-ink">{r.name}</span>
+                {r.skip && r.skipReason && <span className="text-xs italic text-ink-muted">{r.skipReason}</span>}
+              </div>
+            </div>
+          </td>
+          <td className={`${LINE_TD} font-mono text-[13px] text-ink-muted`}>{r.sku || '—'}</td>
+          <td className={`${LINE_TD} whitespace-nowrap text-right tabular-nums text-ink-muted`}>{formatMoney(offer ? r.price : r.oldPrice)}</td>
+          <td className={`${LINE_TD} text-center`}>
+            <ArrowRight className="inline size-3.5 text-ink-subtle" />
+          </td>
+          <td className={`${LINE_TD} whitespace-nowrap`}>
+            <Badge tone={r.skip ? 'neutral' : offer ? 'success' : 'primary'} className="tabular-nums">
+              {formatMoney(offer ? r.offerPrice : r.newPrice)}
+            </Badge>
+            {!offer && <span className="mt-0.5 block text-[11px] text-ink-subtle">{r.priceIncludesGst !== false ? 'incl. GST' : '+ GST'}</span>}
+          </td>
+          {!offer && (
+            <td className={LINE_TD}>
+              <KindBadge kind={kindOf(r)} />
+            </td>
+          )}
+        </LineRow>
+      ))}
+    </LineItemsTable>
   );
 }

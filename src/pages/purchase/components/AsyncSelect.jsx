@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Button, Input } from '@/components/ui';
+import { PANEL } from '@/components/ui/styles';
 import { ChevronDown, Loader2, X } from 'lucide-react';
 
 const calcStyle = (el) => {
@@ -128,16 +130,13 @@ export default function AsyncSelect({
     }
   };
 
-  const height = size === 'sm' ? 'h-9' : 'h-11';
-  const border = error
-    ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10'
-    : 'border-gray-200 dark:border-white/10 focus:border-indigo-500/60 focus:ring-indigo-500/10';
+  const fieldSize = size === 'sm' ? 'sm' : 'md';
 
   return (
     <div className={`relative w-full ${className}`} ref={wrapRef}>
-      <input
+      <Input
         ref={inputRef}
-        type="text"
+        size={fieldSize}
         autoComplete="off"
         disabled={disabled}
         value={open ? query : value?.label || ''}
@@ -153,21 +152,24 @@ export default function AsyncSelect({
           }
           runSearch(e.target.value);
         }}
-        className={`${height} w-full rounded-xl border bg-gray-50 dark:bg-white/5 pl-3 pr-14 text-sm text-gray-900 dark:!text-white placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:ring-3 transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${border}`}
+        invalid={!!error}
+        className="pl-3 pr-14"
       />
-      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-gray-400">
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-ink-subtle">
         {clearable && value?.value && !disabled && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             title="Clear"
+            aria-label="Clear"
             onMouseDown={(e) => {
               e.preventDefault();
               onChange?.(null);
             }}
-            className="p-0.5 rounded hover:text-rose-500 cursor-pointer"
+            className="!size-6 !rounded-md hover:!text-danger"
           >
             <X className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         )}
         {loading && open ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />}
       </div>
@@ -177,12 +179,12 @@ export default function AsyncSelect({
           <div
             ref={dropRef}
             style={style}
-            className="rounded-xl border border-[var(--vs-drop-border)] bg-[var(--vs-drop-bg)] shadow-2xl max-h-72 overflow-auto py-1 text-sm text-[var(--vs-text-primary)]"
+            className={`${PANEL} max-h-72 overflow-auto text-sm`}
           >
             {loading && options.length === 0 ? (
-              <div className="px-3 py-2 text-[var(--vs-text-secondary)]">Searching...</div>
+              <div className="px-3 py-2 text-ink-subtle">Searching...</div>
             ) : options.length === 0 ? (
-              <div className="px-3 py-2 text-[var(--vs-text-secondary)]">{emptyText}</div>
+              <div className="px-3 py-2 text-ink-subtle">{emptyText}</div>
             ) : (
               options.map((opt, i) => (
                 <div
@@ -192,10 +194,10 @@ export default function AsyncSelect({
                     pick(opt);
                   }}
                   onMouseEnter={() => setHighlight(i)}
-                  className={`px-3 py-2 cursor-pointer ${i === highlight ? 'bg-[var(--vs-drop-hover)]' : ''} ${opt.value === value?.value ? 'font-semibold text-indigo-600 dark:text-indigo-400' : ''}`}
+                  className={`rounded-lg px-3 py-2 cursor-pointer ${i === highlight ? 'bg-fill' : ''} ${opt.value === value?.value ? 'font-semibold text-brand-ink' : ''}`}
                 >
                   <div className="truncate">{opt.label}</div>
-                  {opt.sub && <div className="text-[11px] text-[var(--vs-text-secondary)] truncate">{opt.sub}</div>}
+                  {opt.sub && <div className="text-[11px] text-ink-subtle truncate">{opt.sub}</div>}
                 </div>
               ))
             )}

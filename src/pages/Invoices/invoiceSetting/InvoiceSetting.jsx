@@ -5,7 +5,6 @@ import {
   Plus,
   Edit3,
   Trash2,
-  CheckCircle,
   Star,
   Building,
   Mail,
@@ -13,22 +12,30 @@ import {
   MapPin,
   FileText,
   CreditCard,
-  X,
   Save,
-  AlertCircle,
   Globe,
   PlusCircle,
   MinusCircle,
   Loader2,
 } from 'lucide-react';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
-import Card from '@/components/breadCrumbs/Card';
-import { Input } from '@/components/inputs/Input';
-import { Label } from '@/components/inputs/Label';
-import Button from '@/components/inputs/Button';
-import Switch from '@/components/inputs/Switch';
-import Loader from '@/components/loader/Loader';
-import DeleteModal from '@/components/modal/DeleteModal';
+import {
+  Badge,
+  Button,
+  Card,
+  ConfirmDialog,
+  EmptyState,
+  Field,
+  FormGrid,
+  Input,
+  Modal,
+  PageHeader,
+  SettingRow,
+  SkeletonRows,
+  Spinner,
+  Switch,
+  ToastStack,
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
 import {
   fetchInvoiceSettings,
   createInvoiceSetting,
@@ -351,140 +358,141 @@ export default function InvoiceSetting() {
     }
   };
 
+  const header = (
+    <PageHeader
+      title="Invoice Settings"
+      description="Business profiles printed on your invoices — name, GSTIN, address and bank details."
+      actions={
+        <Button onClick={handleOpenCreateModal} startIcon={<Plus className="size-4" />}>
+          Add Profile
+        </Button>
+      }
+    />
+  );
+
   if (loading && profiles.length === 0) {
     return (
-      <Card h1="Invoice Settings">
-        <Loader />
-      </Card>
+      <div className="flex flex-col gap-5">
+        {header}
+        <Card>
+          <SkeletonRows rows={4} cols={2} />
+        </Card>
+      </div>
     );
   }
 
   return (
-    <Card
-      h1="Invoice Settings"
-      rightNode={
-        <Button
-          variant="primary"
-          onClick={handleOpenCreateModal}
-          startIcon={<Plus className="w-4 h-4" />}
-          className="h-9 px-3.5"
-        >
-          Add Profile
-        </Button>
-      }
-      bodyClassName="p-4 sm:p-6 space-y-6"
-    >
+    <div className="flex flex-col gap-5">
+      {header}
+
       {/* ─── Profiles Grid ─── */}
       {profiles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-[var(--vs-border)] rounded-2xl bg-[var(--vs-bg-secondary)] gap-3">
-          <FileText className="w-12 h-12 text-[var(--vs-text-secondary)] opacity-50" />
-          <h3 className="text-base font-bold text-[var(--vs-text-primary)]">No Invoice Profiles Found</h3>
-          <p className="text-xs text-[var(--vs-text-secondary)] max-w-sm">
-            Create your first GST or business invoice profile to enable customer billing and tax invoice generation.
-          </p>
-          <Button variant="primary" size="sm" onClick={handleOpenCreateModal} startIcon={<Plus className="w-4 h-4" />}>
-            Create Profile
-          </Button>
-        </div>
+        <Card padding="none">
+          <EmptyState
+            icon={FileText}
+            title="No Invoice Profiles Found"
+            text="Create your first GST or business invoice profile to enable customer billing and tax invoice generation."
+            action={
+              <Button size="sm" onClick={handleOpenCreateModal} startIcon={<Plus className="size-4" />}>
+                Create Profile
+              </Button>
+            }
+          />
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           {profiles.map((profile) => (
-            <div
+            <Card
               key={profile._id}
-              className={`relative rounded-2xl border transition-all duration-200 px-4 py-3 space-y-4 ${profile.isDefault
-                ? 'border-indigo-500/50 shadow-md bg-[var(--vs-bg-primary)] ring-1 ring-indigo-500/30'
-                : 'border-[var(--vs-border)] bg-[var(--vs-bg-primary)] hover:border-slate-300 dark:hover:border-slate-700'
-                }`}
+              padding="none"
+              className={cn('flex flex-col', profile.isDefault && 'ring-2 ring-brand')}
             >
               {/* Header: Name & Badges */}
-              <div className="flex items-start justify-between gap-3 border-b border-[var(--vs-border)] pb-1 -mx-4 px-4">
-                <div>
-                  <div className="flex items-center gap-2.5">
-                    <h3 className="text-sm font-bold !text-blue-600 dark:text-blue-400">{profile.name}</h3>
+              <div className="flex items-start justify-between gap-3 px-5 pt-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="m-0 truncate !text-[15px] !font-extrabold text-ink">{profile.name}</h3>
                     {profile.isDefault && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-sm font-extrabold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800">
-                        <Star className="w-3 h-3 fill-indigo-600 dark:fill-indigo-400" />
-                        DEFAULT
-                      </span>
+                      <Badge tone="primary" icon={Star}>Default</Badge>
                     )}
                   </div>
-                  <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mt-0.5">
+                  <p className="m-0 mt-0.5 truncate text-[13px] font-semibold text-brand-ink">
                     {profile.businessName}
                   </p>
                 </div>
 
                 {/* Profile Action Buttons */}
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex shrink-0 items-center gap-1.5">
                   {!profile.isDefault && (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="xs"
                       onClick={() => handleSetDefault(profile._id)}
                       disabled={settingDefault}
-                      className="h-8 text-sm"
                     >
                       Make Default
                     </Button>
                   )}
                   <Button
-                    // variant="outline"
-                    size="xs"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => handleOpenEditModal(profile)}
-                    startIcon={<Edit3 className="w-3.5 h-3.5" />}
-                    className="h-8 px-2.5"
+                    aria-label="Edit profile"
+                    title="Edit Profile"
                   >
-                    {/* Edit */}
+                    <Edit3 className="size-4" />
                   </Button>
                   <Button
-                    variant="outline"
-                    size="xs"
+                    variant="danger-soft"
+                    size="icon-sm"
                     onClick={() => handlePromptDelete(profile._id)}
                     disabled={profile.isDefault && profiles.length > 1}
+                    aria-label="Delete profile"
                     title={profile.isDefault ? 'Default profile cannot be deleted' : 'Delete Profile'}
-                    startIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
-                    className="h-8 px-2.5 !bg-red-100 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                  />
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
                 </div>
               </div>
 
               {/* Business & Address Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-xs">
-                <div className="space-y-1.5 text-[var(--vs-text-secondary)]">
+              <div className="grid flex-1 grid-cols-1 gap-x-4 gap-y-2 px-5 py-4 text-[13px] sm:grid-cols-2">
+                <div className="flex min-w-0 flex-col gap-2 text-ink-muted">
                   <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span className="truncate text-[var(--vs-text-primary)] font-medium">{profile.companyEmail || '—'}</span>
+                    <Mail className="size-3.5 shrink-0 text-ink-subtle" />
+                    <span className="truncate font-medium text-ink">{profile.companyEmail || '—'}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span className="text-[var(--vs-text-primary)] font-medium">{profile.companyPhone || '—'}</span>
+                    <Phone className="size-3.5 shrink-0 text-ink-subtle" />
+                    <span className="font-medium tabular-nums text-ink">{profile.companyPhone || '—'}</span>
                   </div>
                   {profile.gstin && (
                     <div className="flex items-center gap-2">
-                      <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                      <span>GSTIN: <strong className="text-[var(--vs-text-primary)]">{profile.gstin}</strong></span>
+                      <FileText className="size-3.5 shrink-0 text-ink-subtle" />
+                      <span>GSTIN: <strong className="font-mono font-semibold text-ink">{profile.gstin}</strong></span>
                     </div>
                   )}
                   {profile.panNumber && (
-                    <div className="flex items-center gap-2 pl-5">
-                      <span>PAN: <strong className="text-[var(--vs-text-primary)]">{profile.panNumber}</strong></span>
+                    <div className="flex items-center gap-2 pl-[22px]">
+                      <span>PAN: <strong className="font-mono font-semibold text-ink">{profile.panNumber}</strong></span>
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-1.5 text-[var(--vs-text-secondary)]">
+                <div className="flex min-w-0 flex-col gap-2 text-ink-muted">
                   <div className="flex items-start gap-2">
-                    <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
-                    <span className="leading-snug text-[var(--vs-text-primary)] font-medium">
+                    <MapPin className="mt-0.5 size-3.5 shrink-0 text-ink-subtle" />
+                    <span className="font-medium leading-snug text-ink">
                       {[profile.billingAddress, profile.city, profile.state, profile.pincode]
                         .filter(Boolean)
                         .join(', ') || 'No address specified'}
                     </span>
                   </div>
                   {profile.bankName && (
-                    <div className="flex items-center gap-2 pt-1">
-                      <CreditCard className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="size-3.5 shrink-0 text-ink-subtle" />
                       <span className="truncate">
-                        Bank: <strong className="text-[var(--vs-text-primary)]">{profile.bankName}</strong>
+                        Bank: <strong className="font-semibold text-ink">{profile.bankName}</strong>
                       </span>
                     </div>
                   )}
@@ -492,211 +500,156 @@ export default function InvoiceSetting() {
               </div>
 
               {/* Tax Toggles & Tags */}
-              <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[var(--vs-border)] text-sm -mx-4 px-4">
-                <span
-                  className={`px-2.5 py-0.5 rounded-md font-semibold border ${profile.isGSTRegistered
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900'
-                    : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-                    }`}
-                >
+              <div className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-3">
+                <Badge tone={profile.isGSTRegistered ? 'success' : 'neutral'}>
                   {profile.isGSTRegistered ? 'GST Registered' : 'Unregistered Business'}
-                </span>
+                </Badge>
 
-                {profile.enableTDS && (
-                  <span className="px-2.5 py-0.5 rounded-md font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900">
-                    TDS Enabled
-                  </span>
-                )}
+                {profile.enableTDS && <Badge tone="info">TDS Enabled</Badge>}
 
-                {profile.enableTCS && (
-                  <span className="px-2.5 py-0.5 rounded-md font-semibold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-900">
-                    TCS Enabled
-                  </span>
-                )}
+                {profile.enableTCS && <Badge tone="info">TCS Enabled</Badge>}
 
                 {Array.isArray(profile.additionalDetails) && profile.additionalDetails.map((item, idx) => (
-                  <span key={idx} className="px-2 py-0.5 rounded-md font-medium bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+                  <Badge key={idx} tone="neutral" className="font-medium">
                     {item.key}: {item.value}
-                  </span>
+                  </Badge>
                 ))}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
 
       {/* ─── Create / Edit Profile Modal ─── */}
-      {isModalOpen && createPortal(
-        <div
-          className="fixed inset-0 !z-[99990] flex items-center justify-center p-3"
-          style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)' }}
-          onClick={(e) => { if (e.target === e.currentTarget && !saving) handleCloseModal(); }}
-        >
-          <div
-            className="relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden bg-[var(--vs-bg-primary)] border border-[var(--vs-border)]"
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between !px-4 !py-2.5 border-b border-[var(--vs-border)] bg-[var(--vs-bg-secondary)]">
-              <h2 className="!text-md sm:!text-base !font-bold !text-blue-600 dark:!text-blue-400">
-                {editingProfileId ? 'Edit Invoice Profile' : 'Create New Invoice Profile'}
-              </h2>
-              <button
-                type="button"
-                onClick={handleCloseModal}
+      <Modal
+        open={isModalOpen}
+        onClose={handleCloseModal}
+        closeOnBackdrop={!saving}
+        size="lg"
+        title={editingProfileId ? 'Edit Invoice Profile' : 'Create New Invoice Profile'}
+        subtitle="The business details printed on invoices raised with this profile."
+        footer={
+          loading ? undefined : (
+            <>
+              <Button variant="secondary" onClick={handleCloseModal} disabled={saving}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="invoice-profile-form"
                 disabled={saving}
-                className="!p-1 rounded-md !text-red-500 hover:!text-red-600 hover:!bg-red-50 dark:hover:!bg-red-950/40 transition-colors"
-                title="Close"
+                loading={saving}
+                startIcon={<Save className="size-4" />}
               >
-                <X className="w-5 h-5 !text-red-500" />
-              </button>
-            </div>
+                {saving ? 'Saving...' : editingProfileId ? 'Update Profile' : 'Create Profile'}
+              </Button>
+            </>
+          )
+        }
+      >
+        {loading ? (
+          <div className="flex min-h-[300px] items-center justify-center">
+            <Spinner label="Loading profile" />
+          </div>
+        ) : (
+          <form id="invoice-profile-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
+            {/* Section 1: Profile & Identity */}
+            <FormBlock title="Profile & Identity">
+              <FormGrid cols={2}>
+                <Field label="Profile Name" required error={formErrors.name}>
+                  <Input
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="e.g. GST Profile, Primary Profile"
+                    error={!!formErrors.name}
+                  />
+                </Field>
 
-            {/* Modal Form Body - Compact padding & spacing */}
-            {loading ? (
-              <div className="flex-1 flex items-center justify-center p-12 min-h-[300px]">
-                <Loader />
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto !p-4 !space-y-3.5">
+                <Field label="Legal Business Name" required error={formErrors.businessName}>
+                  <Input
+                    id="businessName"
+                    name="businessName"
+                    value={formData.businessName}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="e.g. Acme India Pvt Ltd"
+                    error={!!formErrors.businessName}
+                    startIcon={<Building />}
+                  />
+                </Field>
 
-              {/* Section 1: Profile & Identity */}
-              <div className="!space-y-2.5">
-                <h3 className="!text-sm !font-bold !uppercase !tracking-wider !text-blue-600 dark:!text-blue-400">
-                  Profile & Identity
-                </h3>
+                <Field label="Company Email" required error={formErrors.companyEmail}>
+                  <Input
+                    id="companyEmail"
+                    name="companyEmail"
+                    value={formData.companyEmail}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="finance@company.com"
+                    error={!!formErrors.companyEmail}
+                    startIcon={<Mail />}
+                  />
+                </Field>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 !gap-3">
-                  <div>
-                    <Label htmlFor="name">Profile Name <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="e.g. GST Profile, Primary Profile"
-                      error={!!formErrors.name}
-                    />
-                    {formErrors.name && (
-                      <p className="text-xs text-red-500 mt-1 font-semibold">{formErrors.name}</p>
-                    )}
-                  </div>
+                <Field label="Company Phone" required error={formErrors.companyPhone}>
+                  <Input
+                    id="companyPhone"
+                    name="companyPhone"
+                    value={formData.companyPhone}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="10-digit mobile"
+                    error={!!formErrors.companyPhone}
+                    startIcon={<Phone />}
+                  />
+                </Field>
+              </FormGrid>
+            </FormBlock>
 
-                  <div>
-                    <Label htmlFor="businessName">Legal Business Name <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="businessName"
-                      name="businessName"
-                      value={formData.businessName}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="e.g. Acme India Pvt Ltd"
-                      error={!!formErrors.businessName}
-                      startIcon={<Building className="w-4 h-4" />}
-                    />
-                    {formErrors.businessName && (
-                      <p className="text-xs text-red-500 mt-1 font-semibold">{formErrors.businessName}</p>
-                    )}
-                  </div>
-                </div>
+            {/* Section 2: Billing Address */}
+            <FormBlock title="Billing Address">
+              <FormGrid cols={3}>
+                {/* First ask Pincode */}
+                <Field label="Pincode" hint="City & state fill in from a 6-digit PIN">
+                  <Input
+                    id="pincode"
+                    name="pincode"
+                    value={formData.pincode}
+                    onChange={handlePincodeChange}
+                    disabled={saving}
+                    placeholder="e.g. 400001"
+                    maxLength={6}
+                    inputMode="numeric"
+                    endIcon={pincodeLoading ? <Loader2 className="animate-spin text-brand" /> : undefined}
+                  />
+                </Field>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 !gap-3">
-                  <div>
-                    <Label htmlFor="companyEmail">Company Email <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="companyEmail"
-                      name="companyEmail"
-                      value={formData.companyEmail}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="finance@company.com"
-                      error={!!formErrors.companyEmail}
-                      startIcon={<Mail className="w-4 h-4" />}
-                    />
-                    {formErrors.companyEmail && (
-                      <p className="text-xs text-red-500 mt-1 font-semibold">{formErrors.companyEmail}</p>
-                    )}
-                  </div>
+                <Field label="City">
+                  <Input
+                    id="city"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="City"
+                  />
+                </Field>
 
-                  <div>
-                    <Label htmlFor="companyPhone">Company Phone <span className="text-red-500">*</span></Label>
-                    <Input
-                      id="companyPhone"
-                      name="companyPhone"
-                      value={formData.companyPhone}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="10-digit mobile"
-                      error={!!formErrors.companyPhone}
-                      startIcon={<Phone className="w-4 h-4" />}
-                    />
-                    {formErrors.companyPhone && (
-                      <p className="text-xs text-red-500 mt-1 font-semibold">{formErrors.companyPhone}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
+                <Field label="State">
+                  <Input
+                    id="state"
+                    name="state"
+                    value={formData.state}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="State"
+                  />
+                </Field>
 
-              {/* Full-width section divider touching both ends */}
-              <div className="-mx-4 !border-t !border-[var(--vs-border)] !my-2.5" />
-
-              {/* Section 2: Billing Address */}
-              <div className="!space-y-2.5">
-                <h3 className="!text-sm !font-bold !uppercase !tracking-wider !text-blue-600 dark:!text-blue-400">
-                  Billing Address
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 !gap-3">
-                  {/* First ask Pincode */}
-                  <div>
-                    <Label htmlFor="pincode">Pincode</Label>
-                    <div className="relative">
-                      <Input
-                        id="pincode"
-                        name="pincode"
-                        value={formData.pincode}
-                        onChange={handlePincodeChange}
-                        disabled={saving}
-                        placeholder="e.g. 400001"
-                        maxLength={6}
-                      />
-                      {pincodeLoading && (
-                        <div className="absolute right-3 top-2.5">
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Second ask City */}
-                  <div>
-                    <Label htmlFor="city">City</Label>
-                    <Input
-                      id="city"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="City"
-                    />
-                  </div>
-
-                  {/* Third ask State */}
-                  <div>
-                    <Label htmlFor="state">State</Label>
-                    <Input
-                      id="state"
-                      name="state"
-                      value={formData.state}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="State"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="billingAddress">Full Address</Label>
+                <Field label="Full Address" className="col-span-full">
                   <Input
                     id="billingAddress"
                     name="billingAddress"
@@ -705,263 +658,224 @@ export default function InvoiceSetting() {
                     disabled={saving}
                     placeholder="Street address, building, floor..."
                   />
-                </div>
-              </div>
+                </Field>
+              </FormGrid>
+            </FormBlock>
 
-              {/* Full-width section divider touching both ends */}
-              <div className="-mx-4 !border-t !border-[var(--vs-border)] !my-2.5" />
-
-              {/* Section 3: Tax Details & Preferences */}
-              <div className="!space-y-2.5">
-                <h3 className="!text-sm !font-bold !uppercase !tracking-wider !text-blue-600 dark:!text-blue-400">
-                  Tax Registrations & Preferences
-                </h3>
-
-                <div className="flex flex-wrap justify-between items-center !gap-5 !p-2.5 rounded-xl bg-[var(--vs-bg-secondary)] border border-[var(--vs-border)]">
+            {/* Section 3: Tax Details & Preferences */}
+            <FormBlock title="Tax Registrations & Preferences">
+              <div className="rounded-control bg-fill-2 px-4 py-3">
+                <SettingRow title="GST Registered" description="GSTIN becomes required and tax invoices are issued">
                   <Switch
-                    label="GST Registered"
                     checked={formData.isGSTRegistered}
                     onChange={(checked) => setFormData((p) => ({ ...p, isGSTRegistered: checked }))}
-                    color="blue"
-                    size="sm"
                     disabled={saving}
                   />
-
+                </SettingRow>
+                <SettingRow title="Enable TDS">
                   <Switch
-                    label="Enable TDS"
                     checked={formData.enableTDS}
                     onChange={(checked) => setFormData((p) => ({ ...p, enableTDS: checked }))}
-                    color="blue"
-                    size="sm"
                     disabled={saving}
                   />
-
+                </SettingRow>
+                <SettingRow title="Enable TCS">
                   <Switch
-                    label="Enable TCS"
                     checked={formData.enableTCS}
                     onChange={(checked) => setFormData((p) => ({ ...p, enableTCS: checked }))}
-                    color="blue"
-                    size="sm"
                     disabled={saving}
                   />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 !gap-3">
-                  <div>
-                    <Label htmlFor="gstin">GSTIN Number {formData.isGSTRegistered && <span className="text-red-500">*</span>}</Label>
-                    <Input
-                      id="gstin"
-                      name="gstin"
-                      value={formData.gstin}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="27AAQCP3629R1ZF"
-                      className="uppercase"
-                      error={!!formErrors.gstin}
-                    />
-                    {formErrors.gstin && (
-                      <p className="text-xs text-red-500 mt-1 font-semibold">{formErrors.gstin}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label htmlFor="panNumber">PAN Number</Label>
-                    <Input
-                      id="panNumber"
-                      name="panNumber"
-                      value={formData.panNumber}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="AAQCP3629R"
-                      className="uppercase"
-                    />
-                  </div>
-                </div>
+                </SettingRow>
               </div>
 
-              {/* Full-width section divider touching both ends */}
-              <div className="-mx-4 !border-t !border-[var(--vs-border)] !my-2.5" />
+              <FormGrid cols={2}>
+                <Field label="GSTIN Number" required={formData.isGSTRegistered} error={formErrors.gstin}>
+                  <Input
+                    id="gstin"
+                    name="gstin"
+                    value={formData.gstin}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="27AAQCP3629R1ZF"
+                    className="font-mono uppercase"
+                    error={!!formErrors.gstin}
+                  />
+                </Field>
 
-              {/* Section 4: Bank Details */}
-              <div className="!space-y-2.5">
-                <h3 className="!text-sm !font-bold !uppercase !tracking-wider !text-blue-600 dark:!text-blue-400">
-                  Bank Details (Optional)
-                </h3>
+                <Field label="PAN Number">
+                  <Input
+                    id="panNumber"
+                    name="panNumber"
+                    value={formData.panNumber}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="AAQCP3629R"
+                    className="font-mono uppercase"
+                  />
+                </Field>
+              </FormGrid>
+            </FormBlock>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 !gap-3">
-                  <div>
-                    <Label htmlFor="bankName">Bank Name</Label>
-                    <Input
-                      id="bankName"
-                      name="bankName"
-                      value={formData.bankName}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="HDFC Bank"
-                    />
-                  </div>
+            {/* Section 4: Bank Details */}
+            <FormBlock title="Bank Details (Optional)">
+              <FormGrid cols={2}>
+                <Field label="Bank Name">
+                  <Input
+                    id="bankName"
+                    name="bankName"
+                    value={formData.bankName}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="HDFC Bank"
+                  />
+                </Field>
 
-                  <div>
-                    <Label htmlFor="accountHolderName">Account Holder Name</Label>
-                    <Input
-                      id="accountHolderName"
-                      name="accountHolderName"
-                      value={formData.accountHolderName}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="Acme Pvt Ltd"
-                    />
-                  </div>
-                </div>
+                <Field label="Account Holder Name">
+                  <Input
+                    id="accountHolderName"
+                    name="accountHolderName"
+                    value={formData.accountHolderName}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="Acme Pvt Ltd"
+                  />
+                </Field>
+              </FormGrid>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 !gap-3">
-                  <div>
-                    <Label htmlFor="accountNumber">Account Number</Label>
-                    <Input
-                      id="accountNumber"
-                      name="accountNumber"
-                      value={formData.accountNumber}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="987654321012"
-                    />
-                  </div>
+              <FormGrid cols={3}>
+                <Field label="Account Number">
+                  <Input
+                    id="accountNumber"
+                    name="accountNumber"
+                    value={formData.accountNumber}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="987654321012"
+                    className="font-mono"
+                  />
+                </Field>
 
-                  <div>
-                    <Label htmlFor="ifscCode">IFSC Code</Label>
-                    <Input
-                      id="ifscCode"
-                      name="ifscCode"
-                      value={formData.ifscCode}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="HDFC0001234"
-                      className="uppercase"
-                    />
-                  </div>
+                <Field label="IFSC Code">
+                  <Input
+                    id="ifscCode"
+                    name="ifscCode"
+                    value={formData.ifscCode}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="HDFC0001234"
+                    className="font-mono uppercase"
+                  />
+                </Field>
 
-                  <div>
-                    <Label htmlFor="upiId">UPI ID</Label>
-                    <Input
-                      id="upiId"
-                      name="upiId"
-                      value={formData.upiId}
-                      onChange={handleInputChange}
-                      disabled={saving}
-                      placeholder="acme@hdfc"
-                    />
-                  </div>
-                </div>
-              </div>
+                <Field label="UPI ID">
+                  <Input
+                    id="upiId"
+                    name="upiId"
+                    value={formData.upiId}
+                    onChange={handleInputChange}
+                    disabled={saving}
+                    placeholder="acme@hdfc"
+                  />
+                </Field>
+              </FormGrid>
+            </FormBlock>
 
-              {/* Full-width section divider touching both ends */}
-              <div className="-mx-4 !border-t !border-[var(--vs-border)] !my-2.5" />
-
-              {/* Section 5: Additional Custom Attributes */}
-              <div className="!space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <h3 className="!text-sm !font-bold !uppercase !tracking-wider !text-blue-600 dark:!text-blue-400 flex items-center gap-1.5">
-                    <Globe className="w-3.5 h-3.5" /> Additional Custom Attributes
-                  </h3>
+            {/* Section 5: Additional Custom Attributes */}
+            <FormBlock
+              title="Additional Custom Attributes"
+              icon={Globe}
+              actions={
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={handleAddKeyValue}
+                  startIcon={<PlusCircle className="size-3.5" />}
+                >
+                  Add Attribute
+                </Button>
+              }
+            >
+              {formData.additionalDetails.length === 0 && (
+                <p className="m-0 text-xs text-ink-subtle">Extra lines printed on the invoice, e.g. Website or FSSAI No.</p>
+              )}
+              {formData.additionalDetails.map((item, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    placeholder="Key (e.g. Website)"
+                    value={item.key}
+                    onChange={(e) => handleKeyValueChange(index, 'key', e.target.value)}
+                    disabled={saving}
+                    aria-label="Attribute name"
+                    wrapperClassName="flex-1"
+                  />
+                  <Input
+                    placeholder="Value (e.g. www.acme.com)"
+                    value={item.value}
+                    onChange={(e) => handleKeyValueChange(index, 'value', e.target.value)}
+                    disabled={saving}
+                    aria-label="Attribute value"
+                    wrapperClassName="flex-1"
+                  />
                   <Button
-                    type="button"
-                    size="xs"
-                    onClick={handleAddKeyValue}
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => handleRemoveKeyValue(index)}
+                    aria-label="Remove attribute"
+                    title="Remove"
+                    className="text-danger"
                   >
-                    Add Attribute
+                    <MinusCircle className="size-4" />
                   </Button>
                 </div>
+              ))}
+            </FormBlock>
 
-                {formData.additionalDetails.map((item, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <Input
-                      placeholder="Key (e.g. Website)"
-                      value={item.key}
-                      onChange={(e) => handleKeyValueChange(index, 'key', e.target.value)}
-                      disabled={saving}
-                      className="flex-1"
-                    />
-                    <Input
-                      placeholder="Value (e.g. www.acme.com)"
-                      value={item.value}
-                      onChange={(e) => handleKeyValueChange(index, 'value', e.target.value)}
-                      disabled={saving}
-                      className="flex-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveKeyValue(index)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
-                    >
-                      <MinusCircle className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Full-width section divider touching both ends */}
-              <div className="-mx-4 !border-t !border-[var(--vs-border)] !my-2.5" />
-
-              {/* Section 6: Default Switch */}
-              <div className="!pt-1">
+            {/* Section 6: Default Switch */}
+            <div className="rounded-control bg-fill-2 px-4 py-3">
+              <SettingRow title="Set as Default Invoice Profile" description="Used for new invoices unless you pick another">
                 <Switch
-                  label="Set as Default Invoice Profile"
                   checked={formData.isDefault}
                   onChange={(checked) => setFormData((p) => ({ ...p, isDefault: checked }))}
-                  color="blue"
-                  size="sm"
                   disabled={saving}
                 />
-              </div>
+              </SettingRow>
+            </div>
+          </form>
+        )}
+      </Modal>
 
-              {/* Form Action Buttons */}
-              <div className="flex items-center justify-end gap-3 !pt-3 border-t border-[var(--vs-border)]">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCloseModal}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={saving}
-                  startIcon={saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                >
-                  {saving ? 'Saving...' : editingProfileId ? 'Update Profile' : 'Create Profile'}
-                </Button>
-              </div>
-            </form>
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
       {/* ─── Delete Confirmation Modal ─── */}
-      <DeleteModal
-        isOpen={isDeleteModalOpen}
+      <ConfirmDialog
+        open={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleConfirmDelete}
         title="Delete Invoice Profile"
         message="Are you sure you want to delete this invoice profile? Invoices generated with this profile will retain their saved record."
-        isLoading={deleting}
+        confirmLabel="Delete"
+        loading={deleting}
       />
 
-      {/* ─── CoreUI Toast Notifications ─── */}
+      {/* ─── Toast Notifications ─── */}
       {createPortal(
-        <CToaster className="p-3" style={{ zIndex: 999999999, position: 'fixed', bottom: '20px', right: '20px' }}>
-          {toasts.map((t) => (
-            <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
-              <div className="d-flex">
-                <CToastBody className="font-semibold">{t.message}</CToastBody>
-              </div>
-            </CToast>
-          ))}
-        </CToaster>,
+        <ToastStack toasts={toasts} />,
         document.body
       )}
-    </Card>
+    </div>
+  );
+}
+
+/** Titled group inside the profile modal. */
+function FormBlock({ title, icon: Icon, actions, children }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3 border-b border-line pb-2">
+        <h3 className="m-0 flex items-center gap-1.5 !text-xs !font-bold uppercase tracking-wider text-ink-subtle">
+          {Icon && <Icon className="size-3.5" aria-hidden="true" />}
+          {title}
+        </h3>
+        {actions}
+      </div>
+      {children}
+    </div>
   );
 }

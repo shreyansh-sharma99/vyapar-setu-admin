@@ -129,14 +129,13 @@ const toItem = (l, i, isInter) => {
 
 const STATUS_LABEL = { draft: 'Draft', unpaid: 'Unpaid', partially_paid: 'Partly paid', paid: 'Paid', overdue: 'Overdue', void: 'Void', cancelled: 'Cancelled' };
 
-/** A real sales invoice → template data. `invoice.print` = { layout, seller, dispatch } from the server. */
+/** A real sales invoice → template data. `invoice.print` = { layout, seller } from the server. */
 export const docFromInvoice = (invoice) => {
   const print = invoice?.print || {};
   const seller = print.seller || {};
   const snap = invoice?.customerSnapshot || {};
   const isInter = !!invoice?.isInterState;
   const items = (invoice?.lineItems || []).map((l, i) => toItem(l, i, isInter));
-  const dispatch = print.dispatch || (invoice?.storeSnapshot?.name ? { name: invoice.storeSnapshot.name, code: invoice.storeSnapshot.code } : null);
   const sumOf = (k) => round2(items.reduce((s, it) => s + it[k], 0));
   const discount = num(invoice?.discountAmount);
   const subtotal = num(invoice?.subtotal) || round2(items.reduce((s, it) => s + it.qty * it.rate, 0));
@@ -171,9 +170,6 @@ export const docFromInvoice = (invoice) => {
       address: addrLine(snap.billingAddress),
       shipAddress: addrLine(snap.shippingAddress) || addrLine(snap.billingAddress),
     },
-    dispatch: dispatch
-      ? { name: dispatch.name || '', code: dispatch.code || '', address: addrLine(dispatch.address), phone: dispatch.phone || '' }
-      : null,
     items,
     totals: {
       subtotal,
@@ -190,6 +186,31 @@ export const docFromInvoice = (invoice) => {
       balance: num(invoice?.balanceAmount),
     },
   });
+};
+
+/** A sales return drawn in the same Invoice Layout as its invoice (GET /sales-returns/:id). */
+export const docFromReturn = (ret) => {
+  const inv = ret?.salesInvoiceId && typeof ret.salesInvoiceId === 'object' ? ret.salesInvoiceId : {};
+  const doc = docFromInvoice({
+    ...inv,
+    ...ret,
+    customerSnapshot: ret?.customerSnapshot?.name ? ret.customerSnapshot : inv.customerSnapshot,
+    isInterState: ret?.isInterState ?? inv.isInterState,
+    placeOfSupply: ret?.placeOfSupply || inv.placeOfSupply,
+    placeOfSupplyCode: ret?.placeOfSupplyCode || inv.placeOfSupplyCode,
+    invoiceNumber: ret?.returnNumber || '',
+    invoiceDate: ret?.returnDate,
+    paidAmount: 0,
+    balanceAmount: 0,
+  });
+  const STATUS = { draft: 'Draft', approved: 'Approved', rejected: 'Rejected' };
+  return {
+    ...doc,
+    title: 'SALES RETURN',
+    status: STATUS[ret?.status] || '',
+    dueLabel: 'Against invoice',
+    dueDate: inv.invoiceNumber || '—',
+  };
 };
 
 /** The made-up invoice the Invoice Layout preview shows. */
@@ -228,7 +249,6 @@ export const sampleDoc = ({ businessName = 'Your Business', invoiceNumber = 'INV
       address: '50 Anupam Vihar, Mansarovar, Jaipur, Rajasthan - 302020',
       shipAddress: '50 Anupam Vihar, Mansarovar, Jaipur, Rajasthan - 302020',
     },
-    dispatch: { name: 'Mansarovar Warehouse', code: 'JP-RJ-MNS-001', address: 'Jaipur, Rajasthan - 302020', phone: '' },
     items,
     totals: {
       subtotal: 2655, discount: 50, taxable: 2605, tax: 234.25, cgst: 117.13, sgst: 117.12, igst: 0, cess: 0,

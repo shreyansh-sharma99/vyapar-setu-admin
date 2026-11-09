@@ -19,13 +19,13 @@ export default function PriceChangeConfirm({ changes = [], onConfirm, onClose, i
       message={
         <div className="flex flex-col gap-2 text-left">
           <p className="m-0">From today new batches get this price. Stock already on the shelf keeps its own price; bills already saved do not change.</p>
-          <ul className="list-none m-0 p-0 max-h-56 overflow-y-auto divide-y divide-[var(--vs-border)] rounded-lg border border-[var(--vs-border)]">
+          <ul className="list-none m-0 p-0 max-h-56 overflow-y-auto divide-y divide-line rounded-lg border border-line">
             {changes.map((c) => (
               <li key={c.key} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-                <span className="font-medium text-[var(--vs-text-primary)] break-words min-w-0">{c.name}</span>
+                <span className="font-medium text-ink break-words min-w-0">{c.name}</span>
                 <span className="flex items-center gap-1 font-mono whitespace-nowrap">
                   {Number(c.oldPrice) > 0 ? formatINR(c.oldPrice) : 'Not set'} <ArrowRight className="w-3 h-3" />
-                  <span className="font-bold text-indigo-600 dark:text-indigo-400">{formatINR(c.newPrice)}</span>
+                  <span className="font-bold text-brand-ink">{formatINR(c.newPrice)}</span>
                 </span>
               </li>
             ))}

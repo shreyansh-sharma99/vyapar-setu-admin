@@ -1,7 +1,6 @@
 import dayjs from 'dayjs';
 
-/** Standard GST slabs offered in the GST % dropdown (any other value can be typed). */
-export const GST_SLABS = [0, 0.25, 3, 5, 18, 40];
+// The GST % list comes from the platform (Admin Owner → Settings → GST Rates): see useGstRates.js.
 
 /** "18%" or "18% + 12% cess". */
 export const formatGst = (gstRate, cessRate) => {

@@ -1,214 +1,194 @@
+/* Cascade order: Tailwind base < CoreUI (component styles only, utilities stripped) < our resets < Tailwind components/utilities. */
+@layer theme, base, coreui, reset, components, utilities;
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap");
+@import "./styles/coreui-base.css" layer(coreui);
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 body {
   font-family: 'Outfit', sans-serif;
+  /* page token behind every route, so switching pages or themes never flashes white */
+  background-color: var(--ui-page);
+  color: var(--ui-ink);
 }
 
 /* ── Tailwind v4: map semantic tokens to CSS variables ── */
 @theme {
   --font-sans: 'Outfit', sans-serif;
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --radius-md: var(--radius);
+  /* document numbers and GSTIN only; money uses tabular-nums */
+  --font-mono: 'Geist Mono', ui-monospace, Consolas, monospace;
+  --radius-md: 0.5rem;
+
+  /* ── Soft UI tokens → Tailwind classes (bg-surface, text-ink, bg-brand, rounded-card …).
+        Values live in :root / .dark below. See docs/plans/soft-ui-redesign-plan.md §2. ── */
+  --color-page: var(--ui-page);
+  --color-surface: var(--ui-surface);
+  --color-fill: var(--ui-fill);
+  --color-fill-2: var(--ui-fill-2);
+  --color-line: var(--ui-line);
+  --color-line-strong: var(--ui-line-strong);
+  --color-ink: var(--ui-ink);
+  --color-ink-muted: var(--ui-ink-muted);
+  --color-ink-subtle: var(--ui-ink-subtle);
+  --color-brand: var(--ui-primary);
+  --color-brand-hover: var(--ui-primary-hover);
+  --color-brand-soft: var(--ui-primary-soft);
+  --color-brand-ink: var(--ui-primary-ink);
+  --color-highlight: var(--ui-accent);
+  --color-highlight-soft: var(--ui-accent-soft);
+  --color-nav: var(--ui-nav);
+  --color-nav-ink: var(--ui-nav-ink);
+  --color-nav-active: var(--ui-nav-active);
+  --color-nav-active-ink: var(--ui-nav-active-ink);
+  --color-nav-danger: var(--ui-nav-danger);
+  --color-success: var(--ui-success);
+  --color-success-soft: var(--ui-success-soft);
+  --color-warning: var(--ui-warning);
+  --color-warning-soft: var(--ui-warning-soft);
+  --color-danger: var(--ui-danger);
+  --color-danger-soft: var(--ui-danger-soft);
+  --color-info: var(--ui-info);
+  --color-info-soft: var(--ui-info-soft);
+  --color-neutral: var(--ui-neutral);
+  --color-neutral-soft: var(--ui-neutral-soft);
+  --radius-card: 20px;
+  --radius-control: 12px;
+  --radius-chip: 999px;
+  --shadow-card: var(--ui-shadow);
 }
 
 :root {
-  /* ── Your existing VS design tokens ── */
-  --vs-bg-primary: #ffffff;
-  --vs-bg-secondary: #f8fafc;
-  --vs-border: #e2e8f0;
-  --vs-border-subtle: #f1f5f9;
-  --vs-text-primary: #1e293b;
-  --vs-text-secondary: #64748b;
-  --vs-text-sidebar: #64748b;
-  --vs-text-sidebar-icon: #94a3b8;
-  --vs-input-bg: #f8fafc;
-  --vs-input-border: #e2e8f0;
-  --vs-btn-hover: #f1f5f9;
-  --vs-drop-bg: #ffffff;
-  --vs-drop-hover: #f8fafc;
-  --vs-drop-border: #e2e8f0;
-  --vs-active-bg: #eef2ff;
-  --vs-active-text: #4f46e5;
-  --vs-active-icon: #4f46e5;
-  --vs-border-sidebar-line: #c7d2fe;
-  --vs-page-bg: #f1f5f9;
-
-  /* ── Additional semantic tokens ── */
-  --vs-header-icon: #64748b;
-  /* header action icon color */
-  --vs-heading: #4f46e5;
-  /* page h1 heading */
-  --vs-logout-text: #f43f5e;
-  /* logout link text */
-  --vs-logout-hover-bg: rgba(244, 63, 94, 0.10);
-  /* logout hover background */
-  /* Notification icon bubble backgrounds */
-  --vs-notif-bg-blue: #eff6ff;
-  --vs-notif-bg-green: #f0fdf4;
-  /* Dashboard stat icon bubble backgrounds */
-  --vs-stat-bg-indigo: #eef2ff;
-  --vs-stat-bg-emerald: #ecfdf5;
-  --vs-stat-bg-blue: #eff6ff;
-  --vs-stat-bg-rose: #fff1f2;
-
-  /* ── shadcn/ui semantic tokens (light mode) ── */
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --primary: 243 75% 59%;
-  /* indigo-500 #6366f1 */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  --accent: 210 40% 96%;
-  --accent-foreground: 222 47% 11%;
-  --destructive: 0 84% 60%;
-  /* red-500 */
-  --destructive-foreground: 0 0% 100%;
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 243 75% 59%;
-  --radius: 0.5rem;
+  /* ── Soft UI tokens (light). One source for every colour; .dark redefines them. ── */
+  --ui-page: #f3f4fa;
+  --ui-surface: #ffffff;
+  --ui-fill: #f5f6fb;
+  --ui-fill-2: #f8f8fc;
+  --ui-line: #ececf4;
+  --ui-line-strong: #dcdeeb;
+  --ui-ink: #1c1d3b;
+  --ui-ink-muted: #6b6d92;
+  --ui-ink-subtle: #8b8db0;
+  --ui-primary: #4f46e5;
+  --ui-primary-hover: #4338ca;
+  --ui-primary-soft: #eef0ff;
+  --ui-primary-ink: #4f46e5;
+  --ui-accent: #f97316;
+  --ui-accent-soft: #fff7ed;
+  --ui-nav: #1e1b4b;
+  --ui-nav-ink: #c7c9f0;
+  --ui-nav-active: #ffffff;
+  --ui-nav-active-ink: #1e1b4b;
+  --ui-nav-danger: #fda4af;
+  --ui-success: #15803d;
+  --ui-success-soft: #dcfce7;
+  --ui-warning: #b45309;
+  --ui-warning-soft: #fef3c7;
+  --ui-danger: #be123c;
+  --ui-danger-soft: #ffe4e6;
+  --ui-info: #1d4ed8;
+  --ui-info-soft: #dbeafe;
+  --ui-neutral: #64748b;
+  --ui-neutral-soft: #f1f5f9;
+  --ui-ring: rgba(99, 102, 241, 0.14);
+  --ui-shadow: 0 1px 2px rgba(30, 27, 75, 0.05);
 }
 
 .dark {
-  /* ── Your existing VS design tokens (dark) ── */
-  --vs-bg-primary: #0f172a;
-  --vs-bg-secondary: #1e293b;
-  --vs-border: #1e293b;
-  --vs-border-subtle: #1e293b;
-  --vs-text-primary: #f1f5f9;
-  --vs-text-secondary: #94a3b8;
-  --vs-text-sidebar: #ffffff;
-  --vs-text-sidebar-icon: #ffffff;
-  --vs-input-bg: #1e293b;
-  --vs-input-border: #334155;
-  --vs-btn-hover: #1e293b;
-  --vs-drop-bg: #1e293b;
-  --vs-drop-hover: #334155;
-  --vs-drop-border: #334155;
-  --vs-active-bg: rgba(99, 102, 241, 0.12);
-  --vs-active-text: #818cf8;
-  --vs-active-icon: #818cf8;
-  --vs-border-sidebar-line: #4338ca;
-  --vs-page-bg: #020617;
-
-  /* ── Additional semantic tokens (dark) ── */
-  --vs-header-icon: #ffffff;
-  --vs-heading: #ffffff;
-  --vs-logout-text: #ffffff;
-  --vs-logout-hover-bg: #ef4444;
-  /* red-500 solid in dark */
-  --vs-notif-bg-blue: rgba(59, 130, 246, 0.12);
-  --vs-notif-bg-green: rgba(16, 185, 129, 0.12);
-  --vs-stat-bg-indigo: rgba(99, 102, 241, 0.12);
-  --vs-stat-bg-emerald: rgba(16, 185, 129, 0.12);
-  --vs-stat-bg-blue: rgba(59, 130, 246, 0.12);
-  --vs-stat-bg-rose: rgba(244, 63, 94, 0.12);
-
-  /* ── shadcn/ui semantic tokens (dark mode) ── */
-  --background: 222 47% 4%;
-  --foreground: 210 40% 98%;
-  --card: 222 47% 8%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222 47% 8%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 243 75% 65%;
-  /* indigo-400 */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 217 33% 17%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
-  --accent: 217 33% 17%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 63% 31%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 217 33% 17%;
-  --input: 217 33% 17%;
-  --ring: 243 75% 65%;
+  /* ── Soft UI tokens (dark) ── */
+  --ui-page: #0b0d1a;
+  --ui-surface: #141729;
+  --ui-fill: #1b1f36;
+  --ui-fill-2: #181b30;
+  --ui-line: #262a45;
+  --ui-line-strong: #343a5c;
+  --ui-ink: #eceefe;
+  --ui-ink-muted: #a3a6c8;
+  --ui-ink-subtle: #7c80a6;
+  --ui-primary: #6366f1;
+  --ui-primary-hover: #818cf8;
+  --ui-primary-soft: rgba(129, 140, 248, 0.14);
+  --ui-primary-ink: #a5b4fc;
+  --ui-accent: #fb923c;
+  --ui-accent-soft: rgba(251, 146, 60, 0.14);
+  --ui-nav: #121433;
+  --ui-nav-ink: #b9bce6;
+  --ui-nav-active: #6366f1;
+  --ui-nav-active-ink: #ffffff;
+  --ui-nav-danger: #fda4af;
+  --ui-success: #4ade80;
+  --ui-success-soft: rgba(74, 222, 128, 0.12);
+  --ui-warning: #fbbf24;
+  --ui-warning-soft: rgba(251, 191, 36, 0.12);
+  --ui-danger: #fb7185;
+  --ui-danger-soft: rgba(251, 113, 133, 0.12);
+  --ui-info: #60a5fa;
+  --ui-info-soft: rgba(96, 165, 250, 0.12);
+  --ui-neutral: #94a3b8;
+  --ui-neutral-soft: rgba(148, 163, 184, 0.12);
+  --ui-ring: rgba(129, 140, 248, 0.25);
+  --ui-shadow: 0 0 0 1px #262a45;
 }
 
 /* ============================================
    CoreUI / Bootstrap Conflict Resets
+   In the "reset" layer: above CoreUI (so links, inputs and buttons stay neutral),
+   below Tailwind utilities (so classes like bg-fill on an input win).
 ============================================ */
-a {
-  color: inherit;
-  text-decoration: none;
-}
+@layer reset {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-a:hover {
-  color: inherit;
-}
+  a:hover {
+    color: inherit;
+  }
 
-input,
-select,
-textarea {
-  background-color: transparent;
-  color: inherit;
-  border-color: inherit;
-}
+  input,
+  select,
+  textarea {
+    background-color: transparent;
+    color: inherit;
+    border-color: inherit;
+  }
 
-.dark input,
-.dark select,
-.dark textarea {
-  color: #fff !important;
-}
+  .dark input,
+  .dark select,
+  .dark textarea {
+    color: #fff !important;
+  }
 
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  box-shadow: none;
-}
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    box-shadow: none;
+  }
 
-/* Autofill fixes for dark mode */
-.dark input:-webkit-autofill,
-.dark input:-webkit-autofill:hover,
-.dark input:-webkit-autofill:focus,
-.dark input:-webkit-autofill:active {
-  -webkit-text-fill-color: #fff !important;
-  transition: background-color 5000s ease-in-out 0s;
-}
+  /* Autofill fixes for dark mode */
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover,
+  .dark input:-webkit-autofill:focus,
+  .dark input:-webkit-autofill:active {
+    -webkit-text-fill-color: #fff !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
 
-/* Only reset truly unstyled/icon buttons — NOT Tailwind-styled ones */
-button:not([class]) {
-  background-color: transparent;
-  color: inherit;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-}
+  /* Only reset truly unstyled/icon buttons — NOT Tailwind-styled ones */
+  button:not([class]) {
+    background-color: transparent;
+    color: inherit;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
 
-button:not([class]):focus {
-  outline: none;
-  box-shadow: none;
+  button:not([class]):focus {
+    outline: none;
+    box-shadow: none;
+  }
 }
 
 /* CoreUI card overrides */
@@ -225,8 +205,9 @@ button:not([class]):focus {
   margin-left: 0 !important;
 }
 
-[class*="col-"],
-.col {
+/* CoreUI grid columns only (CRow / CCol); a bare [class*="col-"] also caught Tailwind's col-span-* */
+.row > [class*="col-"],
+.row > .col {
   padding-right: 0.75rem !important;
   padding-left: 0.75rem !important;
 }
@@ -342,6 +323,16 @@ button:not([class]):focus {
   animation: scaleOut 0.2s ease-in forwards;
 }
 
+/* ui/Drawer */
+@keyframes drawerIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.drawer-enter {
+  animation: drawerIn 0.22s ease-out;
+}
+
 @utility no-scrollbar {
 
   &::-webkit-scrollbar {
@@ -438,7 +429,7 @@ button:not([class]):focus {
 .ant-pagination-custom .ant-pagination-next:hover .ant-pagination-item-link { border-color: #2563eb; background: #2563eb; color: #fff; }
 .ant-pagination-custom .ant-pagination-disabled .ant-pagination-item-link,
 .ant-pagination-custom .ant-pagination-disabled:hover .ant-pagination-item-link { color: #9ca3af; background: #f3f4f6; border-color: #e5e7eb; }
-.ant-pagination-custom .ant-pagination-total-text { color: var(--vs-text-secondary); }
+.ant-pagination-custom .ant-pagination-total-text { color: var(--ui-ink-muted); }
 .dark .ant-pagination-custom .ant-pagination-item { border-color: #374151; background: #1f2937; }
 .dark .ant-pagination-custom .ant-pagination-item a { color: #d1d5db; }
 .dark .ant-pagination-custom .ant-pagination-item-active { border-color: #3b82f6; background: #3b82f6; }

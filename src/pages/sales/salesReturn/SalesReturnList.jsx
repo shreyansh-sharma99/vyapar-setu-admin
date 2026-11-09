@@ -1,18 +1,14 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Plus, Search, Eye, Edit2, Check, X, Trash2, MoreVertical, Receipt, FileText, CheckCircle2, XCircle
+  Plus, Eye, Edit2, Check, X, Trash2, Undo2, FileText, CheckCircle2, XCircle
 } from 'lucide-react';
 import { encryptData } from '@/utility/crypto';
 import { formatDateWithTiming } from '@/utility/dateTiming';
-import Button from '@/components/inputs/Button';
-import Table from '@/components/table/Table';
-import TableInfoCard from '@/components/table/TableInfoCard';
-import Card from '../../../components/breadCrumbs/Card';
-import DeleteModal from '@/components/modal/DeleteModal';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
+import {
+  Avatar, Button, ConfirmDialog, DataTable, PageHeader, StatCard, ToastStack,
+} from '@/components/ui';
 import {
   getSalesReturns,
   deleteSalesReturn,
@@ -22,68 +18,13 @@ import {
 
 // ─── Status Config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  draft: { label: 'Draft', textCls: 'text-slate-600 dark:text-slate-400', icon: <FileText className="w-4 h-4 text-slate-500" /> },
-  approved: { label: 'Approved', textCls: 'text-emerald-600 dark:text-emerald-400', icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" /> },
-  rejected: { label: 'Rejected', textCls: 'text-rose-600 dark:text-rose-400', icon: <XCircle className="w-4 h-4 text-rose-500" /> },
+  draft: { label: 'Draft', tone: 'neutral', icon: FileText },
+  approved: { label: 'Approved', tone: 'success', icon: CheckCircle2 },
+  rejected: { label: 'Rejected', tone: 'danger', icon: XCircle },
 };
 
-// ─── Animated Modal ───────────────────────────────────────────────────────────
-function AnimatedModal({ isOpen, onClose, children, maxWidth = 'max-w-md' }) {
-  const [isClosing, setIsClosing] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) { setIsMounted(true); setIsClosing(false); }
-    else if (isMounted) {
-      setIsClosing(true);
-      const t = setTimeout(() => setIsMounted(false), 200);
-      return () => clearTimeout(t);
-    }
-  }, [isOpen, isMounted]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
-
-  if (!isMounted && !isOpen) return null;
-
-  return (
-    <div
-      className={`fixed inset-0 z-[100] flex items-center justify-center p-4 ${isClosing ? 'modal-backdrop-exit' : 'modal-backdrop-enter'}`}
-      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className={`relative w-full ${maxWidth} rounded-2xl shadow-2xl overflow-hidden ${isClosing ? 'modal-content-exit' : 'modal-content-enter'}`}
-        style={{ background: 'var(--vs-bg-primary)', border: '1px solid var(--vs-border)' }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ─── Confirm Action Modal ─────────────────────────────────────────────────────
-function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmLabel = 'Confirm', confirmVariant = 'primary', icon }) {
-  return (
-    <AnimatedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-sm">
-      <div className="text-[var(--vs-text-primary)]">
-        <div className="px-6 py-5 flex flex-col items-center gap-3 text-center">
-          {icon && <div className="w-12 h-12 rounded-full flex items-center justify-center mb-1" style={{ background: 'var(--vs-bg-secondary)' }}>{icon}</div>}
-          <h3 className="text-base font-bold">{title}</h3>
-          <p className="text-sm text-[var(--vs-text-secondary)]">{message}</p>
-        </div>
-        <div className="px-6 pb-6 flex items-center justify-center gap-3">
-          <Button type="button" variant="outline" onClick={onClose} className="!h-9 min-w-[80px]">Cancel</Button>
-          <Button type="button" variant={confirmVariant} onClick={onConfirm} className="!h-9 min-w-[100px]">{confirmLabel}</Button>
-        </div>
-      </div>
-    </AnimatedModal>
-  );
-}
+/** ₹ with two decimals, as this page always showed amounts. */
+const rs = (v) => `₹${Number(v || 0).toFixed(2)}`;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SalesReturnList() {
@@ -103,18 +44,6 @@ export default function SalesReturnList() {
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: null, id: null });
 
-  // Dropdown states
-  const [activeDropdownId, setActiveDropdownId] = useState(null);
-  const [dropdownAnchor, setDropdownAnchor] = useState(null);
-  const [dropdownItem, setDropdownItem] = useState(null);
-
-  useEffect(() => {
-    if (!activeDropdownId) return;
-    const close = () => { setActiveDropdownId(null); setDropdownAnchor(null); setDropdownItem(null); };
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
-  }, [activeDropdownId]);
 
   const showToast = (message, color = 'success') => {
     const id = Date.now();
@@ -195,196 +124,130 @@ export default function SalesReturnList() {
     };
   };
 
+  const changeStatus = (status) => { setSelectedStatus(status); setCurrentPage(1); };
+  const customerName = (item) => item.customerSnapshot?.name || 'Walk-in';
+
   // ─── Table columns ───
-  const headers = [
+  const columns = [
+    { key: 'returnNumber', header: 'Return #', type: 'mono', sortable: true, mobile: 'title', cellClassName: 'font-semibold' },
+    { key: 'returnDate', header: 'Date', sortable: true, render: (item) => formatDateWithTiming(item.returnDate) },
     {
-      label: 'Return #',
-      key: 'returnNumber',
-      sortable: true,
-      value: 'checked',
-      cellClassName: 'font-mono font-semibold text-[var(--vs-text-primary)]',
-    },
-    {
-      label: 'Date',
-      key: 'returnDate',
-      sortable: true,
-      value: 'checked',
-      render: (item) => <span>{formatDateWithTiming(item.returnDate)}</span>,
-    },
-    {
-      label: 'Customer',
       key: 'customer',
+      header: 'Customer',
       sortable: true,
-      value: 'checked',
       render: (item) => (
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-[var(--vs-text-primary)]">
-            {item.customerSnapshot?.name || 'Walk-in'}
-          </span>
-          <span className="text-[10px] text-[var(--vs-text-secondary)]">
-            ({item.customerSnapshot?.phone || 'No Phone'})
-          </span>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Avatar name={customerName(item)} size="sm" />
+          <div className="min-w-0 truncate font-semibold text-ink">{customerName(item)}</div>
         </div>
       ),
     },
     {
-      label: 'Invoice',
+      key: 'customerPhone',
+      header: 'Phone',
+      hideBelow: 'lg',
+      render: (item) => <span className="tabular-nums">{item.customerSnapshot?.phone || 'No Phone'}</span>,
+    },
+    {
       key: 'salesInvoiceId',
+      header: 'Invoice',
       sortable: true,
-      value: 'checked',
-      render: (item) => (
-        <span className="font-mono text-sm">
-          {item.salesInvoiceId?.invoiceNumber || '—'}
-        </span>
-      ),
+      hideBelow: 'lg',
+      render: (item) => <span className="font-mono text-[13px]">{item.salesInvoiceId?.invoiceNumber || '—'}</span>,
     },
     {
-      label: 'Total Amount',
       key: 'totalAmount',
+      header: 'Total Amount',
+      type: 'money',
       sortable: true,
-      value: 'checked',
-      cellClassName: 'font-mono font-semibold text-indigo-600 dark:text-indigo-400',
-      render: (item) => <span>₹{(item.totalAmount || 0).toFixed(2)}</span>,
+      mobile: 'amount',
+      render: (item) => rs(item.totalAmount),
     },
-    {
-      label: 'Status',
-      key: 'status',
-      sortable: true,
-      value: 'checked',
-      render: (item) => {
-        const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.draft;
-        return (
-          <span className={`font-semibold text-xs capitalize ${cfg.textCls}`}>
-            {cfg.label}
-          </span>
-        );
-      },
-    },
-    {
-      label: 'Actions',
-      key: 'actions',
-      render: (item) => {
-        const isOpen = activeDropdownId === item._id;
-        return (
-          <div className="relative flex justify-end items-center gap-0">
-            <button
-              onClick={(e) => { e.stopPropagation(); handleViewClick(item); }}
-              title="View Return Details"
-              className="p-1 rounded-lg text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors cursor-pointer"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-            {item.status === 'draft' && (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleEditClick(item); }}
-                title="Edit Return"
-                className="p-1 rounded-lg text-blue-700 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors cursor-pointer"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isOpen) {
-                  setActiveDropdownId(null);
-                  setDropdownAnchor(null);
-                  setDropdownItem(null);
-                } else {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const spaceBelow = window.innerHeight - rect.bottom;
-                  const openUpwards = spaceBelow < 280;
+    { key: 'status', header: 'Status', type: 'status', sortable: true },
+  ];
 
-                  setActiveDropdownId(item._id);
-                  setDropdownItem(item);
-                  setDropdownAnchor({
-                    top: openUpwards ? rect.top + window.scrollY : rect.bottom + window.scrollY,
-                    left: rect.right - 192 + window.scrollX,
-                    openUpwards,
-                  });
-                }
-              }}
-              className="p-1 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      },
-    },
+  const rowActions = (item) => [
+    { label: 'View details', icon: Eye, onClick: () => handleViewClick(item) },
+    item.status === 'draft' && { label: 'Edit return', icon: Edit2, onClick: () => handleEditClick(item) },
+    item.status === 'draft' && { label: 'Approve return', icon: Check, onClick: () => openConfirm('approve', item._id) },
+    item.status === 'draft' && { label: 'Reject return', icon: X, danger: true, onClick: () => openConfirm('reject', item._id) },
+    item.status === 'draft' && { divider: true },
+    item.status === 'draft' && { label: 'Delete draft', icon: Trash2, danger: true, onClick: () => handleDeleteClick(item) },
   ];
 
   const confirmConfig = {
-    approve: { title: 'Approve Sales Return?', message: 'This will approve the sales return. You cannot edit it after approval.', label: 'Approve', variant: 'primary', icon: <Check className="w-6 h-6 text-emerald-500" /> },
-    reject: { title: 'Reject Sales Return?', message: 'This will mark the sales return as rejected.', label: 'Reject', variant: 'danger', icon: <X className="w-6 h-6 text-rose-500" /> },
+    approve: { title: 'Approve Sales Return?', message: 'This will approve the sales return. You cannot edit it after approval.', label: 'Approve', tone: 'primary', icon: Check },
+    reject: { title: 'Reject Sales Return?', message: 'This will mark the sales return as rejected.', label: 'Reject', tone: 'danger', icon: X },
   };
 
   const currentConfirm = confirmModal.type ? confirmConfig[confirmModal.type] : null;
 
-  return (
-    <div>
-      {/* ── Main Table Card ── */}
-      <Card
-        h1="Sales Returns"
-        bodyClassName="px-4 pb-4 pt-2"
-        rightNode={
-          <select
-            value={selectedStatus}
-            onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-            className="h-10 px-3 text-sm rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] outline-none cursor-pointer shadow-sm"
-          >
-            <option value="all">All Statuses</option>
-            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-              <option key={key} value={key}>{cfg.label}</option>
-            ))}
-          </select>
-        }
-      >
-        <div className="pb-2">
-          <TableInfoCard
-            stats={Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-              const metric = getSummaryMetric(key);
-              return {
-                label: cfg.label,
-                value: metric.count || salesReturns.filter((c) => c.status === key).length,
-                amount: metric.amount,
-                icon: cfg.icon,
-                colorClass: cfg.textCls,
-                isActive: selectedStatus === key,
-                onClick: () => { setSelectedStatus(selectedStatus === key ? 'all' : key); setCurrentPage(1); },
-              };
-            })}
-          />
-        </div>
+  const stats = Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+    const metric = getSummaryMetric(key);
+    return { key, cfg, count: metric.count || salesReturns.filter((c) => c.status === key).length, amount: metric.amount };
+  });
 
-        <Table
-          headers={headers}
-          data={salesReturns}
-          loading={loading}
-          showSearch={true}
-          searchPlaceholder="Search by return # or customer..."
-          searchTerm={searchTerm}
-          onSearchTermChange={(val) => setSearchTerm(val)}
-          onSearchClick={() => { setCurrentPage(1); fetchReturns(); }}
-          onSearchClear={handleClearSearch}
-          actions={
-            <div className="flex items-center gap-2">
-              <Button onClick={() => navigate('/sales/return/create')}>New Sales Return</Button>
-            </div>
-          }
-          emptyMessage="No sales returns found. Click 'New Sales Return' to create one."
-          currentPage={currentPage}
-          pageSize={pageSize}
-          totalRows={meta?.total || meta?.totalRows || meta?.count || 0}
-          onPageChange={(page) => setCurrentPage(page)}
-          onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-        />
-      </Card>
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Sales Returns"
+        actions={<Button startIcon={<Plus />} onClick={() => navigate('/sales/return/create')}>New Sales Return</Button>}
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3">
+        {stats.map(({ key, cfg, count, amount }) => (
+          <StatCard
+            key={key}
+            label={cfg.label}
+            value={count}
+            chip={rs(amount)}
+            icon={cfg.icon}
+            tone={cfg.tone}
+            active={selectedStatus === key}
+            onClick={() => { setSelectedStatus(selectedStatus === key ? 'all' : key); setCurrentPage(1); }}
+          />
+        ))}
+      </div>
+
+      <DataTable
+        columns={columns}
+        rows={salesReturns}
+        loading={loading}
+        tabs={[
+          { value: 'all', label: 'All' },
+          ...stats.map(({ key, cfg, count }) => ({ value: key, label: cfg.label, count })),
+        ]}
+        tab={selectedStatus}
+        onTabChange={changeStatus}
+        search={{
+          value: searchTerm,
+          onChange: (val) => setSearchTerm(val),
+          placeholder: 'Search by return # or customer...',
+          onSubmit: () => { setCurrentPage(1); fetchReturns(); },
+          onClear: handleClearSearch,
+        }}
+        rowActions={rowActions}
+        onRowClick={handleViewClick}
+        empty={{
+          icon: Undo2,
+          title: 'No sales returns found',
+          text: "Click 'New Sales Return' to create one.",
+          action: <Button startIcon={<Plus />} onClick={() => navigate('/sales/return/create')}>New Sales Return</Button>,
+        }}
+        pagination={{
+          page: currentPage,
+          pageSize,
+          total: meta?.total || meta?.totalRows || meta?.count || 0,
+          onPageChange: (page) => setCurrentPage(page),
+          onPageSizeChange: (size) => { setPageSize(size); setCurrentPage(1); },
+          pageSizeOptions: [10, 20, 50, 100],
+        }}
+      />
 
       {/* ── Delete Modal ── */}
-      <DeleteModal
-        isOpen={deleteModal.isOpen}
-        isLoading={loading}
+      <ConfirmDialog
+        open={deleteModal.isOpen}
+        loading={loading}
         onClose={() => setDeleteModal({ isOpen: false, id: null })}
         onConfirm={handleConfirmDelete}
         title="Delete Draft Return"
@@ -393,78 +256,20 @@ export default function SalesReturnList() {
 
       {/* ── Generic Confirm Modal ── */}
       {currentConfirm && (
-        <ConfirmModal
-          isOpen={confirmModal.isOpen}
+        <ConfirmDialog
+          open={confirmModal.isOpen}
           onClose={() => setConfirmModal({ isOpen: false, type: null, id: null })}
           onConfirm={handleConfirmAction}
           title={currentConfirm.title}
           message={currentConfirm.message}
           confirmLabel={currentConfirm.label}
-          confirmVariant={currentConfirm.variant}
+          tone={currentConfirm.tone}
           icon={currentConfirm.icon}
         />
       )}
 
-      {/* ── Dropdown Action Menu (portalled) ── */}
-      {activeDropdownId && dropdownAnchor && dropdownItem && createPortal(
-        <>
-          <div className="fixed inset-0 z-[100000]" onClick={() => { setActiveDropdownId(null); setDropdownAnchor(null); setDropdownItem(null); }} />
-          <div
-            style={{
-              position: 'absolute',
-              top: dropdownAnchor.openUpwards ? dropdownAnchor.top - 6 : dropdownAnchor.top + 6,
-              left: dropdownAnchor.left,
-              transform: dropdownAnchor.openUpwards ? 'translateY(-100%)' : 'none',
-              zIndex: 100005,
-            }}
-            className="w-52 rounded-xl border border-[var(--vs-drop-border)] bg-[var(--vs-drop-bg)] shadow-2xl py-1 text-sm text-[var(--vs-text-primary)]"
-          >
-            {/* Edit (draft only) */}
-            {dropdownItem.status === 'draft' && (
-              <button onClick={() => { setActiveDropdownId(null); handleEditClick(dropdownItem); }}
-                className="flex items-center w-full px-4 py-2.5 text-left hover:bg-[var(--vs-drop-hover)] transition-colors cursor-pointer">
-                <Edit2 className="w-4 h-4 mr-2.5 text-indigo-500" /> Edit Return
-              </button>
-            )}
-
-            {/* Approve (draft only) */}
-            {dropdownItem.status === 'draft' && (
-              <button onClick={() => { setActiveDropdownId(null); openConfirm('approve', dropdownItem._id); }}
-                className="flex items-center w-full px-4 py-2.5 text-left hover:bg-[var(--vs-drop-hover)] transition-colors cursor-pointer text-emerald-600 dark:text-emerald-400 font-semibold">
-                <Check className="w-4 h-4 mr-2.5" /> Approve Return
-              </button>
-            )}
-
-            {/* Reject (draft only) */}
-            {dropdownItem.status === 'draft' && (
-              <button onClick={() => { setActiveDropdownId(null); openConfirm('reject', dropdownItem._id); }}
-                className="flex items-center w-full px-4 py-2.5 text-left hover:bg-[var(--vs-drop-hover)] transition-colors cursor-pointer text-rose-600 dark:text-rose-400">
-                <X className="w-4 h-4 mr-2.5" /> Reject Return
-              </button>
-            )}
-
-            {/* Delete (draft only) */}
-            {dropdownItem.status === 'draft' && (
-              <button onClick={() => { setActiveDropdownId(null); handleDeleteClick(dropdownItem); }}
-                className="flex items-center w-full px-4 py-2.5 text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors font-medium mt-1 cursor-pointer border-t border-gray-100 dark:border-white/5">
-                <Trash2 className="w-4 h-4 mr-2.5" /> Delete Draft
-              </button>
-            )}
-          </div>
-        </>,
-        document.body
-      )}
-
       {/* ── Toaster ── */}
-      <CToaster className="p-3" style={{ zIndex: 2000, position: 'fixed', bottom: '20px', right: '20px' }}>
-        {toasts.map((t) => (
-          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
-            <div className="d-flex">
-              <CToastBody className="font-semibold">{t.message}</CToastBody>
-            </div>
-          </CToast>
-        ))}
-      </CToaster>
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/login/Login';
@@ -26,9 +26,6 @@ import ProductAuditReport from './pages/storeManagement/products/ProductAuditRep
 import Inventory from './pages/inventory/inventory/Inventory';
 import AdjustStock from './pages/inventory/inventory/AdjustStock';
 import StockAuditReport from './pages/inventory/inventory/StockAuditReport';
-import StoreList from './pages/storeManagement/stores/StoreList';
-import CreateStore from './pages/storeManagement/stores/CreateStore';
-import UpdateStore from './pages/storeManagement/stores/UpdateStore';
 import CustomerList from './pages/customer/CustomerList';
 import CreateCustomer from './pages/customer/CreateCustomer';
 import UpdateCustomer from './pages/customer/UpdateCustomer';
@@ -36,24 +33,12 @@ import CustomerDetails from './pages/customer/CustomerDetails';
 import SalesInvoiceList from './pages/sales/salesInvoices/SalesInvoiceList';
 import CreateSalesInvoice from './pages/sales/salesInvoices/CreateSalesInvoice';
 import SalesInvoiceDetails from './pages/sales/salesInvoices/SalesInvoiceDetails';
-import QuotationList from './pages/sales/quotations/QuotationList';
-import CreateQuotation from './pages/sales/quotations/CreateQuotation';
-import QuotationDetails from './pages/sales/quotations/QuotationDetails';
-import ProformaInvoiceList from './pages/sales/performaInvoice/ProformaInvoiceList';
-import CreateProformaInvoice from './pages/sales/performaInvoice/CreateProformaInvoice';
-import ProformaInvoiceDetails from './pages/sales/performaInvoice/ProformaInvoiceDetails';
-import DeliveryChallanList from './pages/sales/deliveryChallan/DeliveryChallanList';
-import CreateDeliveryChallan from './pages/sales/deliveryChallan/CreateDeliveryChallan';
-import DeliveryChallanDetails from './pages/sales/deliveryChallan/DeliveryChallanDetails';
 import SalesReturnList from './pages/sales/salesReturn/SalesReturnList';
 import CreateSalesReturn from './pages/sales/salesReturn/CreateSalesReturn';
 import SalesReturnDetails from './pages/sales/salesReturn/SalesReturnDetails';
 import CreditNoteList from './pages/sales/creditNotes/CreditNoteList';
 import CreateCreditNote from './pages/sales/creditNotes/CreateCreditNote';
 import CreditNoteDetails from './pages/sales/creditNotes/CreditNoteDetails';
-import PaymentInList from './pages/sales/paymentIn/PaymentInList';
-import CreatePaymentIn from './pages/sales/paymentIn/CreatePaymentIn';
-import PaymentInDetails from './pages/sales/paymentIn/PaymentInDetails';
 import CustomerLedger from './pages/sales/customerLedger/CustomerLedger';
 import PaymentAccount from './pages/sales/paymentAccout/PaymentAccount';
 import InvoiceSetting from './pages/Invoices/invoiceSetting/InvoiceSetting';
@@ -64,19 +49,9 @@ import Gstr1Report from './pages/reports/Gstr1Report';
 import HsnSummary from './pages/reports/HsnSummary';
 import AgeingReport from './pages/reports/AgeingReport';
 import Profit from './pages/reports/Profit';
-import BatchSales from './pages/reports/BatchSales';
-import PriceHistory from './pages/reports/PriceHistory';
 import PriceOverrides from './pages/reports/PriceOverrides';
-import StoreWiseStock from './pages/inventory/inventory/StoreWiseStock';
 import DamagedStock from './pages/inventory/inventory/DamagedStock';
-import ReorderReport from './pages/inventory/inventory/ReorderReport';
 import StockValuation from './pages/inventory/inventory/StockValuation';
-import OpeningStockList from './pages/inventory/openingStock/OpeningStockList';
-import CreateOpeningStock from './pages/inventory/openingStock/CreateOpeningStock';
-import OpeningStockDetails from './pages/inventory/openingStock/OpeningStockDetails';
-import StockTransferList from './pages/inventory/stockTransfers/StockTransferList';
-import CreateStockTransfer from './pages/inventory/stockTransfers/CreateStockTransfer';
-import StockTransferDetails from './pages/inventory/stockTransfers/StockTransferDetails';
 import ProductImportExport from './pages/storeManagement/products/ProductImportExport';
 import BarcodeLabels from './pages/storeManagement/products/BarcodeLabels';
 import GstRates from './pages/masterSettings/GstRates';
@@ -87,9 +62,6 @@ import SupplierDetails from './pages/purchase/suppliers/SupplierDetails';
 import PurchaseOrderList from './pages/purchase/purchaseOrders/PurchaseOrderList';
 import CreatePurchaseOrder from './pages/purchase/purchaseOrders/CreatePurchaseOrder';
 import PurchaseOrderDetails from './pages/purchase/purchaseOrders/PurchaseOrderDetails';
-import GoodsReceiptList from './pages/purchase/goodsReceipts/GoodsReceiptList';
-import CreateGoodsReceipt from './pages/purchase/goodsReceipts/CreateGoodsReceipt';
-import GoodsReceiptDetails from './pages/purchase/goodsReceipts/GoodsReceiptDetails';
 import PurchaseBillList from './pages/purchase/purchaseBills/PurchaseBillList';
 import CreatePurchaseBill from './pages/purchase/purchaseBills/CreatePurchaseBill';
 import PurchaseBillDetails from './pages/purchase/purchaseBills/PurchaseBillDetails';
@@ -106,6 +78,9 @@ import RoleForm from './pages/staff/roles/RoleForm';
 import DesignationList from './pages/staff/designations/DesignationList';
 import PrivateRoute from './utility/PrivateRoute';
 import Layout from './components/layouts/Layout';
+
+// Dev-only UI kit (/ui-kit) and shell preview (/ui-kit/shell). import.meta.env.DEV is false in `vite build`, so the page is left out of the bundle.
+const DevRoutes = import.meta.env.DEV ? lazy(() => import('./dev/DevRoutes')) : null;
 
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -130,6 +105,9 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        {DevRoutes && (
+          <Route path="/ui-kit/*" element={<Suspense fallback={null}><DevRoutes setDarkMode={setDarkMode} /></Suspense>} />
+        )}
         <Route
           path="/"
           element={
@@ -155,9 +133,6 @@ function App() {
           <Route path="manufacturers/create" element={<CreateManufacturer />} />
           <Route path="manufacturers/edit/:id" element={<UpdateManufacturer />} />
           <Route path="manufacturers/view/:id" element={<ManufacturerDetails />} />
-          <Route path="stores" element={<StoreList />} />
-          <Route path="stores/create" element={<CreateStore />} />
-          <Route path="stores/edit/:id" element={<UpdateStore />} />
           <Route path="products" element={<ProductList />} />
           <Route path="products/create" element={<CreateProduct />} />
           <Route path="products/edit/:id" element={<UpdateProduct />} />
@@ -169,19 +144,9 @@ function App() {
           <Route path="master/prices" element={<PricesOffers />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="inventory/adjust" element={<AdjustStock />} />
-          <Route path="inventory/opening-stock" element={<OpeningStockList />} />
-          <Route path="inventory/opening-stock/create" element={<CreateOpeningStock />} />
-          <Route path="inventory/opening-stock/edit/:id" element={<CreateOpeningStock />} />
-          <Route path="inventory/opening-stock/view/:id" element={<OpeningStockDetails />} />
           <Route path="inventory/audit-report" element={<StockAuditReport />} />
-          <Route path="inventory/store-wise" element={<StoreWiseStock />} />
           <Route path="inventory/damaged" element={<DamagedStock />} />
-          <Route path="inventory/reorder" element={<ReorderReport />} />
           <Route path="inventory/valuation" element={<StockValuation />} />
-          <Route path="inventory/transfers" element={<StockTransferList />} />
-          <Route path="inventory/transfers/create" element={<CreateStockTransfer />} />
-          <Route path="inventory/transfers/edit/:id" element={<CreateStockTransfer />} />
-          <Route path="inventory/transfers/view/:id" element={<StockTransferDetails />} />
           <Route path="purchase/suppliers" element={<SupplierList />} />
           <Route path="purchase/suppliers/create" element={<SupplierForm />} />
           <Route path="purchase/suppliers/edit/:id" element={<SupplierForm />} />
@@ -190,10 +155,6 @@ function App() {
           <Route path="purchase/orders/create" element={<CreatePurchaseOrder />} />
           <Route path="purchase/orders/edit/:id" element={<CreatePurchaseOrder />} />
           <Route path="purchase/orders/view/:id" element={<PurchaseOrderDetails />} />
-          <Route path="purchase/receipts" element={<GoodsReceiptList />} />
-          <Route path="purchase/receipts/create" element={<CreateGoodsReceipt />} />
-          <Route path="purchase/receipts/edit/:id" element={<CreateGoodsReceipt />} />
-          <Route path="purchase/receipts/view/:id" element={<GoodsReceiptDetails />} />
           <Route path="purchase/bills" element={<PurchaseBillList />} />
           <Route path="purchase/bills/create" element={<CreatePurchaseBill />} />
           <Route path="purchase/bills/edit/:id" element={<CreatePurchaseBill />} />
@@ -216,17 +177,11 @@ function App() {
           <Route path="customers/create" element={<CreateCustomer />} />
           <Route path="customers/edit/:id" element={<UpdateCustomer />} />
           <Route path="customers/view/:id" element={<CustomerDetails />} />
+          <Route path="customers/ledger/:customerId" element={<CustomerLedger />} />
           <Route path="sales/invoices" element={<SalesInvoiceList />} />
           <Route path="sales/invoices/create" element={<CreateSalesInvoice />} />
           <Route path="sales/invoices/edit/:id" element={<CreateSalesInvoice />} />
           <Route path="sales/invoices/view/:id" element={<SalesInvoiceDetails />} />
-          <Route path="sales/quotations" element={<QuotationList />} />
-          <Route path="sales/quotations/create" element={<CreateQuotation />} />
-          <Route path="sales/quotations/edit/:id" element={<CreateQuotation />} />
-          <Route path="sales/quotations/view/:id" element={<QuotationDetails />} />
-          <Route path="sales/payment-in" element={<PaymentInList />} />
-          <Route path="sales/payment-in/record" element={<CreatePaymentIn />} />
-          <Route path="sales/payment-in/view/:id" element={<PaymentInDetails />} />
           <Route path="sales/return" element={<SalesReturnList />} />
           <Route path="sales/return/create" element={<CreateSalesReturn />} />
           <Route path="sales/return/edit/:id" element={<CreateSalesReturn />} />
@@ -235,16 +190,6 @@ function App() {
           <Route path="sales/credit-note/create" element={<CreateCreditNote />} />
           <Route path="sales/credit-note/edit/:id" element={<CreateCreditNote />} />
           <Route path="sales/credit-note/view/:id" element={<CreditNoteDetails />} />
-          <Route path="sales/delivery-challan" element={<DeliveryChallanList />} />
-          <Route path="sales/delivery-challan/create" element={<CreateDeliveryChallan />} />
-          <Route path="sales/delivery-challan/edit/:id" element={<CreateDeliveryChallan />} />
-          <Route path="sales/delivery-challan/view/:id" element={<DeliveryChallanDetails />} />
-          <Route path="sales/proforma-invoice" element={<ProformaInvoiceList />} />
-          <Route path="sales/proforma-invoice/create" element={<CreateProformaInvoice />} />
-          <Route path="sales/proforma-invoice/edit/:id" element={<CreateProformaInvoice />} />
-          <Route path="sales/proforma-invoice/view/:id" element={<ProformaInvoiceDetails />} />
-          <Route path="sales/customer-ledger" element={<CustomerLedger />} />
-          <Route path="sales/customer-ledger/:customerId" element={<CustomerLedger />} />
           <Route path="sales/payment-account" element={<PaymentAccount />} />
           <Route path="sales/general-invoice-setting" element={<GeneralInvoiceSetting />} />
           <Route path="sales/invoice-setting" element={<InvoiceSetting />} />
@@ -255,8 +200,6 @@ function App() {
           <Route path="reports/hsn-summary" element={<HsnSummary />} />
           <Route path="reports/ageing" element={<AgeingReport />} />
           <Route path="reports/profit" element={<Profit />} />
-          <Route path="reports/batch-sales" element={<BatchSales />} />
-          <Route path="reports/price-history" element={<PriceHistory />} />
           <Route path="reports/price-overrides" element={<PriceOverrides />} />
           <Route path="reports" element={<Navigate to="/reports/sales-register" replace />} />
         </Route>

@@ -5,6 +5,7 @@ import {
   createPurchaseOrderApi,
   updatePurchaseOrderApi,
   setPurchaseOrderStatusApi,
+  cancelPurchaseOrderApi,
   deletePurchaseOrderApi,
 } from './purchaseOrderService';
 
@@ -15,6 +16,7 @@ const purchaseOrder = createDocSlice('purchaseOrder', {
     create: createPurchaseOrderApi,
     update: ({ id, payload }) => updatePurchaseOrderApi(id, payload),
     setStatus: ({ id, status }) => setPurchaseOrderStatusApi(id, status),
+    cancel: ({ id, reason }) => cancelPurchaseOrderApi(id, reason),
     remove: deletePurchaseOrderApi,
   },
 });
@@ -25,6 +27,7 @@ export const {
   create: createPurchaseOrder,
   update: updatePurchaseOrder,
   setStatus: setPurchaseOrderStatus,
+  cancel: cancelPurchaseOrder,
   remove: deletePurchaseOrder,
 } = purchaseOrder.thunks;
 export const { clearCurrent: clearCurrentPurchaseOrder } = purchaseOrder.actions;

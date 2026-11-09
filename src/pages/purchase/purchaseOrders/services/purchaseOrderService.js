@@ -26,6 +26,12 @@ export const setPurchaseOrderStatusApi = async (id, status) => {
   return response.data;
 };
 
+/** Cancel: a draft, or a received order with its bill (stock and supplier balance go back). */
+export const cancelPurchaseOrderApi = async (id, reason = '') => {
+  const response = await apiClient.post(`/purchase-orders/${id}/cancel`, { reason });
+  return response.data;
+};
+
 export const deletePurchaseOrderApi = async (id) => {
   const response = await apiClient.delete(`/purchase-orders/${id}`);
   return response.data;

@@ -1,13 +1,29 @@
 import { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Check, ChevronDown, ChevronUp, Loader2, RotateCcw } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import { Input } from '@/components/inputs/Input';
+import { AlertTriangle, Check, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import {
+  Badge,
+  Button,
+  DocumentLayout,
+  EmptyState,
+  FormGrid,
+  Input,
+  LINE_TD,
+  LINE_TH,
+  LineItemsTable,
+  LineRow,
+  MoneyInput,
+  PaymentPicker,
+  Section,
+  Spinner,
+  Textarea,
+  TotalsPanel,
+  TotalsRow,
+} from '@/components/ui';
 import PurchaseToaster from '../components/PurchaseToaster';
 import SupplierPicker from '../components/SupplierPicker';
-import PayMethodPicker from '../components/PayMethodPicker';
-import { EmptyState, Field, FormError, PageShell, Section, TextArea } from '../components/ui';
+import { Field, FormError } from '../components/ui';
 import useApi from '../components/useApi';
 import useSupplierInfo from '../components/useSupplierInfo';
 import { notify, notifyError } from '../components/toast';
@@ -27,13 +43,6 @@ const oldestFirst = (bills, amount) => {
   }
   return out;
 };
-
-const chipCls = (on) =>
-  `px-4 h-10 rounded-full border text-sm font-semibold transition-colors cursor-pointer ${
-    on ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300' : 'border-[var(--vs-border)] hover:bg-[var(--vs-bg-secondary)]'
-  }`;
-
-const payInput = 'h-9 w-full sm:w-32 rounded-lg border bg-white dark:bg-white/5 px-2 text-right text-sm text-gray-900 dark:!text-white outline-none focus:border-indigo-500/60';
 
 /** purchase/payments/create   (optional location.state = { supplierId, purchaseBillId, amount }) */
 export default function CreatePaymentOut() {
@@ -124,194 +133,228 @@ export default function CreatePaymentOut() {
   const hasBank = !!(bank.accountNumber || bank.upiId);
   const oldest = bills[0];
 
+  const saveButton = (className) => (
+    <Button type="submit" loading={saving} startIcon={<Check />} className={className}>
+      Save payment
+    </Button>
+  );
+
   return (
-    <PageShell title="Pay a supplier">
-      <form onSubmit={submit} className="flex flex-col gap-5">
-        <FormError message={formError} />
+    <>
+      <form onSubmit={submit}>
+        <DocumentLayout
+          header={{
+            title: 'Pay a supplier',
+            actions: (
+              <>
+                <Button variant="ghost" onClick={() => navigate(-1)} disabled={saving}>
+                  Cancel
+                </Button>
+                {saveButton('hidden lg:inline-flex')}
+              </>
+            ),
+          }}
+          summary={
+            <TotalsPanel title="Payment" totalLabel="You pay" total={formatINR(payAmount)}>
+              {supplier?.value && bills.length > 0 && <TotalsRow label="Still owed after this" value={formatINR(leftAfter)} />}
+              {advance > 0 && (
+                <p className="m-0 text-xs leading-relaxed text-highlight">
+                  {formatINR(advance)} extra is kept as an advance and used for this supplier&apos;s next bill.
+                </p>
+              )}
+              {overAllocated && <p className="m-0 text-xs font-semibold text-danger-soft">The bills add up to more than you are paying.</p>}
+            </TotalsPanel>
+          }
+          mobileBar={{ label: 'You pay', value: formatINR(payAmount), action: saveButton() }}
+        >
+          <FormError message={formError} />
 
-        {/* 1. Who */}
-        <Section title="1. Who did you pay?" bodyClassName="p-4 flex flex-col gap-3">
-          <SupplierPicker value={supplier} onChange={changeSupplier} info={supplierInfo} infoLoading={supplierLoading} error={!!formError && !supplier?.value} />
-          {supplier?.value && !billsLoading && (
-            <div className="rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-secondary)] px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div className="text-sm">
-                {bills.length ? (
-                  <>
-                    <span className="font-semibold">{bills.length} unpaid {bills.length === 1 ? 'bill' : 'bills'}</span>
-                    {lateBills.length > 0 && <span className="text-rose-600 dark:text-rose-400"> · {lateBills.length} late</span>}
-                  </>
-                ) : (
-                  <span className="text-[var(--vs-text-secondary)]">No unpaid bills — the payment will be kept as an advance.</span>
-                )}
-                {hasBank && (
-                  <button type="button" onClick={() => setShowBank((v) => !v)} className="ml-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-                    {showBank ? 'Hide bank / UPI' : 'Show bank / UPI'}
-                  </button>
-                )}
-              </div>
-              <div className="text-right">
-                <div className="text-[11px] text-[var(--vs-text-secondary)]">You owe</div>
-                <div className="text-xl font-bold font-mono">{formatINR(totalDue)}</div>
-              </div>
-            </div>
-          )}
-          {showBank && hasBank && (
-            <div className="rounded-xl border border-[var(--vs-border)] p-3 text-xs grid grid-cols-1 sm:grid-cols-2 gap-1">
-              {bank.accountName && <span>Name: {bank.accountName}</span>}
-              {bank.accountNumber && <span className="font-mono">A/c: {bank.accountNumber}</span>}
-              {bank.ifsc && <span className="font-mono">IFSC: {bank.ifsc}</span>}
-              {bank.bankName && <span>Bank: {bank.bankName}</span>}
-              {bank.upiId && <span className="font-mono">UPI: {bank.upiId}</span>}
-            </div>
-          )}
-        </Section>
-
-        {/* 2. How much */}
-        <Section title="2. How much did you pay?" bodyClassName="p-4 flex flex-col gap-3">
-          {totalDue > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className={chipCls(payAmount === totalDue)} onClick={() => pickAmount(totalDue)}>
-                Full amount {formatINR(totalDue)}
-              </button>
-              {bills.length > 1 && oldest && (
-                <button type="button" className={chipCls(payAmount === num(oldest.balanceAmount))} onClick={() => pickAmount(oldest.balanceAmount)}>
-                  Oldest bill {formatINR(oldest.balanceAmount)}
-                </button>
+          {/* 1. Who */}
+          <Section title="1. Who did you pay?">
+            <div className="flex flex-col gap-3">
+              <SupplierPicker value={supplier} onChange={changeSupplier} info={supplierInfo} infoLoading={supplierLoading} error={!!formError && !supplier?.value} />
+              {supplier?.value && !billsLoading && (
+                <div className="flex flex-col gap-2 rounded-control bg-fill px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-ink">
+                    {bills.length ? (
+                      <>
+                        <span className="font-semibold">{bills.length} unpaid {bills.length === 1 ? 'bill' : 'bills'}</span>
+                        {lateBills.length > 0 && <span className="font-semibold text-danger"> · {lateBills.length} late</span>}
+                      </>
+                    ) : (
+                      <span className="text-ink-muted">No unpaid bills — the payment will be kept as an advance.</span>
+                    )}
+                    {hasBank && (
+                      <Button variant="link" size="xs" onClick={() => setShowBank((v) => !v)} className="ml-2">
+                        {showBank ? 'Hide bank / UPI' : 'Show bank / UPI'}
+                      </Button>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[11px] text-ink-subtle">You owe</div>
+                    <div className="text-xl font-extrabold tabular-nums text-ink">{formatINR(totalDue)}</div>
+                  </div>
+                </div>
+              )}
+              {showBank && hasBank && (
+                <div className="grid grid-cols-1 gap-1 rounded-control bg-fill-2 p-3 text-xs text-ink-muted sm:grid-cols-2">
+                  {bank.accountName && <span>Name: {bank.accountName}</span>}
+                  {bank.accountNumber && <span className="font-mono">A/c: {bank.accountNumber}</span>}
+                  {bank.ifsc && <span className="font-mono">IFSC: {bank.ifsc}</span>}
+                  {bank.bankName && <span>Bank: {bank.bankName}</span>}
+                  {bank.upiId && <span className="font-mono">UPI: {bank.upiId}</span>}
+                </div>
               )}
             </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
-            <Field label="Amount (₹)" required>
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={amount}
-                placeholder="0.00"
-                onChange={(e) => {
-                  setAmount(e.target.value);
-                  setManual(null);
-                }}
-                className="!text-lg !font-bold"
-              />
-            </Field>
-            <Field label="Paid on">
-              <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
-            </Field>
-          </div>
-        </Section>
-
-        {/* 3. How */}
-        <Section title="3. How did you pay?" bodyClassName="p-4">
-          <PayMethodPicker method={paymentMethod} onMethodChange={setPaymentMethod} reference={reference} onReferenceChange={setReference} />
-        </Section>
-
-        {/* 4. Which bills */}
-        {supplier?.value && (
-          <Section
-            title="4. Bills this payment clears"
-            bodyClassName="p-3 sm:p-4 flex flex-col gap-3"
-            rightNode={
-              manual ? (
-                <button type="button" onClick={() => setManual(null)} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-                  <RotateCcw className="w-3.5 h-3.5" /> Oldest bills first
-                </button>
-              ) : null
-            }
-          >
-            {billsLoading ? (
-              <EmptyState>Loading bills...</EmptyState>
-            ) : billsError ? (
-              <EmptyState>{billsError}</EmptyState>
-            ) : bills.length === 0 ? (
-              <EmptyState>No unpaid bills. The whole payment will be kept as an advance and used for the next bill.</EmptyState>
-            ) : (
-              <>
-                <p className="text-xs text-[var(--vs-text-secondary)]">
-                  {manual ? 'You changed how the money is split.' : 'The money goes to the oldest bills first. Change any amount if you want.'}
-                </p>
-                <div className="rounded-xl border border-[var(--vs-border)] divide-y divide-[var(--vs-border)]">
-                  <div className="hidden sm:grid grid-cols-[1.4fr_1fr_1fr_auto] gap-3 px-3 py-2 bg-[var(--vs-bg-secondary)] text-[11px] font-bold uppercase tracking-wider text-[var(--vs-text-secondary)] rounded-t-xl">
-                    <span>Bill</span>
-                    <span>Pay by</span>
-                    <span className="text-right">Still to pay</span>
-                    <span className="text-right sm:w-32">Paying now</span>
-                  </div>
-                  {bills.map((b) => {
-                    const late = isOverdue(b.dueDate, b.balanceAmount);
-                    const bad = rowError(b);
-                    const now = num(allocFor(b));
-                    const cleared = now > 0 && Math.abs(now - num(b.balanceAmount)) < 0.01;
-                    return (
-                      <div key={b._id} className="grid grid-cols-2 sm:grid-cols-[1.4fr_1fr_1fr_auto] gap-x-3 gap-y-1 px-3 py-2.5 items-center text-sm">
-                        <div className="min-w-0">
-                          <div className="font-mono font-semibold">{b.billNumber}</div>
-                          <div className="text-[11px] text-[var(--vs-text-secondary)] truncate">
-                            {fmtDate(b.billDate)}
-                            {b.supplierBillNo ? ` · their no. ${b.supplierBillNo}` : ''}
-                          </div>
-                        </div>
-                        <div className={late ? 'text-rose-600 dark:text-rose-400 font-semibold' : ''}>
-                          {fmtDate(b.dueDate || b.billDate)}
-                          {late && <span className="ml-1 text-[10px] uppercase">late</span>}
-                        </div>
-                        <div className="sm:text-right font-mono">{formatINR(b.balanceAmount)}</div>
-                        <div className="sm:text-right">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={allocFor(b)}
-                            onChange={(e) => editRow(b, e.target.value)}
-                            className={`${payInput} ${bad ? 'border-red-500' : 'border-gray-200 dark:border-white/10'}`}
-                          />
-                          {bad ? (
-                            <div className="text-[10px] text-red-500 mt-0.5">More than this bill needs</div>
-                          ) : cleared ? (
-                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-semibold">Fully paid</div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
           </Section>
-        )}
 
-        {/* Result + save */}
-        <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div className="text-sm flex flex-col gap-0.5">
-            <span className="font-semibold">
-              You pay {formatINR(payAmount)}
-              {supplier?.value && bills.length > 0 && <> · still owed after this: {formatINR(leftAfter)}</>}
-            </span>
-            {advance > 0 && (
-              <span className="text-amber-700 dark:text-amber-400">{formatINR(advance)} extra is kept as an advance and used for this supplier&apos;s next bill.</span>
-            )}
-            {overAllocated && <span className="text-rose-600 dark:text-rose-400">The bills add up to more than you are paying.</span>}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(-1)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving} startIcon={saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}>
-              Save payment
-            </Button>
-          </div>
-        </div>
+          {/* 2. How much */}
+          <Section title="2. How much did you pay?">
+            <div className="flex flex-col gap-4">
+              {totalDue > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <Button variant={payAmount === totalDue ? 'soft' : 'secondary'} aria-pressed={payAmount === totalDue} onClick={() => pickAmount(totalDue)}>
+                    Full amount {formatINR(totalDue)}
+                  </Button>
+                  {bills.length > 1 && oldest && (
+                    <Button
+                      variant={payAmount === num(oldest.balanceAmount) ? 'soft' : 'secondary'}
+                      aria-pressed={payAmount === num(oldest.balanceAmount)}
+                      onClick={() => pickAmount(oldest.balanceAmount)}
+                    >
+                      Oldest bill {formatINR(oldest.balanceAmount)}
+                    </Button>
+                  )}
+                </div>
+              )}
+              <FormGrid cols={2} className="max-w-xl">
+                <Field label="Amount (₹)" required>
+                  <MoneyInput
+                    size="lg"
+                    value={amount}
+                    placeholder="0.00"
+                    onChange={(value) => {
+                      setAmount(value);
+                      setManual(null);
+                    }}
+                    className="font-bold"
+                  />
+                </Field>
+                <Field label="Paid on">
+                  <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+                </Field>
+              </FormGrid>
+            </div>
+          </Section>
 
-        <div>
-          <button type="button" onClick={() => setShowNotes((v) => !v)} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-            {showNotes ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            {showNotes ? 'Hide note' : 'Add a note'}
-          </button>
-          {showNotes && <TextArea className="mt-2" value={notes} onChange={setNotes} rows={2} placeholder="Anything to remember about this payment" />}
-        </div>
+          {/* 3. How */}
+          <Section title="3. How did you pay?">
+            <PaymentPicker method={paymentMethod} onMethodChange={setPaymentMethod} reference={reference} onReferenceChange={setReference} />
+          </Section>
+
+          {/* 4. Which bills */}
+          {supplier?.value && (
+            <Section
+              title="4. Bills this payment clears"
+              actions={
+                manual ? (
+                  <Button variant="link" size="xs" startIcon={<RotateCcw />} onClick={() => setManual(null)}>
+                    Oldest bills first
+                  </Button>
+                ) : null
+              }
+              bodyClassName="px-3 sm:px-4"
+            >
+              {billsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Spinner label="Loading bills..." />
+                </div>
+              ) : billsError ? (
+                <EmptyState icon={AlertTriangle} text={billsError} className="py-8" />
+              ) : bills.length === 0 ? (
+                <EmptyState text="No unpaid bills. The whole payment will be kept as an advance and used for the next bill." className="py-8" />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <p className="m-0 px-2 text-xs text-ink-muted">
+                    {manual ? 'You changed how the money is split.' : 'The money goes to the oldest bills first. Change any amount if you want.'}
+                  </p>
+                  <LineItemsTable
+                    minWidth={560}
+                    head={
+                      <tr>
+                        <th className={LINE_TH}>Bill</th>
+                        <th className={LINE_TH}>Pay by</th>
+                        <th className={`${LINE_TH} text-right`}>Still to pay</th>
+                        <th className={`${LINE_TH} w-40 text-right`}>Paying now</th>
+                      </tr>
+                    }
+                  >
+                    {bills.map((b) => {
+                      const late = isOverdue(b.dueDate, b.balanceAmount);
+                      const bad = rowError(b);
+                      const now = num(allocFor(b));
+                      const cleared = now > 0 && Math.abs(now - num(b.balanceAmount)) < 0.01;
+                      return (
+                        <LineRow key={b._id} tone={bad ? 'danger' : undefined}>
+                          <td className={LINE_TD}>
+                            <div className="font-mono font-semibold">{b.billNumber}</div>
+                            <div className="truncate text-[11px] text-ink-subtle">
+                              {fmtDate(b.billDate)}
+                              {b.supplierBillNo ? ` · their no. ${b.supplierBillNo}` : ''}
+                            </div>
+                          </td>
+                          <td className={`${LINE_TD} whitespace-nowrap ${late ? 'font-semibold text-danger' : ''}`}>
+                            {fmtDate(b.dueDate || b.billDate)}
+                            {late && (
+                              <Badge tone="danger" className="ml-1.5 uppercase">
+                                late
+                              </Badge>
+                            )}
+                          </td>
+                          <td className={`${LINE_TD} text-right tabular-nums`}>{formatINR(b.balanceAmount)}</td>
+                          <td className={`${LINE_TD} text-right`}>
+                            <Input
+                              size="sm"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              aria-label={`Paying now for ${b.billNumber}`}
+                              value={allocFor(b)}
+                              onChange={(e) => editRow(b, e.target.value)}
+                              invalid={bad}
+                              className="text-right tabular-nums"
+                            />
+                            {bad ? (
+                              <div className="mt-1 text-[11px] font-medium text-danger">More than this bill needs</div>
+                            ) : cleared ? (
+                              <div className="mt-1 text-[11px] font-semibold text-success">Fully paid</div>
+                            ) : null}
+                          </td>
+                        </LineRow>
+                      );
+                    })}
+                  </LineItemsTable>
+                </div>
+              )}
+            </Section>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="link"
+              size="sm"
+              onClick={() => setShowNotes((v) => !v)}
+              startIcon={showNotes ? <ChevronUp /> : <ChevronDown />}
+              className="self-start"
+            >
+              {showNotes ? 'Hide note' : 'Add a note'}
+            </Button>
+            {showNotes && <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Anything to remember about this payment" />}
+          </div>
+        </DocumentLayout>
       </form>
       <PurchaseToaster />
-    </PageShell>
+    </>
   );
 }

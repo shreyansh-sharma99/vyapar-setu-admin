@@ -15,40 +15,40 @@ export default function TodayPriceCard({ data }) {
   const fromMaster = current.source === 'master' && current.effectiveFrom;
 
   return (
-    <div className="px-4 py-3 rounded-xl border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/60 dark:bg-indigo-950/20 flex flex-col gap-2">
+    <div className="flex flex-col gap-2 rounded-control bg-brand-soft px-4 py-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-brand-ink">
           <IndianRupee className="w-3.5 h-3.5" /> Default price for new batches
         </span>
-        <span className="text-[11px] text-[var(--vs-text-secondary)]">
+        <span className="text-xs text-ink-muted">
           {fromMaster ? `Price master · from ${formatDay(current.effectiveFrom)}` : 'From the product card (no Price master entry yet)'}
         </span>
       </div>
 
       <div className="flex items-baseline gap-2 flex-wrap">
-        <span className={`${offer ? 'text-base' : 'text-xl'} font-bold ${offer ? 'text-[var(--vs-text-secondary)] line-through' : 'text-indigo-600 dark:text-indigo-400'}`}>
+        <span className={`${offer ? 'text-base' : 'text-xl'} font-bold ${offer ? 'text-ink-subtle line-through' : 'text-brand-ink'} tabular-nums`}>
           {formatMoney(current.sellingPrice)}
         </span>
         {offer && (
-          <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+          <span className="text-xl font-bold tabular-nums text-brand-ink">
             {formatMoney(priceAfterOffer(current.sellingPrice, offer))}
           </span>
         )}
-        <span className="text-xs text-[var(--vs-text-secondary)]">{gstNote}</span>
+        <span className="text-xs text-ink-muted">{gstNote}</span>
       </div>
 
       {(offer || next) && (
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-5 gap-y-1.5 text-xs">
           {offer && (
-            <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold">
+            <span className="flex items-center gap-1.5 font-semibold text-success">
               <Tag className="w-3.5 h-3.5 shrink-0" />
               Offer {describeOffer(offer)} till {formatDay(offer.endDate)}
             </span>
           )}
           {next && (
-            <span className="flex items-center gap-1.5 text-[var(--vs-text-secondary)]">
+            <span className="flex items-center gap-1.5 text-ink-muted">
               <CalendarClock className="w-3.5 h-3.5 shrink-0" />
-              Next change {formatDay(next.effectiveFrom)} → <span className="font-semibold text-[var(--vs-text-primary)]">{formatMoney(next.sellingPrice)}</span>
+              Next change {formatDay(next.effectiveFrom)} → <span className="font-semibold text-ink">{formatMoney(next.sellingPrice)}</span>
             </span>
           )}
         </div>

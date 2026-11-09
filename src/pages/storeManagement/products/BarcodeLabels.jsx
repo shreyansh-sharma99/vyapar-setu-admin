@@ -1,14 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { ArrowLeft, Printer, Trash2, AlertTriangle, ScanBarcode, Loader2, Minus, Plus, Tags } from 'lucide-react';
-import Card from '@/components/breadCrumbs/Card';
-import Button from '@/components/inputs/Button';
-import Select from '@/components/inputs/Select';
-import Checkbox from '@/components/inputs/Checkbox';
-import { Input } from '@/components/inputs/Input';
-import { Label } from '@/components/inputs/Label';
+import { ArrowLeft, Printer, Trash2, ScanBarcode, Tags } from 'lucide-react';
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  EmptyState,
+  Field,
+  Input,
+  LINE_TD,
+  LINE_TH,
+  LineItemsTable,
+  LineRow,
+  NumberInput,
+  PageHeader,
+  Section,
+  Select,
+  Spinner,
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
 import { generateBarcodesApi, getProductByIdApi, lookupProductsApi } from './services/productService';
 import { getStockInPricingApi } from '@/pages/purchase/components/stockInPricing';
 import AsyncSearchSelect from './components/AsyncSearchSelect';
@@ -62,7 +75,7 @@ const fetchProductOptions = async (query) => {
   return (res?.data || []).map((p) => ({
     value: p._id,
     label: p.name,
-    sublabel: [p.sku && `SKU ${p.sku}`, p.barcode ? `Barcode ${p.barcode}` : 'No barcode', formatINR(sellingPrice(p))]
+    sublabel: [p.sku && `SKU ${p.sku}`, p.barcode ? `Barcode ${p.barcode}` : 'No barcode yet', formatINR(sellingPrice(p))]
       .filter(Boolean)
       .join(' · '),
     raw: p,
@@ -227,6 +240,7 @@ function LabelPages({ labels, template, fields, shopName, maxPages }) {
 
 export default function BarcodeLabels() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { toasts, showToast } = useToasts(5000);
   const authUser = useSelector((state) => state.auth?.user);
   const preselectIds = location.state?.productIds;
@@ -282,7 +296,7 @@ export default function BarcodeLabels() {
     };
   }, [preselectIds]);
 
-  /** Open batches (all stores) with their own SP / MRP, for "Print for a batch". */
+  /** Open batches with their own SP / MRP, for "Print for a batch". */
   const loadBatches = (pid) => {
     getStockInPricingApi([pid])
       .then((res) => {
@@ -369,251 +383,213 @@ export default function BarcodeLabels() {
   `;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <style>{printCss}</style>
 
-      <Card
-        h1="Print Barcode Labels"
+      <PageHeader
+        title="Print Barcode Labels"
         description="Choose products, set how many labels you need, pick a label size and print."
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-4 sm:p-6 flex flex-col gap-5"
-      >
-        <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-6">
-          {/* Products */}
-          <div className="flex flex-col gap-3 min-w-0">
-            <div>
-              <Label className="!mb-1">Add products</Label>
-              <AsyncSearchSelect
-                value=""
-                selectedLabel=""
-                fetchOptions={fetchProductOptions}
-                onChange={addProduct}
-                placeholder="Search by name, SKU or barcode"
-                emptyText="No products found"
-                clearable={false}
-                keepOpenOnSelect
-              />
-            </div>
+        actions={
+          <Button variant="secondary" size="sm" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>
+            Back
+          </Button>
+        }
+      />
 
-            {preloading && (
-              <div className="flex items-center gap-2 text-xs text-[var(--vs-text-secondary)]">
-                <Loader2 className="w-4 h-4 animate-spin" /> Loading selected products...
-              </div>
-            )}
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[1.4fr_1fr]">
+        {/* Products */}
+        <Section title="Products" bodyClassName="flex min-w-0 flex-col gap-4">
+          <Field label="Add products">
+            <AsyncSearchSelect
+              value=""
+              selectedLabel=""
+              fetchOptions={fetchProductOptions}
+              onChange={addProduct}
+              placeholder="Search by name, SKU or barcode"
+              emptyText="No products found"
+              clearable={false}
+              keepOpenOnSelect
+            />
+          </Field>
 
-            {withoutBarcode.length > 0 && (
-              <div className="p-3 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 flex flex-col gap-2">
-                <div className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>
-                    {withoutBarcode.length} product{withoutBarcode.length === 1 ? ' has' : 's have'} no barcode and will not be printed:{' '}
-                    <strong>{withoutBarcode.map((i) => i.product.name).join(', ')}</strong>
-                  </span>
-                </div>
-                <div>
-                  <Button
-                    size="sm"
-                    onClick={handleGenerate}
-                    disabled={generating}
-                    startIcon={generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <ScanBarcode className="w-4 h-4" />}
-                  >
-                    Generate barcodes
-                  </Button>
-                </div>
-              </div>
-            )}
+          {preloading && <Spinner label="Loading selected products..." />}
 
-            <div className="overflow-x-auto border border-[var(--vs-border)] rounded-xl">
-              <table className="w-full text-left border-collapse text-xs min-w-[560px]">
-                <thead>
-                  <tr className="bg-[var(--vs-bg-secondary)] border-b border-[var(--vs-border)] text-[var(--vs-text-secondary)] font-bold">
-                    <th className="py-2.5 px-3">Product</th>
-                    <th className="py-2.5 px-3">Barcode</th>
-                    <th className="py-2.5 px-3 text-right">Price</th>
-                    <th className="py-2.5 px-3 w-36 text-center">Labels</th>
-                    <th className="py-2.5 px-3 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--vs-border)] text-[var(--vs-text-primary)]">
-                  {items.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-[var(--vs-text-secondary)]">
-                        <Tags className="w-6 h-6 mx-auto mb-1 opacity-50" />
-                        No products added yet. Search above to add products.
-                      </td>
-                    </tr>
-                  ) : (
-                    items.map(({ product: p, qty, batches = [], batchId = '', gstRate = 0 }) => (
-                      <tr key={p._id}>
-                        <td className="py-2 px-3">
-                          <div className="font-semibold">{p.name}</div>
-                          {p.sku && <div className="text-[10px] font-mono text-[var(--vs-text-secondary)]">{p.sku}</div>}
-                        </td>
-                        <td className="py-2 px-3 font-mono">
-                          {p.barcode || (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 font-sans font-semibold">
-                              No barcode
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          {(() => {
-                            const b = batchId ? batches.find((x) => String(x._id) === String(batchId)) : null;
-                            const price = b ? batchCustomerPrice(b, gstRate) : sellingPrice(p);
-                            const mrp = b && toNumberOr(b.mrp, 0) > 0 ? b.mrp : p.mrp;
-                            return (
-                              <>
-                                {formatINR(price)}
-                                {toNumberOr(mrp, 0) > 0 && <div className="text-[10px] text-[var(--vs-text-secondary)]">MRP {formatINR(mrp)}</div>}
-                              </>
-                            );
-                          })()}
-                          {batches.length > 0 && (
-                            <select
-                              value={batchId}
-                              onChange={(e) => setBatch(p._id, e.target.value)}
-                              title="Print for a batch: the label shows that batch's price and MRP"
-                              className="mt-1 h-7 max-w-[190px] rounded border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[11px] cursor-pointer"
-                            >
-                              <option value="">Default price</option>
-                              {batches.map((b) => (
-                                <option key={b._id} value={b._id}>
-                                  {[b.batchNo || 'Batch', b.storeName, toNumberOr(b.sellingPrice, 0) > 0 ? `SP ₹${batchCustomerPrice(b, gstRate)}` : '', toNumberOr(b.mrp, 0) > 0 ? `MRP ₹${toNumberOr(b.mrp, 0)}` : '']
-                                    .filter(Boolean)
-                                    .join(' · ')}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </td>
-                        <td className="py-2 px-3">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setQty(p._id, qty - 1)}
-                              className="h-8 w-8 flex items-center justify-center rounded-lg border border-[var(--vs-border)] hover:bg-[var(--vs-bg-secondary)] cursor-pointer"
-                              title="Fewer"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              max="999"
-                              value={qty}
-                              onChange={(e) => setQty(p._id, e.target.value)}
-                              className="w-14 h-8 text-center rounded-lg border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] text-xs outline-none focus:border-indigo-500"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setQty(p._id, qty + 1)}
-                              className="h-8 w-8 flex items-center justify-center rounded-lg border border-[var(--vs-border)] hover:bg-[var(--vs-bg-secondary)] cursor-pointer"
-                              title="More"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="py-2 px-3">
-                          <button
-                            type="button"
-                            onClick={() => removeItem(p._id)}
-                            className="p-1.5 rounded text-rose-500 hover:bg-rose-500/10 cursor-pointer"
-                            title="Remove"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {items.length > 0 && (
-              <div className="flex justify-end">
-                <Button variant="outline" size="sm" onClick={() => setItems([])}>
-                  Remove all
+          {withoutBarcode.length > 0 && (
+            <Alert tone="warning">
+              <div className="flex flex-col items-start gap-2">
+                <span>
+                  {withoutBarcode.length} product{withoutBarcode.length === 1 ? ' has' : 's have'} no barcode and will not be printed:{' '}
+                  <strong className="text-ink">{withoutBarcode.map((i) => i.product.name).join(', ')}</strong>
+                </span>
+                <Button size="sm" onClick={handleGenerate} loading={generating} startIcon={<ScanBarcode />}>
+                  Generate barcodes
                 </Button>
               </div>
-            )}
+            </Alert>
+          )}
+
+          {items.length === 0 ? (
+            <EmptyState icon={Tags} title="No products added yet" text="Search above to add products." className="py-8" />
+          ) : (
+            <LineItemsTable
+              minWidth={680}
+              head={
+                <tr>
+                  <th className={LINE_TH}>Product</th>
+                  <th className={LINE_TH}>Barcode</th>
+                  <th className={cn(LINE_TH, 'text-right')}>Price</th>
+                  <th className={cn(LINE_TH, 'w-40 text-center')}>Labels</th>
+                  <th className={cn(LINE_TH, 'w-12')} aria-label="Remove" />
+                </tr>
+              }
+            >
+              {items.map(({ product: p, qty, batches = [], batchId = '', gstRate = 0 }) => (
+                <LineRow key={p._id}>
+                  <td className={cn(LINE_TD, 'min-w-[170px]')}>
+                    <div className="font-semibold">{p.name}</div>
+                    {p.sku && <div className="font-mono text-xs text-ink-muted">{p.sku}</div>}
+                  </td>
+                  <td className={cn(LINE_TD, 'font-mono')}>{p.barcode || <Badge tone="warning">No barcode</Badge>}</td>
+                  <td className={cn(LINE_TD, 'text-right tabular-nums')}>
+                    {(() => {
+                      const b = batchId ? batches.find((x) => String(x._id) === String(batchId)) : null;
+                      const price = b ? batchCustomerPrice(b, gstRate) : sellingPrice(p);
+                      const mrp = b && toNumberOr(b.mrp, 0) > 0 ? b.mrp : p.mrp;
+                      return (
+                        <>
+                          {formatINR(price)}
+                          {toNumberOr(mrp, 0) > 0 && <div className="text-xs text-ink-muted">MRP {formatINR(mrp)}</div>}
+                        </>
+                      );
+                    })()}
+                    {batches.length > 0 && (
+                      <div className="ml-auto mt-1 w-[200px] max-w-full text-left" title="Print for a batch: the label shows that batch's price and MRP">
+                        <Select
+                          size="sm"
+                          searchable={false}
+                          aria-label="Print for a batch"
+                          value={batchId}
+                          onChange={(v) => setBatch(p._id, v)}
+                          options={[
+                            { value: '', label: 'Default price' },
+                            ...batches.map((b) => ({
+                              value: b._id,
+                              label: [b.batchNo || 'Batch', toNumberOr(b.sellingPrice, 0) > 0 ? `SP ₹${batchCustomerPrice(b, gstRate)}` : '', toNumberOr(b.mrp, 0) > 0 ? `MRP ₹${toNumberOr(b.mrp, 0)}` : '']
+                                .filter(Boolean)
+                                .join(' · '),
+                            })),
+                          ]}
+                        />
+                      </div>
+                    )}
+                  </td>
+                  <td className={LINE_TD}>
+                    <div className="w-32">
+                      <NumberInput
+                        size="sm"
+                        stepper
+                        min={0}
+                        max={999}
+                        aria-label={`Labels for ${p.name}`}
+                        value={qty}
+                        onChange={(v) => setQty(p._id, v)}
+                      />
+                    </div>
+                  </td>
+                  <td className={LINE_TD}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => removeItem(p._id)}
+                      title="Remove"
+                      aria-label="Remove"
+                      className="text-danger hover:bg-danger-soft hover:text-danger"
+                    >
+                      <Trash2 />
+                    </Button>
+                  </td>
+                </LineRow>
+              ))}
+            </LineItemsTable>
+          )}
+          {items.length > 0 && (
+            <div className="flex justify-end">
+              <Button variant="secondary" size="sm" onClick={() => setItems([])}>
+                Remove all
+              </Button>
+            </div>
+          )}
+        </Section>
+
+        {/* Settings */}
+        <Section title="Label settings" bodyClassName="flex min-w-0 flex-col gap-4">
+          <Field label="Label size">
+            <Select
+              searchable={false}
+              options={TEMPLATES.map((t) => ({ value: t.id, label: t.label }))}
+              value={settings.templateId}
+              onChange={(v) => v && setSettings((s) => ({ ...s, templateId: v }))}
+            />
+          </Field>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-ink">Show on label</span>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              {FIELD_OPTIONS.map((f) => (
+                <Checkbox
+                  key={f.key}
+                  id={`label-field-${f.key}`}
+                  label={f.label}
+                  checked={!!fields[f.key]}
+                  onChange={(val) => setSettings((s) => ({ ...s, fields: { ...s.fields, [f.key]: val } }))}
+                />
+              ))}
+            </div>
           </div>
 
-          {/* Settings */}
-          <div className="flex flex-col gap-4 min-w-0">
-            <div>
-              <Label className="!mb-1">Label size</Label>
-              <Select
-                options={TEMPLATES.map((t) => ({ value: t.id, label: t.label }))}
-                value={settings.templateId}
-                onChange={(v) => v && setSettings((s) => ({ ...s, templateId: v }))}
-              />
-            </div>
+          {fields.shop && (
+            <Field label="Shop name" htmlFor="label-shop-name">
+              <Input id="label-shop-name" value={shopName} maxLength={40} onChange={(e) => setShopName(e.target.value)} placeholder="Your shop name" />
+            </Field>
+          )}
 
-            <div>
-              <Label className="!mb-1">Show on label</Label>
-              <div className="grid grid-cols-2 gap-x-3">
-                {FIELD_OPTIONS.map((f) => (
-                  <Checkbox
-                    key={f.key}
-                    id={`label-field-${f.key}`}
-                    label={f.label}
-                    checked={!!fields[f.key]}
-                    onChange={(val) => setSettings((s) => ({ ...s, fields: { ...s.fields, [f.key]: val } }))}
-                  />
-                ))}
-              </div>
-            </div>
+          {template.kind === 'sheet' && (
+            <Field label="Skip labels at the start" htmlFor="label-skip" hint="Use this to print on a partly used sheet.">
+              <Input id="label-skip" type="number" min="0" value={skip} onChange={(e) => setSkip(e.target.value)} />
+            </Field>
+          )}
 
-            {fields.shop && (
-              <div>
-                <Label htmlFor="label-shop-name" className="!mb-1">Shop name</Label>
-                <Input id="label-shop-name" value={shopName} maxLength={40} onChange={(e) => setShopName(e.target.value)} placeholder="Your shop name" />
-              </div>
-            )}
-
-            {template.kind === 'sheet' && (
-              <div>
-                <Label htmlFor="label-skip" className="!mb-1">Skip labels at the start</Label>
-                <Input id="label-skip" type="number" min="0" value={skip} onChange={(e) => setSkip(e.target.value)} />
-                <span className="text-[11px] text-[var(--vs-text-secondary)] mt-1 block">Use this to print on a partly used sheet.</span>
-              </div>
-            )}
-
-            <div className="p-3 rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-secondary)] text-xs text-[var(--vs-text-secondary)] flex flex-col gap-1">
-              <span>
-                Labels: <strong className="text-[var(--vs-text-primary)]">{totalLabels}</strong>
-                {' · '}
-                {template.kind === 'sheet' ? 'Sheets' : 'Pages'}: <strong className="text-[var(--vs-text-primary)]">{pageCount}</strong>
-              </span>
-              <span>In the print dialog, set scale to 100% (“Actual size”) and margins to “None”.</span>
-              {tooMany && <span className="text-rose-600 dark:text-rose-400 font-semibold">Too many labels. Print up to {MAX_LABELS} at a time.</span>}
-            </div>
-
-            <Button onClick={handlePrint} disabled={!labels.length || tooMany} startIcon={<Printer className="w-4 h-4" />} className="!h-11">
-              Print {totalLabels} label{totalLabels === 1 ? '' : 's'}
-            </Button>
+          <div className="flex flex-col gap-1 rounded-control bg-fill-2 p-3 text-sm text-ink-muted">
+            <span>
+              Labels: <strong className="tabular-nums text-ink">{totalLabels}</strong>
+              {' · '}
+              {template.kind === 'sheet' ? 'Sheets' : 'Pages'}: <strong className="tabular-nums text-ink">{pageCount}</strong>
+            </span>
+            <span className="text-xs">In the print dialog, set scale to 100% (“Actual size”) and margins to “None”.</span>
           </div>
-        </div>
-      </Card>
+          {tooMany && <Alert tone="danger">Too many labels. Print up to {MAX_LABELS} at a time.</Alert>}
+
+          <Button size="lg" fullWidth onClick={handlePrint} disabled={!labels.length || tooMany} startIcon={<Printer />}>
+            Print {totalLabels} label{totalLabels === 1 ? '' : 's'}
+          </Button>
+        </Section>
+      </div>
 
       {/* Preview */}
-      <Card h1="Preview" description={template.kind === 'sheet' ? 'First sheet at actual size.' : 'First labels at actual size.'} bodyClassName="p-4 sm:p-6">
+      <Section title="Preview" description={template.kind === 'sheet' ? 'First sheet at actual size.' : 'First labels at actual size.'}>
         {labels.length === 0 ? (
-          <div className="text-xs text-[var(--vs-text-secondary)] p-3 rounded-xl border border-dashed border-[var(--vs-border)]">
+          <p className="m-0 rounded-control border border-dashed border-line p-3 text-sm text-ink-muted">
             Add products with a barcode to see a preview.
-          </div>
+          </p>
         ) : (
-          <div className="overflow-auto max-h-[70vh] rounded-xl bg-gray-200 dark:bg-gray-700 p-4">
-            <div className={template.kind === 'sheet' ? 'w-max shadow-lg mx-auto' : 'flex flex-wrap gap-3'}>
+          <div className="max-h-[70vh] overflow-auto rounded-control bg-fill p-4">
+            <div className={template.kind === 'sheet' ? 'mx-auto w-max shadow-lg' : 'flex flex-wrap gap-3'}>
               <LabelPages labels={labels} template={template} fields={fields} shopName={shopName} maxPages={template.kind === 'sheet' ? 1 : 12} />
             </div>
           </div>
         )}
-      </Card>
+      </Section>
+
 
       {/* Print-only copy, placed directly under <body> so the app layout can be hidden while printing */}
       {labels.length > 0 &&

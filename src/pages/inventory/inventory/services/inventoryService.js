@@ -2,7 +2,7 @@ import apiClient from '@/utility/Http';
 
 /**
  * Fetch inventory list (server-side search / filter / sort / pagination + stats)
- * @param {Object} params - { page, limit, search, storeId, categoryId, brandId, status, stockStatus, sort, order }
+ * @param {Object} params - { page, limit, search, categoryId, brandId, status, stockStatus, sort, order }
  */
 export const getInventoryApi = async (params) => {
   const response = await apiClient.get('/inventory', { params });
@@ -11,7 +11,7 @@ export const getInventoryApi = async (params) => {
 
 /**
  * Adjust product stock
- * @param {Object} payload - { productId, storeId, action: 'increase' | 'decrease' | 'set', amount, reason, unitCost?, batchNo?, expiryDate? }
+ * @param {Object} payload - { productId, action: 'increase' | 'decrease' | 'set', amount, reason, unitCost?, batchNo?, expiryDate? }
  */
 export const adjustStockApi = async (payload) => {
   const response = await apiClient.post('/inventory/adjust', payload);
@@ -20,7 +20,7 @@ export const adjustStockApi = async (payload) => {
 
 /**
  * Fetch Stock Audit Report / Movements
- * @param {Object} params - { storeId, productId, source, action, bucket, startDate, endDate, search, page, limit }
+ * @param {Object} params - { productId, source, action, bucket, startDate, endDate, search, page, limit }
  */
 export const getAuditReportApi = async (params) => {
   const response = await apiClient.get('/inventory/audit-logs', { params });
@@ -29,7 +29,7 @@ export const getAuditReportApi = async (params) => {
 
 /**
  * Export Stock Audit Report CSV from backend
- * @param {Object} params - { storeId, productId, source, action, bucket, startDate, endDate, search }
+ * @param {Object} params - { productId, source, action, bucket, startDate, endDate, search }
  */
 export const exportAuditReportCsvApi = async (params) => {
   const response = await apiClient.get('/inventory/audit-logs/export', {
@@ -43,17 +43,8 @@ export const exportAuditReportCsvApi = async (params) => {
 /* ─── Inventory v2 ──────────────────────────────────────────────────────── */
 
 /**
- * Store-wise stock matrix (rows = products, columns = stores)
- * @param {Object} params - { page, limit, search, categoryId, brandId }
- */
-export const getStoreWiseStockApi = async (params) => {
-  const response = await apiClient.get('/inventory/store-wise', { params });
-  return response.data;
-};
-
-/**
- * Damaged stock list (one row per product × store)
- * @param {Object} params - { page, limit, search, storeId }
+ * Damaged stock list (one row per product)
+ * @param {Object} params - { page, limit, search }
  */
 export const getDamagedStockApi = async (params) => {
   const response = await apiClient.get('/inventory/damaged', { params });
@@ -62,7 +53,7 @@ export const getDamagedStockApi = async (params) => {
 
 /**
  * Move stock between sellable / damaged buckets or write damaged stock off
- * @param {Object} payload - { productId, storeId, qty, action: 'mark' | 'restore' | 'write_off', reason }
+ * @param {Object} payload - { productId, qty, action: 'mark' | 'restore' | 'write_off', reason }
  */
 export const damageStockApi = async (payload) => {
   const response = await apiClient.post('/inventory/damage', payload);
@@ -70,17 +61,8 @@ export const damageStockApi = async (payload) => {
 };
 
 /**
- * Reorder report — products at / below their low-stock level per store
- * @param {Object} params - { page, limit, storeId, search, categoryId, brandId, supplierId, days }
- */
-export const getReorderReportApi = async (params) => {
-  const response = await apiClient.get('/inventory/reorder', { params });
-  return response.data;
-};
-
-/**
  * Stock valuation
- * @param {Object} params - { method: 'fifo' | 'average', groupBy: 'product' | 'category' | 'store', storeId, search, includeDamaged, page, limit }
+ * @param {Object} params - { method: 'fifo' | 'average', groupBy: 'product' | 'category', search, includeDamaged, page, limit }
  */
 export const getStockValuationApi = async (params) => {
   const response = await apiClient.get('/inventory/valuation', { params });
@@ -97,7 +79,7 @@ export const getStockSourcesApi = async () => {
 
 /**
  * Async product search for pickers (name, SKU, barcode, HSN). Max 50 rows.
- * @param {Object} params - { q, storeId, limit, includeInactive }
+ * @param {Object} params - { q, limit, includeInactive }
  */
 export const searchProductsLookupApi = async (params) => {
   const response = await apiClient.get('/lookups/products', { params });
@@ -124,11 +106,10 @@ export const getBrandOptionsApi = async (params = { limit: 100 }) => {
 
 /**
  * Batches (cost layers) of a product, in the order they are sold.
- * GET /inventory/batches?productId&storeId&onlyOpen → data: { product, batches: [{ _id, storeId, storeName, batchNo, receivedAt, expiryDate, mrp, unitCost, qtyRemaining, clearancePrice }] }
+ * GET /inventory/batches?productId&onlyOpen → data: { product, batches: [{ _id, batchNo, receivedAt, expiryDate, mrp, unitCost, qtyRemaining, clearancePrice }] }
  */
-export const getBatchesApi = async ({ productId, storeId, onlyOpen = true } = {}) => {
+export const getBatchesApi = async ({ productId, onlyOpen = true } = {}) => {
   const params = { productId, onlyOpen };
-  if (storeId) params.storeId = storeId;
   const response = await apiClient.get('/inventory/batches', { params });
   return response.data;
 };

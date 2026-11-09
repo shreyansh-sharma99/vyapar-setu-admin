@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Loader2, Save } from 'lucide-react';
-import { Input } from '@/components/inputs/Input';
-import Select from '@/components/inputs/Select';
-import Button from '@/components/inputs/Button';
+import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { Button, Checkbox, Field, FormActions, FormGrid, Input, PageHeader, Section, Select, Textarea } from '@/components/ui';
 import PurchaseToaster from '../components/PurchaseToaster';
-import { Field, PageLoading, PageShell, Section, TextArea } from '../components/ui';
+import { PageLoading } from '../components/ui';
 import { notify, notifyError } from '../components/toast';
 import { GSTIN_REGEX, IFSC_REGEX, PAN_REGEX, STATE_CODES, decId, errMsg, num, stateName, viewPath } from '../components/helpers';
 import { createSupplier, fetchSupplier, updateSupplier } from './services/supplierSlice';
@@ -61,6 +59,7 @@ function SupplierFormBody({ initial }) {
   const gstin = useWatch({ control, name: 'gstin' });
   const stateCode = useWatch({ control, name: 'stateCode' });
   const notes = useWatch({ control, name: 'notes' });
+  const isActive = useWatch({ control, name: 'isActive' });
   const gstinValid = !!gstin && GSTIN_REGEX.test(gstin);
 
   const onGstinChange = (e) => {
@@ -118,12 +117,22 @@ function SupplierFormBody({ initial }) {
   const err = (path) => path.split('.').reduce((o, k) => o?.[k], errors)?.message;
 
   return (
-    <PageShell title={isEdit ? `Edit supplier - ${initial.name}` : 'Add supplier'}>
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
-        <Section title="Basic details">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title={isEdit ? `Edit supplier - ${initial.name}` : 'Add supplier'}
+        actions={
+          <Button variant="secondary" size="sm" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>
+            Back
+          </Button>
+        }
+      />
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        <Input type="hidden" wrapperClassName="hidden" {...register('stateCode')} />
+
+        <Section title="Basic details" description="Who the supplier is and how to reach them.">
+          <FormGrid cols={3}>
             <Field label="Supplier / contact name" required error={err('name')}>
-              <Input placeholder="e.g. Sharma Traders" error={!!err('name')} {...register('name', { required: 'Name is required', maxLength: { value: 120, message: 'Keep it under 120 characters' } })} />
+              <Input placeholder="e.g. Sharma Traders" {...register('name', { required: 'Name is required', maxLength: { value: 120, message: 'Keep it under 120 characters' } })} />
             </Field>
             <Field label="Company name" error={err('companyName')}>
               <Input placeholder="Registered business name" {...register('companyName', { maxLength: { value: 150, message: 'Too long' } })} />
@@ -132,7 +141,6 @@ function SupplierFormBody({ initial }) {
               <Input
                 placeholder="10-digit mobile"
                 inputMode="tel"
-                error={!!err('phone')}
                 {...register('phone', { pattern: { value: /^[0-9+\-\s]{6,20}$/, message: 'Enter a valid phone number' } })}
               />
             </Field>
@@ -140,7 +148,6 @@ function SupplierFormBody({ initial }) {
               <Input
                 type="email"
                 placeholder="accounts@supplier.com"
-                error={!!err('email')}
                 {...register('email', { pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Enter a valid email' } })}
               />
             </Field>
@@ -150,7 +157,6 @@ function SupplierFormBody({ initial }) {
                 min="0"
                 max="365"
                 placeholder="0"
-                error={!!err('paymentTermsDays')}
                 {...register('paymentTermsDays', {
                   validate: (v) => v === '' || (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 365) || 'Enter 0 to 365 days',
                 })}
@@ -163,11 +169,11 @@ function SupplierFormBody({ initial }) {
             >
               <Input type="number" step="0.01" placeholder="0.00" {...register('openingBalance')} />
             </Field>
-          </div>
+          </FormGrid>
         </Section>
 
-        <Section title="GST & tax">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Section title="GST & tax" description="Decides how GST is worked out on this supplier's bills.">
+          <FormGrid cols={3}>
             <Field
               label="GSTIN"
               error={err('gstin')}
@@ -176,7 +182,6 @@ function SupplierFormBody({ initial }) {
               <Input
                 placeholder="e.g. 27AAPFU0939F1ZV"
                 className="font-mono uppercase"
-                error={!!err('gstin')}
                 {...register('gstin', {
                   validate: (v) => !v || GSTIN_REGEX.test(v) || 'Enter a valid 15-character GSTIN',
                   onChange: onGstinChange,
@@ -184,7 +189,6 @@ function SupplierFormBody({ initial }) {
               />
             </Field>
             <Field label="State (place of supply)" hint={stateCode ? 'Decides CGST + SGST or IGST on bills' : 'Filled from the GSTIN automatically'}>
-              <input type="hidden" {...register('stateCode')} />
               <Select
                 options={STATE_OPTIONS}
                 value={stateCode || ''}
@@ -202,19 +206,18 @@ function SupplierFormBody({ initial }) {
               <Input
                 placeholder="ABCDE1234F"
                 className="font-mono uppercase"
-                error={!!err('pan')}
                 {...register('pan', {
                   setValueAs: (v) => String(v || '').toUpperCase().trim(),
                   validate: (v) => !v || PAN_REGEX.test(v) || 'Enter a valid 10-character PAN',
                 })}
               />
             </Field>
-          </div>
+          </FormGrid>
         </Section>
 
         <Section title="Address">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Field label="Street / area" className="md:col-span-2 lg:col-span-4">
+          <FormGrid cols={4}>
+            <Field label="Street / area" className="col-span-full">
               <Input placeholder="Shop no, building, street" {...register('address.street')} />
             </Field>
             <Field label="Pincode">
@@ -222,7 +225,7 @@ function SupplierFormBody({ initial }) {
                 inputMode="numeric"
                 maxLength={6}
                 placeholder="6 digits"
-                endIcon={pincodeLoading ? <Loader2 className="w-4 h-4 animate-spin text-indigo-500" /> : null}
+                endIcon={pincodeLoading ? <Loader2 className="animate-spin text-brand" /> : null}
                 {...register('address.pincode', { onChange: onPincodeChange })}
               />
             </Field>
@@ -235,18 +238,17 @@ function SupplierFormBody({ initial }) {
             <Field label="Country">
               <Input {...register('address.country')} />
             </Field>
-          </div>
+          </FormGrid>
         </Section>
 
         <Section title="Bank details (for payments)">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <FormGrid cols={3}>
             <Field label="Account holder name">
               <Input {...register('bankDetails.accountName')} />
             </Field>
             <Field label="Account number" error={err('bankDetails.accountNumber')}>
               <Input
                 inputMode="numeric"
-                error={!!err('bankDetails.accountNumber')}
                 {...register('bankDetails.accountNumber', { pattern: { value: /^[0-9]{6,20}$/, message: 'Digits only (6 to 20)' } })}
               />
             </Field>
@@ -254,7 +256,6 @@ function SupplierFormBody({ initial }) {
               <Input
                 className="font-mono uppercase"
                 placeholder="SBIN0001234"
-                error={!!err('bankDetails.ifsc')}
                 {...register('bankDetails.ifsc', {
                   setValueAs: (v) => String(v || '').toUpperCase().trim(),
                   validate: (v) => !v || IFSC_REGEX.test(v) || 'Enter a valid 11-character IFSC',
@@ -267,34 +268,36 @@ function SupplierFormBody({ initial }) {
             <Field label="UPI ID" error={err('bankDetails.upiId')}>
               <Input
                 placeholder="name@bank"
-                error={!!err('bankDetails.upiId')}
                 {...register('bankDetails.upiId', { pattern: { value: /^[\w.-]{2,}@[\w.-]{2,}$/, message: 'Enter a valid UPI ID' } })}
               />
             </Field>
-          </div>
+          </FormGrid>
         </Section>
 
         <Section title="Notes">
-          <TextArea value={notes} onChange={(v) => setValue('notes', v)} rows={3} placeholder="Delivery days, contact person, anything useful" />
-          {isEdit && (
-            <label className="mt-4 flex items-center gap-2 text-sm font-medium cursor-pointer">
-              <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-indigo-600" {...register('isActive')} />
-              Active (inactive suppliers can't be picked on new orders or bills)
-            </label>
-          )}
+          <div className="flex flex-col gap-4">
+            <Textarea value={notes} onChange={(e) => setValue('notes', e.target.value)} rows={3} placeholder="Delivery days, contact person, anything useful" />
+            {isEdit && (
+              <Checkbox
+                checked={isActive}
+                onChange={(checked) => setValue('isActive', checked)}
+                label="Active (inactive suppliers can't be picked on new orders or bills)"
+              />
+            )}
+          </div>
         </Section>
 
-        <div className="flex items-center justify-end gap-3">
-          <Button variant="outline" onClick={() => navigate(-1)} disabled={saving}>
+        <FormActions>
+          <Button variant="secondary" onClick={() => navigate(-1)} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" disabled={saving} startIcon={saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}>
+          <Button type="submit" loading={saving} startIcon={<Save />}>
             {isEdit ? 'Save changes' : 'Add supplier'}
           </Button>
-        </div>
+        </FormActions>
       </form>
       <PurchaseToaster />
-    </PageShell>
+    </div>
   );
 }
 

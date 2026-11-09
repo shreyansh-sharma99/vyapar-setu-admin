@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Package, ShoppingBag, Truck } from 'lucide-react';
+import Logo from '@/components/Logo';
 import { loginUser } from '@/pages/login/services/authSlice';
-import { Label } from '@/components/inputs/Label';
-import { Input } from '@/components/inputs/Input';
-import Button from '@/components/inputs/Button';
+import { Alert, Button, Field, Input, Label, Modal } from '@/components/ui';
 import { forgotPasswordApi } from '@/pages/login/services/authService';
 import { getHomePath } from '@/utility/shopPermissions';
 
@@ -67,226 +66,182 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-100 dark:bg-[#060b18] flex items-center justify-center p-4 transition-colors duration-300">
+        <div className="relative min-h-screen w-full overflow-x-hidden bg-page bg-gradient-to-b from-info-soft via-brand-soft to-brand-soft transition-colors duration-300">
 
-            {/* ── Ambient background glows ── */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-                <div
-                    className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full"
-                    style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.10) 0%, transparent 70%)' }}
-                />
-                <div
-                    className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full"
-                    style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)' }}
-                />
-            </div>
+            {/* ── Desktop: animated delivery street fills the screen ── */}
+            <img
+                src="/image/login-hero.svg"
+                alt=""
+                aria-hidden="true"
+                className="hidden lg:block absolute inset-0 w-full h-full object-cover object-left-bottom select-none pointer-events-none"
+            />
+            {/* The page colour washes over the scene: white on the right in light mode, navy (dimmed scene) in dark mode. */}
+            <div className="hidden lg:block absolute inset-0 pointer-events-none bg-page/10" />
+            <div className="hidden lg:block absolute inset-0 pointer-events-none bg-gradient-to-l from-page/60 via-page/0 to-transparent" />
+            <main className="relative z-10 flex min-h-screen flex-col lg:flex-row lg:items-center lg:justify-end lg:px-12 xl:px-24">
 
-            {/* ── Card ── */}
-            <div
-                className="relative z-10 w-full max-w-[960px] min-h-[580px] flex overflow-hidden rounded-[2rem] border border-indigo-200 dark:border-indigo-500/[0.15] bg-white dark:bg-transparent shadow-xl dark:shadow-none"
-                style={{
-                    boxShadow: undefined,
-                }}
-            >
-                {/* Dark-mode card gradient overlay */}
-                <div
-                    className="absolute inset-0 rounded-[2rem] pointer-events-none hidden dark:block"
-                    style={{
-                        background: 'linear-gradient(135deg, #0d1526 0%, #0f172a 60%, #0a1020 100%)',
-                        boxShadow: '0 25px 80px rgba(0,0,0,0.6)',
-                    }}
-                />
-
-                {/* ── LEFT: Branding ── */}
-                <div
-                    className="hidden md:flex w-[48%] flex-col items-center justify-center p-12 relative overflow-hidden border-r border-indigo-100 dark:border-indigo-500/10 bg-indigo-50 dark:bg-transparent"
-                >
-                    {/* Light-mode soft gradient */}
-                    <div
-                        className="absolute inset-0 pointer-events-none dark:hidden"
-                        style={{ background: 'linear-gradient(160deg, #eef2ff 0%, #e0e7ff 50%, #f5f3ff 100%)' }}
-                    />
-                    {/* Dark-mode gradient */}
-                    <div
-                        className="absolute inset-0 pointer-events-none hidden dark:block"
-                        style={{ background: 'linear-gradient(160deg, #0d1a3a 0%, #0a1228 50%, #060e1e 100%)' }}
-                    />
-
-                    {/* Glow blobs */}
-                    <div
-                        className="absolute top-[-15%] left-[-15%] w-[70%] h-[70%] rounded-full pointer-events-none"
-                        style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.20) 0%, transparent 70%)' }}
-                    />
-                    <div
-                        className="absolute bottom-[-15%] right-[-15%] w-[60%] h-[60%] rounded-full pointer-events-none"
-                        style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)' }}
-                    />
-
+                {/* ── Mobile & tablet: scene as a banner above the form ── */}
+                <div className="lg:hidden px-4 pt-6 sm:pt-10">
                     <img
-                        src="/image/logos/newLogo.png"
-                        alt="VyaparSetu Logo"
-                        className="w-full max-w-[220px] object-contain relative z-10 mb-8"
-                        style={{ filter: 'drop-shadow(0 0 30px rgba(99,102,241,0.35))' }}
+                        src="/image/login-scene-2.svg"
+                        alt=""
+                        aria-hidden="true"
+                        className="mx-auto w-full max-w-[560px] max-h-[38vh] object-contain object-bottom select-none pointer-events-none"
                     />
-
-                    <div className="text-center relative z-10">
-                        <h2 className="text-2xl font-bold text-indigo-900 dark:!text-white mb-3 tracking-tight">
-                            Welcome to {import.meta.env.VITE_PLATFORM_NAME}
-                        </h2>
-                        <p className="text-sm text-indigo-600/70 dark:text-white/50">
-                            Log in to manage your inventory, analyze sales, and oversee operations seamlessly.
-                        </p>
-                    </div>
                 </div>
 
-                {/* ── RIGHT: Form ── */}
-                <div className="flex-1 flex flex-col justify-center p-8 sm:p-12 relative z-10">
-                    <div className="max-w-[360px] mx-auto w-full">
+                {/* ── Sign-in card ── */}
+                <section
+                    className="relative -mt-4 lg:mt-0 flex-1 lg:flex-none w-full sm:mx-auto sm:mb-10 sm:max-w-xl lg:mx-0 lg:mb-0 lg:w-[440px]
+                        rounded-t-[2rem] sm:rounded-[2rem]
+                        bg-surface/95 lg:bg-surface/80 lg:backdrop-blur-xl
+                        border border-line
+                        shadow-[0_-12px_40px_rgba(79,70,229,0.12)] lg:shadow-[0_30px_80px_rgba(30,27,75,0.25)]
+                        px-6 py-8 sm:px-10 sm:py-10"
+                >
+                    <div className="mx-auto w-full max-w-[380px]">
+
+                        <Logo className="h-11 w-auto mb-8" />
 
                         {/* Heading */}
                         <div className="mb-6">
-                            <h1 className="text-4xl font-extrabold text-slate-900 dark:!text-white tracking-tighter mb-2">
-                                Sign In
+                            <h1 className="text-3xl sm:text-4xl font-extrabold !text-ink tracking-tight mb-2">
+                                Welcome back
                             </h1>
-                            <p className="text-sm text-slate-500 dark:text-white/40">
-                                Enter your credentials to access your account.
+                            <p className="text-sm text-ink-muted">
+                                Sign in to manage your shop, stock and deliveries.
                             </p>
                         </div>
 
                         {/* Error banner */}
                         {error && (
-                            <div className="px-4 py-3 mb-6 bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded-xl text-red-600 dark:text-red-300 text-sm text-center">
+                            <Alert tone="danger" className="mb-6">
                                 {error}
-                            </div>
+                            </Alert>
                         )}
 
                         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
 
-                            <div>
-                                <Label >Email</Label>
+                            <Field label="Email" error={errors.email?.message}>
                                 <Input
                                     {...register("email", {
                                         required: "Email is required",
                                         pattern: { value: /^\S+@\S+$/i, message: "Invalid format" },
                                     })}
                                     type="email"
+                                    autoComplete="email"
                                     placeholder="name@company.com"
-                                    startIcon={<Mail className="w-4 h-4" />}
+                                    startIcon={<Mail />}
                                     error={errors.email}
                                 />
-                                {errors.email && (
-                                    <p className="text-red-600 dark:text-red-300 text-xs mt-1.5">
-                                        {errors.email.message}
-                                    </p>
-                                )}
-                            </div>
+                            </Field>
 
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <Label>
+                                    <Label htmlFor="login-password" className="mb-0">
                                         Password
                                     </Label>
-                                    <button
-                                        type="button"
-                                        onClick={handleOpenForgotModal}
-                                        className="text-xs font-semibold text-indigo-600 dark:!text-white hover:text-indigo-500 transition-colors duration-200 bg-transparent border-none cursor-pointer"
-                                    >
+                                    <Button variant="link" size="xs" onClick={handleOpenForgotModal} className="hover:text-highlight">
                                         Forgot Password?
-                                    </button>
+                                    </Button>
                                 </div>
                                 <Input
                                     {...register("password", {
                                         required: "Password is required",
                                         minLength: { value: 6, message: "At least 6 characters required" },
                                     })}
+                                    id="login-password"
                                     type={showPassword ? "text" : "password"}
+                                    autoComplete="current-password"
                                     placeholder="••••••••"
-                                    startIcon={<Lock className="w-4 h-4" />}
+                                    startIcon={<Lock />}
+                                    className="pr-12"
                                     endIcon={
-                                        <button
-                                            type="button"
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
                                             onClick={() => setShowPassword(!showPassword)}
-                                            className="p-1 rounded-md text-slate-400 dark:text-white/30 hover:text-slate-600 dark:hover:text-white/80 transition-colors duration-200 bg-transparent border-none cursor-pointer flex items-center"
+                                            aria-label={showPassword ? "Hide password" : "Show password"}
                                         >
-                                            {showPassword
-                                                ? <EyeOff className="w-4 h-4" />
-                                                : <Eye className="w-4 h-4" />}
-                                        </button>
+                                            {showPassword ? <EyeOff /> : <Eye />}
+                                        </Button>
                                     }
                                     error={errors.password}
                                 />
                                 {errors.password && (
-                                    <p className="text-red-600 dark:text-red-300 text-xs mt-1.5">
+                                    <p role="alert" className="m-0 mt-1.5 text-xs font-medium text-danger">
                                         {errors.password.message}
                                     </p>
                                 )}
                             </div>
 
                             <div className="pt-2">
-                                <Button
-                                    type="submit"
-                                    variant="login"
-                                    disabled={loading}
-                                    startIcon={loading ? <Loader2 className="w-5 h-5 animate-spin" /> : undefined}
-                                >
+                                <Button type="submit" size="lg" fullWidth loading={loading}>
                                     {loading ? "Authenticating..." : "Sign In to Dashboard"}
                                 </Button>
                             </div>
 
                         </form>
-                    </div>
-                </div>
 
-            </div>
+                        {/* What the shop runs on */}
+                        <div className="mt-8 grid grid-cols-3 gap-2">
+                            {[
+                                { icon: Package, label: 'Inventory', tone: 'bg-brand-soft text-brand-ink' },
+                                { icon: ShoppingBag, label: 'Orders', tone: 'bg-highlight-soft text-highlight' },
+                                { icon: Truck, label: 'Deliveries', tone: 'bg-success-soft text-success' },
+                            ].map(({ icon: Icon, label, tone }) => (
+                                <div key={label} className={`flex flex-col items-center gap-1.5 rounded-2xl py-3 text-xs font-semibold ${tone}`}>
+                                    <Icon className="w-4 h-4" />
+                                    {label}
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-8 text-center text-xs text-ink-subtle">
+                            © {new Date().getFullYear()} ecnbiz. All rights reserved.
+                        </div>
+                    </div>
+                </section>
+            </main>
 
             {/* Forgot Password Modal */}
-            {isForgotModalOpen && (
-                <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm ${isAnimating ? 'modal-backdrop-enter' : 'modal-backdrop-exit'}`}>
-                    <div className={`bg-[var(--vs-bg-primary)] rounded-2xl p-6 w-full max-w-md shadow-2xl border border-[var(--vs-border)] relative ${isAnimating ? 'modal-content-enter' : 'modal-content-exit'}`}>
-                        <button
-                            onClick={handleCloseForgotModal}
-                            className="absolute top-4 right-4 text-[var(--vs-text-secondary)] hover:text-[var(--vs-text-primary)] bg-transparent border-none cursor-pointer"
-                        >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
+            <Modal
+                open={isForgotModalOpen}
+                onClose={handleCloseForgotModal}
+                closeOnBackdrop={false}
+                className={isAnimating ? undefined : 'modal-content-exit'}
+                title="Reset Password"
+                subtitle="Enter your email address and we'll send you a link to reset your password."
+            >
+                {forgotMessage && (
+                    <Alert tone={forgotMessage.type === 'success' ? 'success' : 'danger'} className="mb-4">
+                        {forgotMessage.text}
+                    </Alert>
+                )}
 
-                        <h3 className="text-xl font-bold text-[var(--vs-text-primary)] mb-2 dark:!text-white">Reset Password</h3>
-                        <p className="text-sm text-[var(--vs-text-secondary)] mb-6">
-                            Enter your email address and we'll send you a link to reset your password.
-                        </p>
-
-                        {forgotMessage && (
-                            <div className={`px-4 py-3 mb-4 rounded-xl text-sm text-center ${forgotMessage.type === 'success' ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400' : 'bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'}`}>
-                                {forgotMessage.text}
-                            </div>
-                        )}
-
-                        <form onSubmit={handleForgotSubmit}>
-                            <div className="mb-4">
-                                <Label>Email Address</Label>
-                                <Input
-                                    value={forgotEmail}
-                                    onChange={(e) => setForgotEmail(e.target.value)}
-                                    type="email"
-                                    placeholder="name@company.com"
-                                    startIcon={<Mail className="w-4 h-4" />}
-                                    required
-                                    className="bg-[var(--vs-input-bg)] border-[var(--vs-input-border)] text-[var(--vs-text-primary)]"
-                                />
-                            </div>
-                            <Button
-                                type="submit"
-                                variant="login"
-                                disabled={forgotLoading || !forgotEmail.trim()}
-                                startIcon={forgotLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : undefined}
-                                className="w-full flex justify-center items-center"
-                            >
-                                {forgotLoading ? "Sending Link..." : "Send Reset Link"}
-                            </Button>
-                        </form>
-                    </div>
-                </div>
-            )}
+                <form onSubmit={handleForgotSubmit} className="flex flex-col gap-4">
+                    <Field label="Email Address">
+                        <Input
+                            value={forgotEmail}
+                            onChange={(e) => setForgotEmail(e.target.value)}
+                            type="email"
+                            autoComplete="email"
+                            placeholder="name@company.com"
+                            startIcon={<Mail />}
+                            required
+                        />
+                    </Field>
+                    <Button
+                        type="submit"
+                        size="lg"
+                        fullWidth
+                        disabled={!forgotEmail.trim()}
+                        loading={forgotLoading}
+                    >
+                        {forgotLoading ? "Sending Link..." : "Send Reset Link"}
+                    </Button>
+                </form>
+            </Modal>
         </div>
     );
 }

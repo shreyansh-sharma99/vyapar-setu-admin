@@ -1,180 +1,377 @@
-import { CRow, CCol, CCard, CCardBody, CCardHeader } from '@coreui/react';
-import CIcon from '@coreui/icons-react';
-import { cilPeople, cilBasket, cilWallet, cilArrowTop, cilArrowBottom } from '@coreui/icons';
+import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { Link, useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
+import {
+  AlertTriangle, ArrowRight, Boxes, FileText, HandCoins, IndianRupee, PackagePlus, Plus, RotateCcw,
+  ShoppingCart, SlidersHorizontal, Truck, UserPlus, Wallet, BarChart3, LayoutDashboard,
+} from 'lucide-react';
+import {
+  Alert, Avatar, Badge, Button, DataTable, EmptyState, PageHeader, Section, Skeleton, SkeletonRows, StatCard,
+} from '@/components/ui';
+import { encryptData } from '@/utility/crypto';
+import { can } from '@/utility/shopPermissions';
+import { getSalesInvoiceSummaryApi, getSalesInvoicesApi } from '@/pages/sales/salesInvoices/services/salesInvoiceService';
+import { getPurchaseBillsApi } from '@/pages/purchase/purchaseBills/services/purchaseBillService';
+import { getInventoryApi } from '@/pages/inventory/inventory/services/inventoryService';
 
-const stats = [
-  { title: 'Total Views', value: '3.456k', change: '0.43%', up: true, icon: cilPeople, color: 'indigo' },
-  { title: 'Total Profit', value: '$45,231.89', change: '4.35%', up: true, icon: cilWallet, color: 'emerald' },
-  { title: 'Total Product', value: '2,450', change: '2.59%', up: true, icon: cilBasket, color: 'blue' },
-  { title: 'Total Users', value: '1,205', change: '0.95%', up: false, icon: cilPeople, color: 'rose' },
-];
+/* ── Data (existing GET endpoints only) ───────────────────────────────── */
 
-const orders = [
-  { id: '#ORD-98745', customer: 'Priya Patel', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=80&q=80', product: 'Handicraft Jute Bag', date: 'Jun 22, 2026', amount: '$49.00', status: 'success', label: 'Completed' },
-  { id: '#ORD-98744', customer: 'Amit Sharma', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80', product: 'Terracotta Diya Set', date: 'Jun 21, 2026', amount: '$120.50', status: 'warning', label: 'Pending' },
-  { id: '#ORD-98743', customer: 'Sarah Connor', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=80&q=80', product: 'Blue Pottery Vase', date: 'Jun 21, 2026', amount: '$235.00', status: 'success', label: 'Completed' },
-  { id: '#ORD-98742', customer: 'Raj Malhotra', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=80&q=80', product: 'Wooden Carved Elephant', date: 'Jun 20, 2026', amount: '$89.99', status: 'danger', label: 'Cancelled' },
-];
+// Sales that count as money in: drafts and voided / cancelled bills are left out.
+const NOT_A_SALE = ['draft', 'void', 'voided', 'cancelled'];
+const OPEN_STATUSES = ['unpaid', 'partially_paid'];
 
-// Stat card icon colors — bg is a CSS var string that .dark swaps automatically
-const ICON_COLORS = {
-  indigo: { icon: '#6366f1', bg: 'var(--vs-stat-bg-indigo)' },
-  emerald: { icon: '#10b981', bg: 'var(--vs-stat-bg-emerald)' },
-  blue: { icon: '#3b82f6', bg: 'var(--vs-stat-bg-blue)' },
-  rose: { icon: '#f43f5e', bg: 'var(--vs-stat-bg-rose)' },
+/** GET /sales-invoices/summary → [{ _id: status, count, totalAmount, paidAmount }] */
+const loadSummary = async () => {
+  const body = await getSalesInvoiceSummaryApi();
+  const open = (body?.data || []).filter((s) => OPEN_STATUSES.includes(s._id));
+  return {
+    amount: open.reduce((n, s) => n + Math.max(0, Number(s.totalAmount || 0) - Number(s.paidAmount || 0)), 0),
+    count: open.reduce((n, s) => n + Number(s.count || 0), 0),
+  };
 };
 
-// Badge classes — Tailwind dark: variant works fine here (no CSS var conflict)
-const BADGE_CLASSES = {
-  success: 'text-emerald-700 bg-emerald-50 ring-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:ring-emerald-500/20',
-  warning: 'text-amber-700  bg-amber-50  ring-amber-200  dark:text-amber-400  dark:bg-amber-500/10  dark:ring-amber-500/20',
-  danger: 'text-rose-700   bg-rose-50   ring-rose-200   dark:text-rose-400   dark:bg-rose-500/10   dark:ring-rose-500/20',
+/** GET /sales-invoices?dateFrom=today&dateTo=today (no page → every bill of the day) */
+const loadToday = async () => {
+  const today = dayjs().format('YYYY-MM-DD');
+  const body = await getSalesInvoicesApi({ dateFrom: today, dateTo: today });
+  const sales = (body?.data || []).filter((i) => !NOT_A_SALE.includes(i.status));
+  return {
+    amount: sales.reduce((n, i) => n + Number(i.totalAmount || 0), 0),
+    count: sales.length,
+  };
 };
+
+/** GET /sales-invoices?page=1&limit=8 → newest first */
+const loadRecent = async () => {
+  const body = await getSalesInvoicesApi({ page: 1, limit: 8 });
+  return body?.data || [];
+};
+
+/** GET /inventory?stockStatus=low → stats { lowStock, outOfStock } + the 5 lowest items */
+const loadStock = async () => {
+  const body = await getInventoryApi({ stockStatus: 'low', sort: 'qty', order: 'asc', page: 1, limit: 5 });
+  return { stats: body?.stats || {}, items: body?.data || [] };
+};
+
+/** GET /purchase-bills?page=1&limit=1 → stats { due, overdue } over all bills */
+const loadBills = async () => {
+  const body = await getPurchaseBillsApi({ page: 1, limit: 1 });
+  return body?.stats || {};
+};
+
+const errorText = (err) => err?.response?.data?.message || err?.message || 'Check your connection and try again.';
+
+/** Loads one dashboard block on its own, so one failing call does not break the others. */
+function useBlock(loader, enabled) {
+  const [state, setState] = useState({ loading: enabled, data: null, error: null, run: 0 });
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let live = true;
+    loader()
+      .then((data) => live && setState((s) => ({ ...s, loading: false, data, error: null })))
+      .catch((err) => live && setState((s) => ({ ...s, loading: false, error: errorText(err) })));
+    return () => {
+      live = false;
+    };
+  }, [loader, enabled, state.run]);
+  const retry = () => setState((s) => ({ ...s, loading: true, error: null, run: s.run + 1 }));
+  return { ...state, retry };
+}
+
+/* ── Formatting ───────────────────────────────────────────────────────── */
+
+const inr0 = (n) => '₹ ' + Math.round(Number(n || 0)).toLocaleString('en-IN');
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+const greeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+};
+
+const firstName = (name) => String(name || '').trim().split(/\s+/)[0] || 'there';
+const customerName = (inv) =>
+  inv.customerSnapshot?.name ||
+  [inv.customerId?.firstName, inv.customerId?.lastName].filter(Boolean).join(' ') ||
+  'Walk-in customer';
+
+const kpiValue = (block, value) =>
+  block.loading ? (
+    <Skeleton className="h-8 w-28" />
+  ) : (
+    // Smaller on phones so a ₹ 12,34,567 still fits a half-width card.
+    <span className="block truncate text-xl sm:text-2xl" title={block.error ? undefined : value}>{block.error ? '—' : value}</span>
+  );
+
+/* Quick links — each shows only when the user's role allows it. */
+const QUICK_LINKS = [
+  { label: 'New sale', to: '/sales/invoices/create', icon: Plus, module: 'sales', level: 'create' },
+  { label: 'Add customer', to: '/customers/create', icon: UserPlus, module: 'customers', level: 'create' },
+  { label: 'Sales return', to: '/sales/return/create', icon: RotateCcw, module: 'sales', level: 'create' },
+  { label: 'Purchase bill', to: '/purchase/bills/create', icon: Truck, module: 'purchase', level: 'create' },
+  { label: 'Pay supplier', to: '/purchase/payments/create', icon: HandCoins, module: 'purchase', level: 'create' },
+  { label: 'Add product', to: '/products/create', icon: PackagePlus, module: 'catalog', level: 'create' },
+  { label: 'Adjust stock', to: '/inventory/adjust', icon: SlidersHorizontal, module: 'inventory', level: 'update' },
+  { label: 'Reports', to: '/reports/sales-register', icon: BarChart3, module: 'reports', level: 'view' },
+];
+
+/* ── Page ─────────────────────────────────────────────────────────────── */
 
 export default function Dashboard() {
-  const cardStyle = "rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] shadow-sm dark:shadow-none transition-colors duration-300";
+  const navigate = useNavigate();
+  const user = useSelector((state) => state.auth?.user);
+
+  const canSales = can(user, 'sales');
+  const canInventory = can(user, 'inventory');
+  const canPurchase = can(user, 'purchase');
+
+  const summary = useBlock(loadSummary, canSales);
+  const today = useBlock(loadToday, canSales);
+  const recent = useBlock(loadRecent, canSales);
+  const stock = useBlock(loadStock, canInventory);
+  const bills = useBlock(loadBills, canPurchase);
+
+  const openInvoice = (inv) => navigate(`/sales/invoices/view/${encodeURIComponent(encryptData(inv._id))}`);
+  const links = QUICK_LINKS.filter((l) => can(user, l.module, l.level));
+
+  const stockStats = stock.data?.stats || {};
+  const lowCount = Number(stockStats.lowStock || 0);
+  const outCount = Number(stockStats.outOfStock || 0);
+  const due = Number(bills.data?.due || 0);
+  const overdue = Number(bills.data?.overdue || 0);
+
+  const cards = [
+    canSales && {
+      key: 'today',
+      block: today,
+      label: "Today's sales",
+      value: inr0(today.data?.amount),
+      chip: today.data ? plural(today.data.count, 'bill', 'bills') : null,
+      icon: IndianRupee,
+      tone: 'success',
+      to: '/sales/invoices',
+      what: "today's sales",
+    },
+    canSales && {
+      key: 'collect',
+      block: summary,
+      label: 'To collect',
+      value: inr0(summary.data?.amount),
+      chip: summary.data ? plural(summary.data.count, 'invoice', 'invoices') : null,
+      icon: Wallet,
+      tone: 'warning',
+      to: '/sales/invoices',
+      what: 'amounts to collect',
+    },
+    canInventory && {
+      key: 'stock',
+      block: stock,
+      label: 'Low stock',
+      value: plural(lowCount, 'item', 'items'),
+      chip: stock.data ? (outCount > 0 ? `${outCount} out of stock` : 'Nothing out of stock') : null,
+      chipTone: outCount > 0 ? 'danger' : 'neutral',
+      icon: Boxes,
+      tone: 'danger',
+      to: '/inventory',
+      what: 'stock levels',
+    },
+    canPurchase && {
+      key: 'pay',
+      block: bills,
+      label: 'To pay suppliers',
+      value: inr0(due),
+      chip: bills.data ? (overdue > 0 ? `${inr0(overdue)} overdue` : 'Nothing overdue') : null,
+      chipTone: overdue > 0 ? 'danger' : 'neutral',
+      icon: Truck,
+      tone: 'info',
+      to: '/purchase/bills',
+      what: 'supplier dues',
+    },
+  ].filter(Boolean);
+
+  const failed = cards.filter((c) => c.block.error);
+
+  const columns = [
+    { key: 'invoiceNumber', header: 'Invoice', type: 'mono', mobile: 'title', cellClassName: 'font-semibold' },
+    {
+      key: 'customer',
+      header: 'Customer',
+      render: (inv) => (
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Avatar name={customerName(inv)} size="sm" />
+          <span className="truncate font-semibold text-ink">{customerName(inv)}</span>
+        </div>
+      ),
+    },
+    { key: 'invoiceDate', header: 'Date', type: 'date' },
+    { key: 'totalAmount', header: 'Amount (₹)', type: 'money', mobile: 'amount' },
+    { key: 'status', header: 'Status', type: 'status' },
+  ];
+
+  const headerActions = (
+    <>
+      {can(user, 'purchase', 'create') && (
+        <Button as={Link} to="/purchase/bills/create" variant="secondary" startIcon={<ShoppingCart />}>
+          New purchase
+        </Button>
+      )}
+      {can(user, 'sales', 'create') && (
+        <Button as={Link} to="/sales/invoices/create" startIcon={<Plus />}>
+          New sale
+        </Button>
+      )}
+    </>
+  );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title={`${greeting()}, ${firstName(user?.name)}`}
+        description={`${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · Here's how the shop is doing.`}
+        actions={headerActions}
+      />
 
-      {/* ── Stats ── */}
-      <CRow className="g-3">
-        {stats.map((s, i) => {
-          const c = ICON_COLORS[s.color];
-          return (
-            <CCol sm={6} lg={3} key={i}>
-              <CCard className={cardStyle}>
-                <CCardBody className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--vs-text-secondary)] m-0">{s.title}</p>
-                      <p className="mt-1.5 text-xl font-bold text-[var(--vs-text-primary)] m-0">{s.value}</p>
-                    </div>
-                    <div
-                      className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
-                      style={{ backgroundColor: c.bg }}
-                    >
-                      <CIcon icon={s.icon} className="w-4 h-4" style={{ color: c.icon }} />
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center gap-1.5">
-                    <span
-                      className="inline-flex items-center text-[11px] font-bold"
-                      style={{ color: s.up ? '#10b981' : '#f43f5e' }}
-                    >
-                      <CIcon icon={s.up ? cilArrowTop : cilArrowBottom} className="w-3 h-3 mr-0.5" />
-                      {s.change}
-                    </span>
-                    <span className="text-[11px] text-[var(--vs-text-secondary)]">vs last week</span>
-                  </div>
-                </CCardBody>
-              </CCard>
-            </CCol>
-          );
-        })}
-      </CRow>
+      {cards.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          {cards.map((c) => (
+            <StatCard
+              key={c.key}
+              label={c.label}
+              value={kpiValue(c.block, c.value)}
+              chip={c.block.loading || c.block.error ? null : c.chip}
+              chipTone={c.chipTone}
+              icon={c.icon}
+              tone={c.tone}
+              onClick={() => navigate(c.to)}
+              className="min-w-0"
+            />
+          ))}
+        </div>
+      )}
 
-      {/* ── Revenue Chart ── */}
-      <CRow className="g-3">
-        <CCol xs={12}>
-          <CCard className={cardStyle}>
-            <CCardHeader
-              className="flex items-center justify-between px-5 py-3 bg-transparent border-b border-[var(--vs-border-subtle)]"
-            >
-              <h5 className="text-sm font-bold m-0 text-[var(--vs-text-primary)]">Revenue Analytics</h5>
-              <div className="flex gap-1.5">
-                <button className="rounded-lg px-3 py-1 text-[11px] font-bold bg-[var(--vs-active-bg)] text-[var(--vs-active-text)]">
-                  Weekly
-                </button>
-                <button className="rounded-lg px-3 py-1 text-[11px] font-semibold text-[var(--vs-text-secondary)]">
-                  Monthly
-                </button>
-              </div>
-            </CCardHeader>
-            <CCardBody className="px-5 py-4">
-              <div className="relative h-52 w-full">
-                <svg className="w-full h-full" viewBox="0 0 1000 210" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="gi2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.3" />
-                      <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
-                    </linearGradient>
-                    <linearGradient id="ge2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  {[40, 80, 120, 160].map(y => (
-                    <line key={y} x1="0" y1={y} x2="1000" y2={y} className="stroke-[var(--vs-border-subtle)]" strokeWidth="1" />
-                  ))}
-                  <path d="M0 175 Q150 130 300 145 T600 65 T900 48 L1000 44 L1000 190 L0 190Z" fill="url(#gi2)" />
-                  <path d="M0 175 Q150 130 300 145 T600 65 T900 48 L1000 44" fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinecap="round" />
-                  <path d="M0 188 Q150 168 300 162 T600 112 T900 95 L1000 88 L1000 190 L0 190Z" fill="url(#ge2)" />
-                  <path d="M0 188 Q150 168 300 162 T600 112 T900 95 L1000 88" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" />
-                  <circle cx="600" cy="65" r="4" fill="#4f46e5" className="stroke-[var(--vs-bg-primary)]" strokeWidth="2" />
-                  <circle cx="600" cy="112" r="4" fill="#10b981" className="stroke-[var(--vs-bg-primary)]" strokeWidth="2" />
-                </svg>
-              </div>
-              <div className="flex justify-between mt-2">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-                  <span key={d} className="text-[11px] font-medium text-[var(--vs-text-secondary)]">{d}</span>
-                ))}
-              </div>
-            </CCardBody>
-          </CCard>
-        </CCol>
-      </CRow>
+      {failed.map((c) => (
+        <Alert
+          key={c.key}
+          tone="danger"
+          title={`Couldn't load ${c.what}`}
+          action={
+            <Button size="sm" variant="secondary" startIcon={<RotateCcw />} onClick={c.block.retry}>
+              Retry
+            </Button>
+          }
+        >
+          {c.block.error}
+        </Alert>
+      ))}
 
-      {/* ── Recent Orders ── */}
-      <CRow className="g-3">
-        <CCol xs={12}>
-          <CCard className={cardStyle}>
-            <CCardHeader className="px-5 py-3 bg-transparent border-b border-[var(--vs-border-subtle)]">
-              <h5 className="text-sm font-bold m-0 text-[var(--vs-text-primary)]">Recent Orders</h5>
-            </CCardHeader>
-            <CCardBody className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-left">
-                  <thead className="bg-[var(--vs-input-bg)]">
-                    <tr className="border-b border-[var(--vs-border-subtle)]">
-                      {['Order ID', 'Customer', 'Product', 'Date', 'Amount', 'Status'].map(h => (
-                        <th key={h} className="py-2.5 px-5 text-[11px] font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.map((o, i) => (
-                      <tr
-                        key={i}
-                        className={`transition-colors hover:bg-[var(--vs-drop-hover)] ${i < orders.length - 1 ? 'border-b border-[var(--vs-border-subtle)]' : ''}`}
-                      >
-                        <td className="py-3 px-5 text-sm font-semibold text-[var(--vs-text-primary)]">{o.id}</td>
-                        <td className="py-3 px-5">
-                          <div className="flex items-center gap-2.5">
-                            <img src={o.avatar} alt={o.customer} className="h-7 w-7 rounded-full object-cover outline outline-1 outline-[var(--vs-border)]" />
-                            <span className="text-sm font-semibold text-[var(--vs-text-primary)]">{o.customer}</span>
+      {!canSales && !canInventory && !canPurchase && links.length === 0 && (
+        <Section>
+          <EmptyState
+            icon={LayoutDashboard}
+            title="Nothing to show yet"
+            text="Your role doesn't include sales, stock or purchases. Ask the shop owner for access."
+          />
+        </Section>
+      )}
+
+      <div className="grid items-start gap-5 lg:grid-cols-3">
+        {canSales && (
+          <div className="flex min-w-0 flex-col lg:col-span-2">
+            <DataTable
+              columns={columns}
+              rows={recent.data || []}
+              loading={recent.loading}
+              error={recent.error}
+              onRetry={recent.retry}
+              columnPicker={false}
+              pagination={false}
+              filters={<h2 className="m-0 !text-[15px] !font-extrabold !leading-6 text-ink">Recent invoices</h2>}
+              toolbar={
+                <Button as={Link} to="/sales/invoices" variant="link" size="sm" endIcon={<ArrowRight />}>
+                  View all
+                </Button>
+              }
+              onRowClick={openInvoice}
+              maxHeight="none"
+              empty={{
+                icon: FileText,
+                title: 'No sales invoices yet',
+                text: 'Your latest bills will show up here.',
+                action: can(user, 'sales', 'create') && (
+                  <Button as={Link} to="/sales/invoices/create" startIcon={<Plus />}>New sale</Button>
+                ),
+              }}
+            />
+          </div>
+        )}
+
+        {(canInventory || links.length > 0) && (
+          <div className={`flex min-w-0 flex-col gap-5 ${canSales ? '' : 'lg:col-span-3'}`}>
+            {canInventory && (
+              <Section
+                title="Running low"
+                actions={
+                  <Button as={Link} to="/inventory" variant="link" size="sm" endIcon={<ArrowRight />}>
+                    View stock
+                  </Button>
+                }
+              >
+                {stock.loading ? (
+                  <SkeletonRows rows={4} cols={2} />
+                ) : stock.error ? (
+                  <Alert
+                    tone="danger"
+                    title="Couldn't load stock"
+                    action={<Button size="sm" variant="secondary" onClick={stock.retry}>Retry</Button>}
+                  />
+                ) : stock.data.items.length === 0 ? (
+                  <p className="m-0 py-4 text-center text-sm text-ink-muted">All items are above their reorder level.</p>
+                ) : (
+                  <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
+                    {stock.data.items.map((p) => (
+                      <li key={p._id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                        <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-warning-soft text-warning">
+                          <AlertTriangle className="size-4" aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-ink">{p.name}</div>
+                          <div className="text-xs text-ink-subtle">
+                            Reorder at {Number(p.threshold ?? p.lowStockAlertThreshold ?? 0)} {p.unit || ''}
                           </div>
-                        </td>
-                        <td className="py-3 px-5 text-sm text-[var(--vs-text-secondary)]">{o.product}</td>
-                        <td className="py-3 px-5 text-sm text-[var(--vs-text-secondary)]">{o.date}</td>
-                        <td className="py-3 px-5 text-sm font-bold text-[var(--vs-text-primary)]">{o.amount}</td>
-                        <td className="py-3 px-5">
-                          {/* Badge uses Tailwind dark: classes — zero JS color logic */}
-                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${BADGE_CLASSES[o.status]}`}>
-                            {o.label}
-                          </span>
-                        </td>
-                      </tr>
+                        </div>
+                        <Badge tone="warning" className="shrink-0 tabular-nums">
+                          {Number(p.qty ?? p.currentStock ?? 0)} {p.unit || ''} left
+                        </Badge>
+                      </li>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </CCardBody>
-          </CCard>
-        </CCol>
-      </CRow>
+                  </ul>
+                )}
+              </Section>
+            )}
+
+            {links.length > 0 && (
+              <Section title="Quick links">
+                <div className="grid grid-cols-2 gap-2">
+                  {links.map((l) => (
+                    <Button
+                      key={l.to}
+                      as={Link}
+                      to={l.to}
+                      variant="soft"
+                      startIcon={<l.icon />}
+                      className="min-w-0 justify-start"
+                    >
+                      <span className="truncate">{l.label}</span>
+                    </Button>
+                  ))}
+                </div>
+              </Section>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

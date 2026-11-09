@@ -7,7 +7,7 @@ import { loginUser, logout, normalizeUser } from './authSlice';
 
 const getStoredProfile = () => {
   try {
-    const vsetu = localStorage.getItem('vyaparsetu');
+    const vsetu = localStorage.getItem('ecnbiz');
     if (vsetu) {
       const decrypted = decryptData(vsetu);
       if (decrypted) {
@@ -56,7 +56,7 @@ const userSlice = createSlice({
   reducers: {
     clearUser: (state) => {
       state.profile = null;
-      localStorage.removeItem('vyaparsetu');
+      localStorage.removeItem('ecnbiz');
       localStorage.removeItem('_v_menu_permissions');
     },
   },
@@ -70,7 +70,7 @@ const userSlice = createSlice({
         state.loading = false;
         if (action.payload?.success) {
           // authSlice merges the same profile into state.auth.user and saves it (encrypted)
-          // under 'vyaparsetu', including userType / roleName / permissions / storeIds.
+          // under 'ecnbiz', including userType / roleName / permissions.
           state.profile = normalizeUser(action.payload.data);
         }
       })

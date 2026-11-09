@@ -15,30 +15,30 @@ export default function PriceCheck({ values }) {
   const belowCost = cost > 0 && customerPrice > 0 && customerPrice < cost;
 
   const tone = aboveMrp || discountAboveBase
-    ? 'border-rose-300 bg-rose-50 dark:border-rose-500/40 dark:bg-rose-950/30'
-    : 'border-[var(--vs-border)] bg-[var(--vs-bg-secondary)]';
+    ? 'border-danger/40 bg-danger-soft'
+    : 'border-line bg-fill-2';
 
   return (
     <div className={`rounded-xl border p-3.5 flex flex-col gap-2 ${tone}`}>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
         <div className="flex flex-col">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--vs-text-secondary)]">Customer pays</span>
-          <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">{formatINR(customerPrice)}</span>
+          <span className="text-[10px] uppercase font-bold tracking-wider text-ink-muted">Customer pays</span>
+          <span className="text-lg font-bold tabular-nums text-brand-ink">{formatINR(customerPrice)}</span>
         </div>
         <div className="flex flex-col">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--vs-text-secondary)]">MRP</span>
-          <span className="text-sm font-semibold text-[var(--vs-text-primary)]">{mrp > 0 ? formatINR(mrp) : 'Not set'}</span>
+          <span className="text-[10px] uppercase font-bold tracking-wider text-ink-muted">MRP</span>
+          <span className="text-sm font-semibold text-ink">{mrp > 0 ? formatINR(mrp) : 'Not set'}</span>
         </div>
         {cost > 0 && customerPrice > 0 && (
           <div className="flex flex-col">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--vs-text-secondary)]">Margin on cost</span>
-            <span className={`text-sm font-semibold ${belowCost ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-ink-muted">Margin on cost</span>
+            <span className={`text-sm font-semibold ${belowCost ? 'text-danger' : 'text-success'}`}>
               {formatINR(customerPrice - cost)}
             </span>
           </div>
         )}
       </div>
-      <p className="text-xs text-[var(--vs-text-secondary)] m-0 flex items-start gap-1.5">
+      <p className="text-xs text-ink-muted m-0 flex items-start gap-1.5">
         <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         <span>
           {discounted > 0 ? 'Discounted price' : 'Base price'}
@@ -47,22 +47,22 @@ export default function PriceCheck({ values }) {
         </span>
       </p>
       {discountAboveBase && (
-        <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 m-0 flex items-center gap-1.5">
+        <p className="text-xs font-semibold text-danger m-0 flex items-center gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5" /> Discounted price cannot be more than the base price.
         </p>
       )}
       {aboveMrp && (
-        <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 m-0 flex items-center gap-1.5">
+        <p className="text-xs font-semibold text-danger m-0 flex items-center gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5" /> Selling price {formatINR(customerPrice)} is above the MRP {formatINR(mrp)}. Lower the price or correct the MRP.
         </p>
       )}
       {!aboveMrp && !discountAboveBase && mrp > 0 && customerPrice > 0 && (
-        <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 m-0 flex items-center gap-1.5">
+        <p className="text-xs font-medium text-success m-0 flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5" /> Price is within the MRP.
         </p>
       )}
       {belowCost && (
-        <p className="text-xs font-medium text-amber-600 dark:text-amber-400 m-0 flex items-center gap-1.5">
+        <p className="text-xs font-medium text-warning m-0 flex items-center gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5" /> Selling below cost price.
         </p>
       )}

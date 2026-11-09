@@ -1,110 +1,36 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Ban, CalendarCheck, CalendarClock, Check, CheckCircle2, ChevronDown, ChevronUp, Edit2, Loader2, Package, Printer, ShoppingCart, Store, Trash2, Truck, Undo2 } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import { Input } from '@/components/inputs/Input';
-import DeleteModal from '@/components/modal/DeleteModal';
+import { Ban, CalendarCheck, CalendarClock, CheckCircle2, ChevronDown, ChevronUp, Edit2, Package, Printer, ShoppingCart, Trash2, Truck, Undo2 } from 'lucide-react';
+import { Badge, Button, Card, ConfirmDialog, DetailList, DocumentLayout, PartyCard, Section, StatusBadge, TotalsPanel, TotalsRow } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import PurchaseToaster from '../components/PurchaseToaster';
-import PayMethodPicker from '../components/PayMethodPicker';
+import PayBillPanel from '../components/PayBillPanel';
 import LinesTable from '../components/LinesTable';
 import { DocTotals } from '../components/Totals';
-import { ConfirmModal, Field, PageLoading, PageShell, Section, StatusBadge } from '../components/ui';
+import { ConfirmModal, PageLoading } from '../components/ui';
 import { notify, notifyError } from '../components/toast';
-import { PATHS, daysPast, decId, editPath, errMsg, fmtDate, formatINR, formatQty, isOverdue, methodLabel, num, refId, round2, storeName, supplierName, todayISO, viewPath } from '../components/helpers';
+import { PATHS, daysPast, decId, editPath, errMsg, fmtDate, formatINR, formatQty, isOverdue, methodLabel, num, refId, supplierName, viewPath } from '../components/helpers';
 import { cancelPurchaseBill, confirmPurchaseBill, deletePurchaseBill, fetchPurchaseBill } from './services/purchaseBillSlice';
-import { createPaymentOut } from '../paymentsOut/services/paymentOutSlice';
 import { spChangeCount } from '../components/stockInColumns';
 
 const BILL_STATUS_LABEL = { draft: 'Not finished', unpaid: 'To pay', partially_paid: 'Part paid', paid: 'Paid', cancelled: 'Cancelled' };
 
+const FACT_TONE = { success: 'text-success', danger: 'text-danger' };
+
 /** One "when / where" fact at the top of the bill. */
-function Fact({ icon, label, value, sub, tone = '' }) {
+function Fact({ icon: Icon, label, value, sub, tone }) {
   return (
-    <div className="rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] px-4 py-3 flex items-start gap-3 min-w-0">
-      <span className="mt-0.5 text-[var(--vs-text-secondary)]">{icon}</span>
+    <Card padding="none" className="flex min-w-0 items-start gap-3 p-4">
+      <span className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-brand-soft text-brand-ink">
+        <Icon className="size-[18px]" aria-hidden="true" />
+      </span>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold text-[var(--vs-text-secondary)]">{label}</div>
-        <div className={`text-sm font-bold truncate ${tone}`}>{value}</div>
-        {sub && <div className="text-[11px] text-[var(--vs-text-secondary)] truncate">{sub}</div>}
+        <div className="text-xs font-medium text-ink-subtle">{label}</div>
+        <div className={cn('truncate text-sm font-bold text-ink', FACT_TONE[tone])}>{value}</div>
+        {sub && <div className="truncate text-xs text-ink-subtle">{sub}</div>}
       </div>
-    </div>
-  );
-}
-
-/** Pay this bill right here: amount, date (today), how. */
-function PayPanel({ bill, onPaid }) {
-  const dispatch = useDispatch();
-  const saving = useSelector((state) => state.paymentOut?.saving);
-  const balance = round2(bill.balanceAmount);
-  const [amount, setAmount] = useState(String(balance));
-  const [paymentDate, setPaymentDate] = useState(() => todayISO());
-  const [method, setMethod] = useState('cash');
-  const [reference, setReference] = useState('');
-  const [error, setError] = useState('');
-
-  const pay = num(amount);
-  const extra = round2(Math.max(0, pay - balance));
-
-  const save = async () => {
-    if (!(pay > 0)) {
-      setError('Enter how much you paid.');
-      return;
-    }
-    setError('');
-    try {
-      const res = await dispatch(
-        createPaymentOut({
-          supplierId: refId(bill.supplierId),
-          paymentDate,
-          amount: round2(pay),
-          paymentMethod: method,
-          reference: method === 'cash' ? '' : reference.trim(),
-          notes: '',
-          allocations: [{ purchaseBillId: bill._id, amount: round2(Math.min(pay, balance)) }],
-        })
-      ).unwrap();
-      notify(res?.message || `Payment of ${formatINR(pay)} saved`);
-      onPaid();
-    } catch (e) {
-      const msg = errMsg(e);
-      setError(msg);
-      notifyError(msg);
-    }
-  };
-
-  return (
-    <Section title="Pay this bill" bodyClassName="p-4 flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setAmount(String(balance))}
-          className={`px-3 h-9 rounded-full border text-sm font-semibold cursor-pointer ${
-            pay === balance ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300' : 'border-[var(--vs-border)] hover:bg-[var(--vs-bg-secondary)]'
-          }`}
-        >
-          Full {formatINR(balance)}
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Amount (₹)" required>
-          <Input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="!font-bold" />
-        </Field>
-        <Field label="Pay date">
-          <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
-        </Field>
-      </div>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-semibold">How did you pay?</span>
-        <PayMethodPicker method={method} onMethodChange={setMethod} reference={reference} onReferenceChange={setReference} compact />
-      </div>
-      {pay > 0 && pay < balance && <p className="text-xs text-[var(--vs-text-secondary)]">{formatINR(round2(balance - pay))} will still be left to pay on this bill.</p>}
-      {extra > 0 && <p className="text-xs text-amber-700 dark:text-amber-400">{formatINR(extra)} extra is kept as an advance for this supplier&apos;s next bill.</p>}
-      {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
-      <Button onClick={save} disabled={saving} className="w-full" startIcon={saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}>
-        Save payment
-      </Button>
-    </Section>
+    </Card>
   );
 }
 
@@ -157,20 +83,59 @@ export default function PurchaseBillDetails() {
   };
 
   const returnGoods = () =>
-    navigate(`${PATHS.returns}/create`, { state: { supplierId: refId(bill.supplierId), storeId: refId(bill.storeId), purchaseBillId: bill._id } });
+    navigate(`${PATHS.returns}/create`, { state: { supplierId: refId(bill.supplierId), purchaseBillId: bill._id } });
 
   const link = (kind, docId, text) => (
-    <button type="button" onClick={() => navigate(viewPath(kind, docId))} className="font-mono font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+    <Button variant="link" size="sm" className="font-mono font-semibold" onClick={() => navigate(viewPath(kind, docId))}>
       {text}
-    </button>
+    </Button>
   );
+
+  const itemColumns = [
+    {
+      key: 'product',
+      label: 'Product',
+      render: (l) => {
+        const p = typeof l.productId === 'object' && l.productId ? l.productId : null;
+        const img = p?.images?.find((x) => x.isMain || x.isFeatured)?.path || p?.images?.[0]?.path;
+        return (
+          <div className="flex min-w-0 items-center gap-3">
+            {img ? (
+              <img src={img} alt={l.productName} className="size-11 shrink-0 rounded-lg bg-fill object-cover" />
+            ) : (
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-fill text-ink-subtle">
+                <Package className="size-5" aria-hidden="true" />
+              </span>
+            )}
+            <div className="min-w-0">
+              <div className="truncate font-semibold">{l.productName}</div>
+              {l.hsnCode && <div className="text-xs text-ink-subtle">HSN {l.hsnCode}</div>}
+            </div>
+          </div>
+        );
+      },
+    },
+    { key: 'qty', label: 'Qty', align: 'right', render: (l) => `${formatQty(l.qty)} ${l.unit}` },
+    { key: 'rate', label: 'Cost price', align: 'right', render: (l) => formatINR(l.rate) },
+    {
+      key: 'gst',
+      label: 'GST',
+      align: 'right',
+      render: (l) => (
+        <>
+          {formatINR(l.taxAmount)} <span className="text-xs text-ink-subtle">({num(l.taxPercent)}%)</span>
+        </>
+      ),
+    },
+    { key: 'total', label: 'Total', align: 'right', render: (l) => <span className="font-semibold">{formatINR(l.total)}</span> },
+  ];
 
   const paymentColumns = [
     { key: 'date', label: 'Paid on', render: (p) => fmtDate(p.paymentDate) },
     { key: 'method', label: 'How', render: (p) => methodLabel(p.paymentMethod) },
     { key: 'ref', label: 'Reference', render: (p) => p.reference || '—' },
     { key: 'no', label: 'Payment no', render: (p) => link('payments', p._id, p.paymentNumber) },
-    { key: 'amt', label: 'Amount', align: 'right', render: (p) => <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatINR(p.amount)}</span> },
+    { key: 'amt', label: 'Amount', align: 'right', render: (p) => <span className="font-semibold text-success">{formatINR(p.amount)}</span> },
   ];
 
   const returnColumns = [
@@ -195,7 +160,7 @@ export default function PurchaseBillDetails() {
       title: 'Cancel bill',
       message: hasMoneyAgainst
         ? 'Payments or returns are recorded against this bill. Cancel those first.'
-        : `Cancel ${bill.billNumber}?${bill.stockPosted ? ' The goods added by this bill will be taken out of stock.' : ''}${bill.grnIds?.length ? ' The linked goods receipts become unbilled again.' : ''}`,
+        : `Cancel ${bill.billNumber}?${bill.stockPosted ? ' The goods added by this bill will be taken out of stock.' : ''}`,
       label: 'Cancel bill',
       variant: 'danger',
       withReason: true,
@@ -207,201 +172,187 @@ export default function PurchaseBillDetails() {
     ? [supplier.address.street, supplier.address.city, supplier.address.state, supplier.address.pincode].filter(Boolean).join(', ')
     : bill.supplierSnapshot?.address;
   const bank = supplier?.bankDetails || {};
+  const phone = supplier?.phone || bill.supplierSnapshot?.phone;
+  const returned = (bill.returns || []).some((r) => r.status !== 'cancelled');
+  const settled = bill.status !== 'draft' && bill.status !== 'cancelled';
 
   return (
-    <PageShell title={`Bill ${bill.billNumber}`} description={bill.supplierBillNo ? `Supplier's bill no. ${bill.supplierBillNo}` : undefined}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--vs-border)] pb-4">
-        <div className="flex items-center gap-2 flex-wrap">
-          <StatusBadge status={bill.status} label={BILL_STATUS_LABEL[bill.status]} size="lg" />
-          {overdue && <StatusBadge status="overdue" label={`Late by ${daysPast(bill.dueDate)} days`} size="lg" />}
-          {bill.autoFromGrn && <span className="text-xs text-[var(--vs-text-secondary)]">Created automatically when the goods arrived</span>}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 print:hidden">
-          {bill.status === 'draft' && (
-            <>
-              <Button size="sm" onClick={() => setModal('confirm')} startIcon={<CheckCircle2 className="w-4 h-4" />}>
-                Save bill
+    <DocumentLayout
+      header={{
+        title: 'Purchase bill',
+        docNo: bill.billNumber,
+        description:
+          [bill.supplierBillNo && `Supplier's bill no. ${bill.supplierBillNo}`, bill.autoFromGrn && 'Created automatically when the goods arrived'].filter(Boolean).join(' · ') ||
+          undefined,
+        actions: (
+          <>
+            <StatusBadge status={bill.status} label={BILL_STATUS_LABEL[bill.status]} size="md" />
+            {overdue && <StatusBadge status="overdue" label={`Late by ${daysPast(bill.dueDate)} days`} size="md" />}
+            {returned && (
+              <Badge tone="warning" size="md" icon={Undo2}>
+                Products returned
+              </Badge>
+            )}
+            <div className="flex flex-wrap items-center gap-2 print:hidden">
+              <Button variant="secondary" onClick={() => window.print()} startIcon={<Printer />}>
+                Print
               </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate(editPath('bills', bill._id))} startIcon={<Edit2 className="w-4 h-4" />}>
-                Edit
-              </Button>
-            </>
-          )}
-          {['unpaid', 'partially_paid', 'paid'].includes(bill.status) && (
-            <Button size="sm" variant="outline" onClick={returnGoods} startIcon={<Undo2 className="w-4 h-4" />}>
-              Return goods
-            </Button>
-          )}
-          {bill.status !== 'cancelled' && bill.status !== 'draft' && (
-            <Button size="sm" variant="outline" onClick={() => setModal('cancel')} disabled={hasMoneyAgainst} title={hasMoneyAgainst ? 'Cancel the payments and returns on this bill first' : ''} startIcon={<Ban className="w-4 h-4" />}>
-              Cancel
-            </Button>
-          )}
-          {['draft', 'cancelled'].includes(bill.status) && (
-            <Button size="sm" variant="danger" onClick={() => setModal('delete')} startIcon={<Trash2 className="w-4 h-4" />}>
-              Delete
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={() => window.print()} startIcon={<Printer className="w-4 h-4" />}>
-            Print
-          </Button>
-        </div>
-      </div>
+              {['draft', 'cancelled'].includes(bill.status) && (
+                <Button variant="danger-soft" onClick={() => setModal('delete')} startIcon={<Trash2 />}>
+                  Delete
+                </Button>
+              )}
+              {bill.status !== 'cancelled' && bill.status !== 'draft' && !bill.autoFromPo && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setModal('cancel')}
+                  disabled={hasMoneyAgainst}
+                  title={hasMoneyAgainst ? 'Cancel the payments and returns on this bill first' : ''}
+                  startIcon={<Ban />}
+                >
+                  Cancel
+                </Button>
+              )}
+              {['unpaid', 'partially_paid', 'paid'].includes(bill.status) && !returned && (
+                <Button variant="secondary" onClick={returnGoods} startIcon={<Undo2 />}>
+                  Return goods
+                </Button>
+              )}
+              {bill.status === 'draft' && (
+                <>
+                  <Button variant="secondary" onClick={() => navigate(editPath('bills', bill._id))} startIcon={<Edit2 />}>
+                    Edit
+                  </Button>
+                  <Button onClick={() => setModal('confirm')} startIcon={<CheckCircle2 />}>
+                    Save bill
+                  </Button>
+                </>
+              )}
+            </div>
+          </>
+        ),
+      }}
+      summary={
+        <>
+          <TotalsPanel
+            title="Amount"
+            totalLabel={settled ? 'Still to pay' : 'Bill total (incl. GST)'}
+            total={settled ? (num(bill.balanceAmount) > 0 ? formatINR(bill.balanceAmount) : 'Nothing') : formatINR(bill.totalAmount)}
+            footer={
+              <>
+                <Button
+                  variant="link-inverse"
+                  size="sm"
+                  className="self-start print:hidden"
+                  onClick={() => setShowPriceDetails((v) => !v)}
+                  startIcon={showPriceDetails ? <ChevronUp /> : <ChevronDown />}
+                >
+                  {showPriceDetails ? 'Hide price details' : 'Price details (GST split, discount, freight)'}
+                </Button>
+                {showPriceDetails && <DocTotals doc={bill} />}
+              </>
+            }
+          >
+            {settled && (
+              <>
+                <TotalsRow label="Bill total (incl. GST)" value={formatINR(bill.totalAmount)} />
+                <TotalsRow label="Paid" value={formatINR(num(bill.paidAmount) + num(bill.adjustedAmount))} />
+              </>
+            )}
+          </TotalsPanel>
 
+          {open && num(bill.balanceAmount) > 0 && (
+            <div className="print:hidden">
+              <PayBillPanel key={`${bill._id}-${bill.balanceAmount}`} bill={bill} onPaid={() => dispatch(fetchPurchaseBill(bill._id))} />
+            </div>
+          )}
+        </>
+      }
+    >
       {/* When / where */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Fact
-          icon={<ShoppingCart className="w-4 h-4" />}
+          icon={ShoppingCart}
           label="Ordered on"
-          value={po ? fmtDate(po.poDate) : 'No purchase order'}
-          sub={po ? <>{link('orders', refId(po), po.poNumber || 'View order')}</> : null}
+          value={po ? fmtDate(po.poDate) : 'No purchase'}
+          sub={po ? <>From {link('orders', refId(po), po.poNumber || 'View order')}</> : null}
         />
         <Fact
-          icon={<Truck className="w-4 h-4" />}
+          icon={Truck}
           label="Delivered on"
           value={fmtDate(deliveredOn)}
-          sub={grns.length ? <>{grns.map((g) => <span key={refId(g)} className="mr-2">{link('receipts', refId(g), g.grnNumber || 'GRN')}</span>)}</> : 'Came with this bill'}
+          sub={grns.length ? <>{grns.map((g) => <span key={refId(g)} className="mr-2 font-mono">{g.grnNumber || 'GRN'}</span>)}</> : bill.autoFromPo ? 'Received with the purchase' : 'Came with this bill'}
         />
-        <Fact icon={<Store className="w-4 h-4" />} label="Store" value={storeName(bill)} />
         {bill.status === 'paid' ? (
-          <Fact icon={<CalendarCheck className="w-4 h-4" />} label="Payment" value="Paid in full" tone="text-emerald-600 dark:text-emerald-400" />
+          <Fact icon={CalendarCheck} label="Payment" value="Paid in full" tone="success" />
         ) : (
           <Fact
-            icon={<CalendarClock className="w-4 h-4" />}
+            icon={CalendarClock}
             label="Due days"
             value={open ? (dueDays === 0 ? 'Delivered today' : `${dueDays} ${dueDays === 1 ? 'day' : 'days'} since delivery`) : '—'}
             sub={bill.dueDate ? `Pay by ${fmtDate(bill.dueDate)}` : null}
-            tone={overdue ? 'text-rose-600 dark:text-rose-400' : ''}
+            tone={overdue ? 'danger' : undefined}
           />
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <Section title="What you bought" bodyClassName="p-0">
-            <div className="divide-y divide-[var(--vs-border)]">
-              <div className="hidden sm:grid grid-cols-[2.2fr_0.8fr_1fr_1fr_1fr] gap-3 px-4 py-2 bg-[var(--vs-bg-secondary)] text-[11px] font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
-                <span>Product</span>
-                <span className="text-right">Qty</span>
-                <span className="text-right">Cost price</span>
-                <span className="text-right">GST</span>
-                <span className="text-right">Total</span>
-              </div>
-              {(bill.items || []).map((l, i) => {
-                const p = typeof l.productId === 'object' && l.productId ? l.productId : null;
-                const img = p?.images?.find((x) => x.isMain || x.isFeatured)?.path || p?.images?.[0]?.path;
-                return (
-                  <div key={`${refId(l.productId)}-${i}`} className="grid grid-cols-2 sm:grid-cols-[2.2fr_0.8fr_1fr_1fr_1fr] gap-x-3 gap-y-1 px-4 py-3 items-center text-sm">
-                    <div className="col-span-2 sm:col-span-1 flex items-center gap-3 min-w-0">
-                      {img ? (
-                        <img src={img} alt={l.productName} className="w-11 h-11 rounded-lg object-cover border border-[var(--vs-border)] shrink-0" />
-                      ) : (
-                        <div className="w-11 h-11 rounded-lg bg-[var(--vs-bg-secondary)] border border-[var(--vs-border)] flex items-center justify-center shrink-0">
-                          <Package className="w-5 h-5 text-[var(--vs-text-secondary)]" />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="font-semibold truncate">{l.productName}</div>
-                        <div className="text-[11px] text-[var(--vs-text-secondary)]">{l.hsnCode ? `HSN ${l.hsnCode}` : ''}</div>
-                      </div>
-                    </div>
-                    <div className="sm:text-right">
-                      <span className="sm:hidden text-[11px] text-[var(--vs-text-secondary)]">Qty </span>
-                      {formatQty(l.qty)} {l.unit}
-                    </div>
-                    <div className="text-right">
-                      <span className="sm:hidden text-[11px] text-[var(--vs-text-secondary)]">CP </span>
-                      {formatINR(l.rate)}
-                    </div>
-                    <div className="sm:text-right">
-                      <span className="sm:hidden text-[11px] text-[var(--vs-text-secondary)]">GST </span>
-                      {formatINR(l.taxAmount)} <span className="text-[11px] text-[var(--vs-text-secondary)]">({num(l.taxPercent)}%)</span>
-                    </div>
-                    <div className="text-right font-semibold">{formatINR(l.total)}</div>
-                  </div>
-                );
-              })}
+      <Section title="Supplier">
+        <div className="flex flex-col gap-4">
+          <PartyCard
+            name={supplierName(bill)}
+            sub={supplier?.companyName && supplier.companyName !== supplierName(bill) ? supplier.companyName : address}
+            actions={
+              <Button variant="secondary" size="sm" onClick={() => navigate(viewPath('suppliers', refId(bill.supplierId)))}>
+                View
+              </Button>
+            }
+          />
+          <DetailList
+            cols={3}
+            items={[
+              { label: 'Phone', value: phone ? <a href={`tel:${phone}`} className="text-brand-ink hover:underline">{phone}</a> : '' },
+              { label: 'GSTIN', value: supplier?.gstin || bill.supplierSnapshot?.gstin || 'Not registered', mono: !!(supplier?.gstin || bill.supplierSnapshot?.gstin) },
+              supplier?.email && { label: 'Email', value: supplier.email },
+              { label: 'Address', value: address, wide: true },
+            ]}
+          />
+          {(bank.accountNumber || bank.upiId) && (
+            <div className="rounded-control bg-fill px-4 py-3">
+              <div className="mb-3 text-xs font-bold text-ink-muted">Pay to</div>
+              <DetailList
+                cols={3}
+                items={[
+                  bank.accountName && { label: 'Account name', value: bank.accountName },
+                  bank.accountNumber && { label: 'Account no.', value: bank.accountNumber, mono: true },
+                  bank.ifsc && { label: 'IFSC', value: bank.ifsc, mono: true },
+                  bank.bankName && { label: 'Bank', value: bank.bankName },
+                  bank.upiId && { label: 'UPI', value: bank.upiId, mono: true },
+                ]}
+              />
             </div>
-          </Section>
-
-          <Section title="Payments" bodyClassName="p-3">
-            <LinesTable columns={paymentColumns} rows={bill.payments || []} minWidth={520} emptyText="Nothing paid yet." />
-          </Section>
-
-          {(bill.returns || []).length > 0 && (
-            <Section title="Goods returned" bodyClassName="p-3">
-              <LinesTable columns={returnColumns} rows={bill.returns} minWidth={560} />
-            </Section>
-          )}
-
-          {bill.notes && (
-            <Section title="Notes">
-              <p className="text-sm whitespace-pre-wrap">{bill.notes}</p>
-            </Section>
           )}
         </div>
+      </Section>
 
-        <div className="flex flex-col gap-6">
-          <Section title="Amount" bodyClassName="p-4 flex flex-col gap-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-[var(--vs-text-secondary)]">Bill total (incl. GST)</span>
-              <span className="font-mono font-semibold">{formatINR(bill.totalAmount)}</span>
-            </div>
-            {bill.status !== 'draft' && bill.status !== 'cancelled' && (
-              <>
-                <div className="flex justify-between text-sm">
-                  <span className="text-[var(--vs-text-secondary)]">Paid</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400">{formatINR(num(bill.paidAmount) + num(bill.adjustedAmount))}</span>
-                </div>
-                <div className="flex justify-between items-baseline border-t border-[var(--vs-border)] pt-3">
-                  <span className="font-semibold">Still to pay</span>
-                  <span className={`font-mono text-xl font-bold ${num(bill.balanceAmount) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                    {num(bill.balanceAmount) > 0 ? formatINR(bill.balanceAmount) : 'Nothing'}
-                  </span>
-                </div>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowPriceDetails((v) => !v)}
-              className="self-start inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer print:hidden"
-            >
-              {showPriceDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              {showPriceDetails ? 'Hide price details' : 'Price details (GST split, discount, freight)'}
-            </button>
-            {showPriceDetails && <DocTotals doc={bill} />}
-          </Section>
+      <Section title="What you bought" description={`${(bill.items || []).length} ${(bill.items || []).length === 1 ? 'item' : 'items'}`} bodyClassName="px-3 sm:px-4">
+        <LinesTable columns={itemColumns} rows={bill.items || []} rowKey={(l, i) => `${refId(l.productId)}-${i}`} minWidth={640} />
+      </Section>
 
-          {open && num(bill.balanceAmount) > 0 && (
-            <div className="print:hidden">
-              <PayPanel key={`${bill._id}-${bill.balanceAmount}`} bill={bill} onPaid={() => dispatch(fetchPurchaseBill(bill._id))} />
-            </div>
-          )}
+      <Section title="Payments" bodyClassName="px-3 sm:px-4">
+        <LinesTable columns={paymentColumns} rows={bill.payments || []} minWidth={520} emptyText="Nothing paid yet." />
+      </Section>
 
-          <Section title="Supplier" bodyClassName="p-4 flex flex-col gap-2 text-sm">
-            <div>{link('suppliers', refId(bill.supplierId), supplierName(bill))}</div>
-            {supplier?.companyName && supplier.companyName !== supplierName(bill) && <div>{supplier.companyName}</div>}
-            {(supplier?.phone || bill.supplierSnapshot?.phone) && (
-              <a href={`tel:${supplier?.phone || bill.supplierSnapshot?.phone}`} className="text-indigo-600 dark:text-indigo-400 hover:underline">
-                {supplier?.phone || bill.supplierSnapshot?.phone}
-              </a>
-            )}
-            {supplier?.email && <div className="text-[var(--vs-text-secondary)] break-all">{supplier.email}</div>}
-            <div className="text-[var(--vs-text-secondary)]">GSTIN: <span className="font-mono">{supplier?.gstin || bill.supplierSnapshot?.gstin || 'Not registered'}</span></div>
-            {address && <div className="text-[var(--vs-text-secondary)]">{address}</div>}
-            {(bank.accountNumber || bank.upiId) && (
-              <div className="mt-1 rounded-lg bg-[var(--vs-bg-secondary)] border border-[var(--vs-border)] p-3 text-xs flex flex-col gap-0.5">
-                <span className="font-bold text-[var(--vs-text-secondary)]">Pay to</span>
-                {bank.accountName && <span>{bank.accountName}</span>}
-                {bank.accountNumber && <span className="font-mono">A/c {bank.accountNumber}</span>}
-                {bank.ifsc && <span className="font-mono">IFSC {bank.ifsc}</span>}
-                {bank.bankName && <span>{bank.bankName}</span>}
-                {bank.upiId && <span className="font-mono">UPI {bank.upiId}</span>}
-              </div>
-            )}
-          </Section>
-        </div>
-      </div>
+      {(bill.returns || []).length > 0 && (
+        <Section title="Goods returned" bodyClassName="px-3 sm:px-4">
+          <LinesTable columns={returnColumns} rows={bill.returns} minWidth={560} />
+        </Section>
+      )}
+
+      {bill.notes && (
+        <Section title="Notes">
+          <p className="m-0 whitespace-pre-wrap text-sm text-ink-muted">{bill.notes}</p>
+        </Section>
+      )}
 
       {modalCfg && (
         <ConfirmModal
@@ -416,15 +367,17 @@ export default function PurchaseBillDetails() {
           onConfirm={modalCfg.onConfirm}
         />
       )}
-      <DeleteModal
-        isOpen={modal === 'delete'}
-        isLoading={saving}
-        onClose={() => setModal(null)}
-        onConfirm={runDelete}
+      <ConfirmDialog
+        open={modal === 'delete'}
         title="Delete bill"
         message={`Delete ${bill.billNumber}? This cannot be undone.`}
+        confirmLabel="Delete"
+        icon={Trash2}
+        loading={saving}
+        onClose={() => setModal(null)}
+        onConfirm={runDelete}
       />
       <PurchaseToaster />
-    </PageShell>
+    </DocumentLayout>
   );
 }

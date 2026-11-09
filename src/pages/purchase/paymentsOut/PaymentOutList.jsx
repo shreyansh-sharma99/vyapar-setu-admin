@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Eye, IndianRupee, Receipt } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import Table from '@/components/table/Table';
-import TableInfoCard from '@/components/table/TableInfoCard';
-import Card from '@/components/breadCrumbs/Card';
+import { Eye, IndianRupee, Plus, Receipt } from 'lucide-react';
+import { Button, DataTable, Input, PageHeader, Select, StatCard } from '@/components/ui';
 import PurchaseToaster from '../components/PurchaseToaster';
-import { FilterSelect, StatusBadge } from '../components/ui';
 import { notifyError } from '../components/toast';
 import { PAYMENT_METHODS, PATHS, fmtDate, formatINR, methodLabel, num, viewPath } from '../components/helpers';
 import { fetchPaymentsOut } from './services/paymentOutSlice';
 
-const dateInput = 'h-10 px-3 text-sm rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] outline-none';
+const METHOD_OPTIONS = [{ value: 'all', label: 'All methods' }, ...PAYMENT_METHODS];
+const STATUS_TABS = [
+  { value: 'all', label: 'All payments' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
 
 export default function PaymentOutList() {
   const dispatch = useDispatch();
@@ -42,92 +43,94 @@ export default function PaymentOutList() {
     if (listError) notifyError(listError);
   }, [listError]);
 
-  const headers = [
+  const columns = [
+    { key: 'paymentNumber', header: 'Payment no', type: 'mono', mobile: 'title' },
+    { key: 'paymentDate', header: 'Date', render: (p) => fmtDate(p.paymentDate) },
+    { key: 'supplier', header: 'Supplier', render: (p) => <span className="font-semibold">{p.supplierId?.name || p.supplierName || '—'}</span> },
+    { key: 'paymentMethod', header: 'Method', render: (p) => methodLabel(p.paymentMethod) },
+    { key: 'reference', header: 'Reference', hideBelow: '2xl', render: (p) => p.reference || '—' },
     {
-      label: 'Actions',
-      key: 'actions',
-      render: (p) => (
-        <div className="flex items-center justify-center">
-          <button type="button" title="View" onClick={() => navigate(viewPath('payments', p._id))} className="p-1 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 cursor-pointer">
-            <Eye className="w-4 h-4" />
-          </button>
-        </div>
-      ),
-    },
-    { label: 'Payment no', key: 'paymentNumber', value: 'checked', cellClassName: 'font-mono font-semibold' },
-    { label: 'Date', key: 'paymentDate', value: 'checked', render: (p) => fmtDate(p.paymentDate) },
-    { label: 'Supplier', key: 'supplier', value: 'checked', render: (p) => <span className="font-medium">{p.supplierId?.name || p.supplierName || '—'}</span> },
-    { label: 'Method', key: 'paymentMethod', value: 'checked', render: (p) => methodLabel(p.paymentMethod) },
-    { label: 'Reference', key: 'reference', value: 'checked', render: (p) => p.reference || '—' },
-    {
-      label: 'Bills paid',
       key: 'allocations',
-      value: 'checked',
-      render: (p) => (p.allocations?.length ? <span className="text-xs">{p.allocations.map((a) => a.supplierBillNo || a.billNumber).join(', ')}</span> : '—'),
+      header: 'Bills paid',
+      hideBelow: '2xl',
+      render: (p) => (p.allocations?.length ? <span className="text-xs text-ink-muted">{p.allocations.map((a) => a.supplierBillNo || a.billNumber).join(', ')}</span> : '—'),
     },
-    { label: 'Amount', key: 'amount', value: 'checked', render: (p) => <span className="font-semibold">{formatINR(p.amount)}</span> },
-    { label: 'Advance', key: 'unallocatedAmount', value: 'checked', render: (p) => (num(p.unallocatedAmount) > 0 ? <span className="text-amber-600 dark:text-amber-400">{formatINR(p.unallocatedAmount)}</span> : '—') },
-    { label: 'Status', key: 'status', value: 'checked', render: (p) => <StatusBadge status={p.status} /> },
+    { key: 'amount', header: 'Amount (₹)', type: 'money', mobile: 'amount', render: (p) => formatINR(p.amount) },
+    {
+      key: 'unallocatedAmount',
+      header: 'Advance (₹)',
+      type: 'money',
+      render: (p) => (num(p.unallocatedAmount) > 0 ? <span className="text-warning">{formatINR(p.unallocatedAmount)}</span> : <span className="font-normal text-ink-subtle">—</span>),
+    },
+    { key: 'status', header: 'Status', type: 'status' },
   ];
 
+  const changeStatus = (v) => {
+    setStatus(v);
+    setPage(1);
+  };
+
   return (
-    <div>
-      <Card
-        h1="Supplier Payments"
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Supplier Payments"
         description="Money paid to suppliers"
-        bodyClassName="px-4 pb-4 pt-2"
-        rightNode={
-          <div className="flex flex-wrap items-center gap-2">
-            <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className={dateInput} title="From date" />
-            <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className={dateInput} title="To date" />
-            <FilterSelect value={method} onChange={(v) => { setMethod(v); setPage(1); }} options={[{ value: 'all', label: 'All methods' }, ...PAYMENT_METHODS]} />
-            <FilterSelect
-              value={status}
-              onChange={(v) => { setStatus(v); setPage(1); }}
-              options={[
-                { value: 'all', label: 'All statuses' },
-                { value: 'completed', label: 'Completed' },
-                { value: 'cancelled', label: 'Cancelled' },
-              ]}
-            />
-          </div>
-        }
-      >
-        <div className="pb-2">
-          <TableInfoCard
-            stats={[
-              { label: 'Total paid', value: formatINR(stats?.totalPaid), icon: <IndianRupee className="w-4 h-4 text-emerald-500" />, colorClass: 'text-emerald-600 dark:text-emerald-400' },
-              { label: 'Payments', value: stats?.payments ?? 0, icon: <Receipt className="w-4 h-4 text-indigo-500" />, colorClass: 'text-indigo-600 dark:text-indigo-400' },
-            ]}
-          />
-        </div>
-        <Table
-          headers={headers}
-          data={list}
-          loading={listLoading}
-          searchPlaceholder="Search payment no, supplier, reference, bill no..."
-          searchTerm={searchTerm}
-          onSearchTermChange={setSearchTerm}
-          onSearchClick={() => {
+        actions={<Button startIcon={<Plus />} onClick={() => navigate(`${PATHS.payments}/create`)}>Pay Supplier</Button>}
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2">
+        <StatCard label="Total paid" value={formatINR(stats?.totalPaid)} icon={IndianRupee} tone="success" />
+        <StatCard label="Payments" value={stats?.payments ?? 0} icon={Receipt} tone="primary" />
+      </div>
+
+      <DataTable
+        columns={columns}
+        rows={list}
+        loading={listLoading}
+        tabs={STATUS_TABS}
+        tab={status}
+        onTabChange={changeStatus}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search payment no, supplier, reference, bill no...',
+          onSubmit: () => {
             setPage(1);
             setQuery(searchTerm.trim());
-          }}
-          onSearchClear={() => {
+          },
+          onClear: () => {
             setPage(1);
             setQuery('');
-          }}
-          emptyMessage="No payments recorded yet."
-          currentPage={page}
-          pageSize={pageSize}
-          totalRows={meta?.total || 0}
-          onPageChange={setPage}
-          onPageSizeChange={(s) => {
+          },
+        }}
+        filters={
+          <>
+            <Input size="sm" type="date" aria-label="From date" title="From date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} wrapperClassName="w-40" />
+            <Input size="sm" type="date" aria-label="To date" title="To date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} wrapperClassName="w-40" />
+            <div className="w-44">
+              <Select size="sm" searchable={false} aria-label="Payment method" value={method} onChange={(v) => { setMethod(v); setPage(1); }} options={METHOD_OPTIONS} />
+            </div>
+          </>
+        }
+        rowActions={(p) => [{ label: 'View', icon: Eye, onClick: () => navigate(viewPath('payments', p._id)) }]}
+        onRowClick={(p) => navigate(viewPath('payments', p._id))}
+        empty={{
+          icon: Receipt,
+          title: 'No payments recorded yet.',
+          action: <Button startIcon={<Plus />} onClick={() => navigate(`${PATHS.payments}/create`)}>Pay Supplier</Button>,
+        }}
+        pagination={{
+          page,
+          pageSize,
+          total: meta?.total || 0,
+          onPageChange: setPage,
+          onPageSizeChange: (s) => {
             setPageSize(s);
             setPage(1);
-          }}
-          actions={<Button onClick={() => navigate(`${PATHS.payments}/create`)}>Pay Supplier</Button>}
-        />
-      </Card>
+          },
+          pageSizeOptions: [10, 20, 50, 100],
+        }}
+      />
       <PurchaseToaster />
     </div>
   );

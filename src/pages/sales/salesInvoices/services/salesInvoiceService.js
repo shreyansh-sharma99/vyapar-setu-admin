@@ -40,8 +40,9 @@ export const voidSalesInvoiceApi = async (id, payload) => {
   return response.data;
 };
 
-export const sendPaymentReminderApi = async (id) => {
-  const response = await apiClient.post(`/sales-invoices/${id}/send-reminder`);
+/** body: { pdf, fileName } — the invoice PDF in the Invoice Layout design (optional) */
+export const sendPaymentReminderApi = async (id, body = {}) => {
+  const response = await apiClient.post(`/sales-invoices/${id}/send-reminder`, body);
   return response.data;
 };
 
@@ -62,5 +63,11 @@ export const duplicateSalesInvoiceApi = async (id) => {
 
 export const deleteSalesInvoiceApi = async (id) => {
   const response = await apiClient.delete(`/sales-invoices/${id}`);
+  return response.data;
+};
+
+/** Delete a wrong receipt: the server takes it off the invoice and the customer ledger. */
+export const deletePaymentInApi = async (id) => {
+  const response = await apiClient.delete(`/payments-in/${id}`);
   return response.data;
 };

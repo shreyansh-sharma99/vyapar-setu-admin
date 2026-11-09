@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import {
-  ArrowLeft, Edit2, Check, X, Trash2, Calendar, User, Hash, MapPin, Mail, Phone, FileText
-} from 'lucide-react';
+import { Edit2, Check, X, Trash2 } from 'lucide-react';
 import { decryptData, encryptData } from '@/utility/crypto';
-import Button from '@/components/inputs/Button';
-import Card from '../../../components/breadCrumbs/Card';
-import Loader from '@/components/loader/Loader';
-import DeleteModal from '@/components/modal/DeleteModal';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
+import {
+  Badge, Button, Card, ConfirmDialog, DetailList, DocumentLayout, LineItemsTable, LineRow, PageHeader, PartyCard, Section,
+  SkeletonRows, StatusBadge, ToastStack, TotalsPanel, TotalsRow, LINE_TD, LINE_TH,
+} from '@/components/ui';
 import {
   getSalesReturnById,
   clearCurrentReturn,
@@ -18,81 +15,12 @@ import {
   clearReturnToast,
 } from './services/salesReturnSlice';
 import { firstAddress, customerAddress } from '../components/address';
+import { InvoiceDocument } from '@/pages/Invoices/invoiceLayout/components/InvoiceTemplates';
+import { docFromReturn } from '@/pages/Invoices/invoiceLayout/components/invoiceDoc';
+import { printWidth } from '../salesInvoices/invoiceLayoutPdf';
 
-// ─── Status Config ─────────────────────────────────────────────────────────────
-const STATUS_CONFIG = {
-  draft:    { label: 'Draft',    cls: 'bg-slate-100 text-slate-700 dark:bg-white/5 dark:text-slate-400 border-slate-200 dark:border-white/10' },
-  approved: { label: 'Approved', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20' },
-  rejected: { label: 'Rejected', cls: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 border-rose-200 dark:border-rose-500/20' },
-};
-
-// ─── Animated Modal ─────────────────────────────────────────────────────────────
-function AnimatedModal({ isOpen, onClose, children, maxWidth = 'max-w-sm' }) {
-  const [isClosing, setIsClosing] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) { setIsMounted(true); setIsClosing(false); }
-    else if (isMounted) {
-      setIsClosing(true);
-      const t = setTimeout(() => setIsMounted(false), 200);
-      return () => clearTimeout(t);
-    }
-  }, [isOpen, isMounted]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
-
-  if (!isMounted && !isOpen) return null;
-
-  return (
-    <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 ${isClosing ? 'modal-backdrop-exit' : 'modal-backdrop-enter'}`}
-      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`relative w-full ${maxWidth} rounded-2xl shadow-2xl overflow-hidden ${isClosing ? 'modal-content-exit' : 'modal-content-enter'}`}
-        style={{ background: 'var(--vs-bg-primary)', border: '1px solid var(--vs-border)' }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ─── Confirm Modal ──────────────────────────────────────────────────────────────
-function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmLabel, confirmVariant, icon }) {
-  return (
-    <AnimatedModal isOpen={isOpen} onClose={onClose}>
-      <div className="text-[var(--vs-text-primary)]">
-        <div className="px-6 py-5 flex flex-col items-center gap-3 text-center">
-          {icon && <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'var(--vs-bg-secondary)' }}>{icon}</div>}
-          <h3 className="text-base font-bold">{title}</h3>
-          <p className="text-sm text-[var(--vs-text-secondary)]">{message}</p>
-        </div>
-        <div className="px-6 pb-6 flex items-center justify-center gap-3">
-          <Button type="button" variant="outline" onClick={onClose} className="!h-9 min-w-[80px]">Cancel</Button>
-          <Button type="button" variant={confirmVariant} onClick={onConfirm} className="!h-9 min-w-[100px]">{confirmLabel}</Button>
-        </div>
-      </div>
-    </AnimatedModal>
-  );
-}
-
-// ─── Info Row ────────────────────────────────────────────────────────────────────
-function InfoRow({ icon, label, value }) {
-  if (!value) return null;
-  return (
-    <div className="flex items-start gap-2.5">
-      <div className="mt-0.5 text-[var(--vs-text-secondary)] flex-shrink-0">{icon}</div>
-      <div className="flex flex-col">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--vs-text-secondary)]">{label}</span>
-        <span className="text-sm font-medium text-[var(--vs-text-primary)]">{value}</span>
-      </div>
-    </div>
-  );
-}
+/** ₹ with two decimals, as this page always showed amounts. */
+const rs = (v) => `₹${Number(v || 0).toFixed(2)}`;
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
 export default function SalesReturnDetails() {
@@ -148,17 +76,18 @@ export default function SalesReturnDetails() {
 
   if (loading || !salesReturn) {
     return (
-      <Card h1="Sales Return Details" buttonName="Back" navigation="-1" buttonVariant="danger" buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />} bodyClassName="p-6">
-        <Loader />
-      </Card>
+      <div className="flex flex-col gap-5">
+        <PageHeader title="Sales return" />
+        <Card>
+          <SkeletonRows rows={6} cols={4} />
+        </Card>
+      </div>
     );
   }
 
-  const statusCfg = STATUS_CONFIG[salesReturn.status] || STATUS_CONFIG.draft;
-
   const confirmConfig = {
-    approve: { title: 'Approve Sales Return?', message: 'This will approve the sales return. You cannot edit it after approval.', label: 'Approve', variant: 'primary', icon: <Check className="w-6 h-6 text-emerald-500" /> },
-    reject:  { title: 'Reject Sales Return?',  message: 'This will mark the sales return as rejected.',                             label: 'Reject',  variant: 'danger',  icon: <X className="w-6 h-6 text-rose-500" /> },
+    approve: { title: 'Approve Sales Return?', message: 'This will approve the sales return. You cannot edit it after approval.', label: 'Approve', tone: 'primary', icon: Check },
+    reject:  { title: 'Reject Sales Return?',  message: 'This will mark the sales return as rejected.',                             label: 'Reject',  tone: 'danger',  icon: X },
   };
 
   const currentConfirm = confirmModal.type ? confirmConfig[confirmModal.type] : null;
@@ -169,197 +98,143 @@ export default function SalesReturnDetails() {
     customerAddress(salesReturn.customerId),
   );
 
+  const customer = salesReturn.customerSnapshot || {};
+  const hasGstSplit = salesReturn.cgstTotal > 0 || salesReturn.sgstTotal > 0 || salesReturn.igstTotal > 0;
+
   return (
-    <div className="flex flex-col gap-6 mx-auto text-[var(--vs-text-primary)]">
-      <Card h1={`Sales Return - ${salesReturn.returnNumber}`} buttonName="Back" navigation="-1" buttonVariant="danger" buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />} bodyClassName="p-6">
-
-        {/* ── Top Action Bar ── */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-[var(--vs-border)]">
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusCfg.cls}`}>{statusCfg.label}</span>
+    <>
+      <DocumentLayout
+        header={{
+          title: 'Sales return',
+          docNo: salesReturn.returnNumber,
+          actions: (
+            <>
+              <StatusBadge status={salesReturn.status} size="md" />
+              {/* Edit (draft only) */}
+              {salesReturn.status === 'draft' && (
+                <Button variant="secondary" onClick={() => navigate(`/sales/return/edit/${encodeURIComponent(encryptData(salesReturn._id))}`)} startIcon={<Edit2 />}>Edit</Button>
+              )}
+              {/* Delete (draft and rejected only) */}
+              {(salesReturn.status === 'draft' || salesReturn.status === 'rejected') && (
+                <Button variant="danger-soft" onClick={() => setDeleteModal(true)} startIcon={<Trash2 />}>Delete</Button>
+              )}
+              {/* Reject (draft and approved only) */}
+              {(salesReturn.status === 'draft' || salesReturn.status === 'approved') && (
+                <Button variant="secondary" onClick={() => openConfirm('reject')} startIcon={<X />}>Reject</Button>
+              )}
+              {/* Approve (draft only) */}
+              {salesReturn.status === 'draft' && (
+                <Button onClick={() => openConfirm('approve')} startIcon={<Check />}>Approve</Button>
+              )}
+            </>
+          ),
+        }}
+        summary={
+          <TotalsPanel title="Pricing summary" totalLabel="Grand total" total={rs(salesReturn.totalAmount)}>
+            <TotalsRow label="Subtotal" value={rs(salesReturn.subtotal)} />
+            <TotalsRow label="GST total" value={rs(salesReturn.taxAmount)} />
+            {hasGstSplit && salesReturn.cgstTotal > 0 && <TotalsRow label="CGST" value={rs(salesReturn.cgstTotal)} />}
+            {hasGstSplit && salesReturn.sgstTotal > 0 && <TotalsRow label="SGST" value={rs(salesReturn.sgstTotal)} />}
+            {hasGstSplit && salesReturn.igstTotal > 0 && <TotalsRow label="IGST" value={rs(salesReturn.igstTotal)} />}
+            {salesReturn.roundOff !== 0 && <TotalsRow label="Round off" value={rs(salesReturn.roundOff)} />}
+          </TotalsPanel>
+        }
+      >
+        <Section title="Return details">
+          <div className="flex flex-col gap-5">
+            <DetailList
+              cols={3}
+              items={[
+                { label: 'Return number', value: salesReturn.returnNumber, mono: true },
+                { label: 'Return date', value: salesReturn.returnDate ? new Date(salesReturn.returnDate).toLocaleDateString('en-IN') : '—' },
+                { label: 'Source invoice', value: salesReturn.salesInvoiceId?.invoiceNumber || '—', mono: true },
+              ]}
+            />
+            <PartyCard name={customer.name || 'Walk-in Customer'} sub={[customer.phone, customer.email].filter(Boolean).join(' · ')}>
+              <DetailList
+                cols={2}
+                className="border-t border-line pt-3"
+                items={[
+                  { label: 'GSTIN', value: customer.gstin, mono: true },
+                  { label: 'Billing address', value: billingStr || 'No address specified' },
+                ]}
+              />
+            </PartyCard>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Edit (draft only) */}
-            {salesReturn.status === 'draft' && (
-              <Button type="button" variant="outline" onClick={() => navigate(`/sales/return/edit/${encodeURIComponent(encryptData(salesReturn._id))}`)} startIcon={<Edit2 className="w-3.5 h-3.5" />} className="!h-9 px-3">Edit</Button>
-            )}
-
-            {/* Approve (draft only) */}
-            {salesReturn.status === 'draft' && (
-              <Button type="button" variant="primary" onClick={() => openConfirm('approve')} startIcon={<Check className="w-3.5 h-3.5" />} className="!h-9 px-3">
-                Approve
-              </Button>
-            )}
-
-            {/* Reject (draft and approved only) */}
-            {(salesReturn.status === 'draft' || salesReturn.status === 'approved') && (
-              <Button type="button" variant="outline" onClick={() => openConfirm('reject')} startIcon={<X className="w-3.5 h-3.5" />} className="!h-9 px-3 border-dashed hover:!border-rose-500 hover:!text-rose-500">
-                Reject
-              </Button>
-            )}
-
-            {/* Delete (draft and rejected only) */}
-            {(salesReturn.status === 'draft' || salesReturn.status === 'rejected') && (
-              <Button type="button" variant="outline" onClick={() => setDeleteModal(true)} startIcon={<Trash2 className="w-3.5 h-3.5" />} className="!h-9 px-3 !text-rose-500 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 !border-rose-200 dark:!border-rose-500/20">
-                Delete
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* ── Info Cards Grid ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-          {/* General Details */}
-          <Card title="General Information" bodyClassName="p-5 flex flex-col gap-4">
-            <InfoRow icon={<Hash className="w-4 h-4" />} label="Return Number" value={salesReturn.returnNumber} />
-            <InfoRow icon={<Calendar className="w-4 h-4" />} label="Return Date" value={salesReturn.returnDate ? new Date(salesReturn.returnDate).toLocaleDateString('en-IN') : '—'} />
-            <InfoRow icon={<FileText className="w-4 h-4" />} label="Source Invoice" value={salesReturn.salesInvoiceId?.invoiceNumber || '—'} />
-          </Card>
-
-          {/* Customer Snapshot */}
-          <Card title="Customer Information" bodyClassName="p-5 flex flex-col gap-4">
-            <InfoRow icon={<User className="w-4 h-4" />} label="Customer Name" value={salesReturn.customerSnapshot?.name || 'Walk-in Customer'} />
-            <InfoRow icon={<Phone className="w-4 h-4" />} label="Phone Number" value={salesReturn.customerSnapshot?.phone} />
-            <InfoRow icon={<Mail className="w-4 h-4" />} label="Email Address" value={salesReturn.customerSnapshot?.email} />
-            <InfoRow icon={<Hash className="w-4 h-4" />} label="GSTIN" value={salesReturn.customerSnapshot?.gstin} />
-          </Card>
-
-          {/* Billing Address */}
-          <Card title="Address Details" bodyClassName="p-5 flex flex-col gap-4">
-            <InfoRow icon={<MapPin className="w-4 h-4" />} label="Billing Address" value={billingStr || 'No address specified'} />
-          </Card>
-        </div>
+        </Section>
 
         {/* ── Returned Items Table ── */}
-        <div className="mt-8">
-          <h3 className="text-base font-bold mb-4">Returned Line Items</h3>
-          <div className="overflow-x-auto rounded-xl border border-[var(--vs-border)]">
-            <table className="w-full text-sm border-collapse min-w-[650px]">
-              <thead className="bg-gray-50/50 dark:bg-slate-800/50 text-[var(--vs-text-secondary)] font-bold text-xs uppercase tracking-wider">
-                <tr className="border-b border-[var(--vs-border)]">
-                  <th className="py-3.5 px-4 text-left">Product Name</th>
-                  <th className="py-3.5 px-4 text-center">HSN</th>
-                  <th className="py-3.5 px-4 text-center">Returned Qty</th>
-                  <th className="py-3.5 px-4 text-center">Rate</th>
-                  <th className="py-3.5 px-4 text-center">Discount</th>
-                  <th className="py-3.5 px-4 text-center">Tax (GST)</th>
-                  <th className="py-3.5 px-4 text-center">Condition</th>
-                  <th className="py-3.5 px-4 text-left">Return Reason</th>
-                  <th className="py-3.5 px-4 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {salesReturn.lineItems?.map((item, index) => {
-                  const rate = Number(item.rate || 0);
-                  const disc = Number(item.discountPercent || 0);
-                  const qty = Number(item.qty || 0);
-                  const taxable = qty * rate * (1 - disc / 100);
-                  const tax = taxable * (Number(item.taxPercent || 0) / 100);
-                  const total = taxable + tax;
+        <Section title="Returned items" description={`${salesReturn.lineItems?.length || 0} lines`}>
+          <LineItemsTable
+            minWidth={680}
+            head={
+              <tr>
+                <th className={LINE_TH}>Product / reason</th>
+                <th className={LINE_TH}>HSN</th>
+                <th className={`${LINE_TH} text-right`}>Qty</th>
+                <th className={`${LINE_TH} text-right`}>Rate</th>
+                <th className={`${LINE_TH} text-right`}>Disc.</th>
+                <th className={`${LINE_TH} text-right`}>GST</th>
+                <th className={LINE_TH}>Condition</th>
+                <th className={`${LINE_TH} text-right`}>Total</th>
+              </tr>
+            }
+          >
+            {salesReturn.lineItems?.map((item, index) => {
+              const rate = Number(item.rate || 0);
+              const disc = Number(item.discountPercent || 0);
+              const qty = Number(item.qty || 0);
+              const taxable = qty * rate * (1 - disc / 100);
+              const tax = taxable * (Number(item.taxPercent || 0) / 100);
+              const total = taxable + tax;
 
-                  return (
-                    <tr key={index} className="border-b border-[var(--vs-border)] hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                      <td className="py-3.5 px-4 font-semibold text-[var(--vs-text-primary)]">{item.productName}</td>
-                      <td className="py-3.5 px-4 text-center font-mono">{item.hsnCode || '—'}</td>
-                      <td className="py-3.5 px-4 text-center font-semibold font-mono">{qty}</td>
-                      <td className="py-3.5 px-4 text-center font-mono">₹{rate.toFixed(2)}</td>
-                      <td className="py-3.5 px-4 text-center text-rose-500 font-semibold">{disc > 0 ? `${disc}%` : '—'}</td>
-                      <td className="py-3.5 px-4 text-center font-mono">{item.taxPercent || 0}%</td>
-                      <td className="py-3.5 px-4 text-center">
-                        {item.condition === 'damaged' ? (
-                          <span
-                            className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
-                            title="Moved to damaged stock — not available for sale"
-                          >
-                            Damaged
-                          </span>
-                        ) : (
-                          <span
-                            className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
-                            title="Returned to sellable stock"
-                          >
-                            Good
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-left italic text-gray-500 dark:text-white/40">{item.returnReason || '—'}</td>
-                      <td className="py-3.5 px-4 text-right font-mono font-semibold text-indigo-600 dark:text-indigo-400">₹{total.toFixed(2)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              return (
+                <LineRow key={index}>
+                  <td className={LINE_TD}>
+                    <div className="font-semibold">{item.productName}</div>
+                    {item.returnReason && <div className="mt-0.5 text-xs text-ink-subtle">{item.returnReason}</div>}
+                  </td>
+                  <td className={`${LINE_TD} font-mono text-ink-muted`}>{item.hsnCode || '—'}</td>
+                  <td className={`${LINE_TD} text-right font-semibold tabular-nums`}>{qty}</td>
+                  <td className={`${LINE_TD} text-right tabular-nums`}>₹{rate.toFixed(2)}</td>
+                  <td className={`${LINE_TD} text-right tabular-nums ${disc > 0 ? 'text-danger' : 'text-ink-subtle'}`}>{disc > 0 ? `${disc}%` : '—'}</td>
+                  <td className={`${LINE_TD} text-right tabular-nums`}>{item.taxPercent || 0}%</td>
+                  <td className={LINE_TD}>
+                    {item.condition === 'damaged' ? (
+                      <span title="Moved to damaged stock — not available for sale"><Badge tone="danger">Damaged</Badge></span>
+                    ) : (
+                      <span title="Returned to sellable stock"><Badge tone="success">Good</Badge></span>
+                    )}
+                  </td>
+                  <td className={`${LINE_TD} text-right font-semibold tabular-nums`}>₹{total.toFixed(2)}</td>
+                </LineRow>
+              );
+            })}
+          </LineItemsTable>
+        </Section>
 
-        {/* ── Notes and Pricing Breakdown ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-          {/* Notes */}
-          <div className="lg:col-span-2">
-            {salesReturn.notes && (
-              <Card title="Notes" bodyClassName="p-4 bg-slate-50/50 dark:bg-white/[0.01] border-dashed border border-gray-200 dark:border-white/10 rounded-xl h-full">
-                <p className="text-sm leading-relaxed text-[var(--vs-text-secondary)] whitespace-pre-wrap">{salesReturn.notes}</p>
-              </Card>
-            )}
-          </div>
+        {salesReturn.notes && (
+          <Section title="Notes">
+            <p className="m-0 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{salesReturn.notes}</p>
+          </Section>
+        )}
 
-          {/* Price Summary */}
-          <div>
-            <Card title="Pricing Summary" bodyClassName="p-5 flex flex-col gap-3.5 text-sm">
-              <div className="flex items-center justify-between text-[var(--vs-text-secondary)]">
-                <span>Subtotal</span>
-                <span className="font-mono font-medium">₹{(salesReturn.subtotal || 0).toFixed(2)}</span>
+        {/* The return, in the same Invoice Layout as its invoice */}
+        {salesReturn.print && (
+          <Section title="Return document" description="Printed in your invoice layout">
+            <div className="overflow-x-auto rounded-control bg-fill p-3 sm:p-6">
+              <div className="mx-auto bg-white shadow-card" style={{ width: printWidth(salesReturn.print?.layout?.theme) }}>
+                <InvoiceDocument layout={salesReturn.print?.layout || {}} doc={docFromReturn(salesReturn)} />
               </div>
-              <div className="flex items-center justify-between text-[var(--vs-text-secondary)]">
-                <span>GST Total</span>
-                <span className="font-mono font-medium">₹{(salesReturn.taxAmount || 0).toFixed(2)}</span>
-              </div>
-
-              {/* GST Splits */}
-              {(salesReturn.cgstTotal > 0 || salesReturn.sgstTotal > 0 || salesReturn.igstTotal > 0) && (
-                <div className="border-t border-dashed border-gray-200 dark:border-white/10 pt-2 flex flex-col gap-1.5 text-xs text-[var(--vs-text-secondary)]">
-                  {salesReturn.cgstTotal > 0 && (
-                    <div className="flex justify-between font-mono">
-                      <span>CGST:</span>
-                      <span>₹{salesReturn.cgstTotal.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {salesReturn.sgstTotal > 0 && (
-                    <div className="flex justify-between font-mono">
-                      <span>SGST:</span>
-                      <span>₹{salesReturn.sgstTotal.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {salesReturn.igstTotal > 0 && (
-                    <div className="flex justify-between font-mono">
-                      <span>IGST:</span>
-                      <span>₹{salesReturn.igstTotal.toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {salesReturn.roundOff !== 0 && (
-                <div className="flex items-center justify-between text-[var(--vs-text-secondary)]">
-                  <span>Round Off</span>
-                  <span className="font-mono font-medium text-amber-500">₹{(salesReturn.roundOff || 0).toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between border-t border-[var(--vs-border)] pt-3 text-base font-extrabold text-[var(--vs-text-primary)]">
-                <span>Grand Total</span>
-                <span className="font-mono text-indigo-600 dark:text-indigo-400">₹{(salesReturn.totalAmount || 0).toFixed(2)}</span>
-              </div>
-            </Card>
-          </div>
-        </div>
-
-      </Card>
+            </div>
+          </Section>
+        )}
+      </DocumentLayout>
 
       {/* ── Delete Modal ── */}
-      <DeleteModal
-        isOpen={deleteModal}
-        isLoading={loading}
+      <ConfirmDialog
+        open={deleteModal}
+        loading={loading}
         onClose={() => setDeleteModal(false)}
         onConfirm={handleConfirmDelete}
         title="Delete Sales Return"
@@ -368,28 +243,20 @@ export default function SalesReturnDetails() {
 
       {/* ── Status Confirm Modal ── */}
       {currentConfirm && (
-        <ConfirmModal
-          isOpen={confirmModal.isOpen}
+        <ConfirmDialog
+          open={confirmModal.isOpen}
           onClose={() => setConfirmModal({ isOpen: false, type: null })}
           onConfirm={handleConfirmAction}
           title={currentConfirm.title}
           message={currentConfirm.message}
           confirmLabel={currentConfirm.label}
-          confirmVariant={currentConfirm.variant}
+          tone={currentConfirm.tone}
           icon={currentConfirm.icon}
         />
       )}
 
       {/* ── Toaster ── */}
-      <CToaster className="p-3" style={{ zIndex: 2000, position: 'fixed', bottom: '20px', right: '20px' }}>
-        {toasts.map((t) => (
-          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
-            <div className="d-flex">
-              <CToastBody className="font-semibold">{t.message}</CToastBody>
-            </div>
-          </CToast>
-        ))}
-      </CToaster>
-    </div>
+      <ToastStack toasts={toasts} />
+    </>
   );
 }

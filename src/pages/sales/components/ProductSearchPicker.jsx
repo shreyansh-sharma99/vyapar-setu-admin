@@ -1,17 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Search, Loader2, ScanLine, X } from 'lucide-react';
+import { Badge, Button, Input } from '@/components/ui';
 import { lookupProductsApi } from '../services/productLookupService';
 
 const DEBOUNCE_MS = 300;
 
+// The selling price; a product without one is sold at its MRP.
 const formatPrice = (p) => {
   const price = Number(p.discountedPrice > 0 ? p.discountedPrice : p.basePrice || 0);
+  if (!(price > 0) && Number(p.mrp) > 0) return `₹${Number(p.mrp).toFixed(2)} MRP`;
   return `₹${price.toFixed(2)}`;
 };
 
 /** Shared hook: debounced product search with stale-response protection. */
-function useProductSearch(storeId) {
+function useProductSearch() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchedFor, setSearchedFor] = useState(null);
@@ -22,7 +25,7 @@ function useProductSearch(storeId) {
     const reqId = ++requestRef.current;
     setLoading(true);
     try {
-      const rows = await lookupProductsApi({ q, storeId, limit: 20 });
+      const rows = await lookupProductsApi({ q, limit: 20 });
       if (reqId === requestRef.current) {
         setResults(rows);
         setSearchedFor(q);
@@ -60,13 +63,12 @@ const pickOnEnter = (rows) => rows.find((r) => r.matchedExactly) || (rows.length
 /**
  * Async product picker for document lines.
  * - Type to search (debounced) by name, SKU, barcode, pack barcode or HSN.
- * - With `storeId`, every result shows the sellable stock in that store.
+ * - Every result shows the product's sellable stock.
  * - Press Enter after scanning / typing a barcode or SKU: the exact match is selected.
  */
 export default function ProductSearchPicker({
   value,
   selectedLabel = '',
-  storeId,
   onSelect,
   error = false,
   placeholder = 'Search name, SKU or scan barcode',
@@ -81,7 +83,7 @@ export default function ProductSearchPicker({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [notice, setNotice] = useState('');
   const [dropdownStyle, setDropdownStyle] = useState({});
-  const { results, loading, searchedFor, scheduleSearch, searchNow } = useProductSearch(storeId);
+  const { results, loading, searchedFor, scheduleSearch, searchNow } = useProductSearch();
 
   useEffect(() => {
     const onOutside = (e) => {
@@ -182,24 +184,24 @@ export default function ProductSearchPicker({
     <div
       ref={dropdownRef}
       style={dropdownStyle}
-      className="rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] shadow-lg overflow-auto"
+      className="overflow-auto rounded-control border border-line bg-surface text-ink shadow-[0_12px_32px_-8px_rgba(30,27,75,0.25)]"
     >
       {notice && (
-        <div className="px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-b border-[var(--vs-border)]">
+        <div className="border-b border-line bg-warning-soft px-3 py-2 text-xs font-medium text-warning">
           {notice}
         </div>
       )}
       {loading && results.length === 0 ? (
-        <div className="flex items-center gap-2 px-3 py-3 text-sm text-[var(--vs-text-secondary)]">
+        <div className="flex items-center gap-2 px-3 py-3 text-sm text-ink-muted">
           <Loader2 className="w-4 h-4 animate-spin" /> Searching...
         </div>
       ) : results.length === 0 ? (
-        <div className="px-3 py-3 text-sm text-[var(--vs-text-secondary)]">
+        <div className="px-3 py-3 text-sm text-ink-muted">
           {query.trim() ? 'No matching products.' : 'No products found.'}
         </div>
       ) : (
         results.map((p, i) => {
-          const stock = Number(p.storeStock ?? 0);
+          const stock = Number(p.currentStock ?? 0);
           return (
             <div
               key={p._id}
@@ -208,31 +210,25 @@ export default function ProductSearchPicker({
                 choose(p);
               }}
               onMouseEnter={() => setActiveIndex(i)}
-              className={`px-3 py-2 cursor-pointer border-b last:border-b-0 border-[var(--vs-border)] ${
-                i === activeIndex || p._id === value ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'hover:bg-[var(--vs-bg-secondary)]'
+              className={`px-3 py-2 cursor-pointer border-b last:border-b-0 border-line ${
+                i === activeIndex || p._id === value ? 'bg-brand-soft' : 'hover:bg-fill-2'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-[var(--vs-text-primary)] truncate">{p.name}</div>
-                  <div className="text-[11px] text-[var(--vs-text-secondary)] truncate">
+                  <div className="text-sm font-semibold text-ink truncate">{p.name}</div>
+                  <div className="text-[11px] text-ink-muted truncate">
                     {[p.sku && `SKU: ${p.sku}`, p.barcode && `Barcode: ${p.barcode}`, p.unit && `Unit: ${p.unit}`]
                       .filter(Boolean)
                       .join(' · ')}
                   </div>
                 </div>
                 <div className="flex flex-col items-end shrink-0 gap-0.5">
-                  <span className="text-xs font-semibold text-[var(--vs-text-primary)]">{formatPrice(p)}</span>
-                  {showStock && storeId && (
-                    <span
-                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                        stock > 0
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                          : 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
-                      }`}
-                    >
-                      In store: {stock} {p.unit || ''}
-                    </span>
+                  <span className="text-xs font-semibold tabular-nums text-ink">{formatPrice(p)}</span>
+                  {showStock && (
+                    <Badge tone={stock > 0 ? 'success' : 'danger'} size="xs" className="rounded-md font-semibold">
+                      In stock: {stock} {p.unit || ''}
+                    </Badge>
                   )}
                 </div>
               </div>
@@ -245,10 +241,9 @@ export default function ProductSearchPicker({
 
   return (
     <div ref={wrapperRef} className="relative w-full">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--vs-text-secondary)] pointer-events-none" />
-      <input
+      <Input
         ref={inputRef}
-        type="text"
+        size="sm"
         autoComplete="off"
         disabled={disabled}
         value={isOpen ? query : selectedLabel}
@@ -256,15 +251,10 @@ export default function ProductSearchPicker({
         onFocus={handleFocus}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        className={`w-full rounded-lg border bg-white dark:bg-slate-900 pl-9 pr-8 py-2 text-sm outline-none text-[var(--vs-text-primary)] focus:ring-2 disabled:opacity-60 ${
-          error
-            ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
-            : 'border-gray-200 dark:border-white/10 focus:border-indigo-500/60 focus:ring-indigo-500/20'
-        }`}
+        invalid={!!error}
+        startIcon={<Search />}
+        endIcon={loading && isOpen ? <Loader2 className="animate-spin text-brand" /> : null}
       />
-      {loading && isOpen && (
-        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-indigo-500" />
-      )}
       {isOpen && ReactDOM.createPortal(dropdown, document.body)}
     </div>
   );
@@ -274,7 +264,7 @@ export default function ProductSearchPicker({
  * Barcode / SKU scan box. Scanners type the code and press Enter; the exact match is passed
  * to `onProduct`. Typing a code by hand and pressing Enter works the same way.
  */
-export function BarcodeScanInput({ storeId, onProduct, placeholder = 'Scan barcode or type SKU, then press Enter' }) {
+export function BarcodeScanInput({ onProduct, placeholder = 'Scan barcode or type SKU, then press Enter' }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
@@ -286,7 +276,7 @@ export function BarcodeScanInput({ storeId, onProduct, placeholder = 'Scan barco
     if (!q || busy) return;
     setBusy(true);
     try {
-      const rows = await lookupProductsApi({ q, storeId, limit: 5 });
+      const rows = await lookupProductsApi({ q, limit: 5 });
       const match = pickOnEnter(rows);
       if (match) {
         onProduct(match);
@@ -304,32 +294,34 @@ export function BarcodeScanInput({ storeId, onProduct, placeholder = 'Scan barco
 
   return (
     <div className="flex flex-col gap-1 w-full sm:w-80">
-      <div className="relative">
-        <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--vs-text-secondary)] pointer-events-none" />
-        <input
-          type="text"
-          autoComplete="off"
-          value={code}
-          onChange={(e) => { setCode(e.target.value); setMessage(null); }}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="w-full h-8 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 pl-9 pr-8 text-xs outline-none text-[var(--vs-text-primary)] focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20"
-        />
-        {busy ? (
-          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-indigo-500" />
-        ) : code ? (
-          <button
-            type="button"
-            onClick={() => { setCode(''); setMessage(null); }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--vs-text-secondary)] cursor-pointer"
-            title="Clear"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        ) : null}
-      </div>
+      <Input
+        size="sm"
+        autoComplete="off"
+        value={code}
+        onChange={(e) => { setCode(e.target.value); setMessage(null); }}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className="bg-surface text-xs"
+        startIcon={<ScanLine />}
+        endIcon={
+          busy ? (
+            <Loader2 className="animate-spin text-brand" />
+          ) : code ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => { setCode(''); setMessage(null); }}
+              className="!size-6 !rounded-md"
+              title="Clear"
+              aria-label="Clear"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          ) : null
+        }
+      />
       {message && (
-        <span className={`text-[11px] font-medium ${message.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+        <span className={`text-[11px] font-medium ${message.ok ? 'text-success' : 'text-danger'}`}>
           {message.text}
         </span>
       )}

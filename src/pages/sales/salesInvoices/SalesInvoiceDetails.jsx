@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  ArrowLeft,
   Download,
   CreditCard,
   Ban,
@@ -10,13 +9,18 @@ import {
   Edit2,
   Check,
   Send,
-  Loader2,
+  MoreHorizontal,
+  Printer,
+  Trash2,
+  Undo2,
 } from 'lucide-react';
 import { decryptData, encryptData } from '@/utility/crypto';
-import Button from '@/components/inputs/Button';
-import Card from '../../../components/breadCrumbs/Card';
-import Loader from '@/components/loader/Loader';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
+import { can } from '@/utility/shopPermissions';
+import { formatDate } from '@/utility/dateTiming';
+import {
+  Alert, Badge, Button, Card, ConfirmDialog, DocumentLayout, DropdownMenu, Field, Input, LineItemsTable, LineRow, Modal,
+  PageHeader, Section, Select, SkeletonRows, StatusBadge, Textarea, ToastStack, TotalsPanel, TotalsRow, LINE_TD, LINE_TH,
+} from '@/components/ui';
 import {
   getSalesInvoiceById,
   clearCurrentSalesInvoice,
@@ -26,10 +30,19 @@ import {
   sendPaymentReminder,
   generatePaymentLink,
   clearSalesInvoiceToast,
+  deletePaymentIn,
 } from './services/salesInvoiceSlice';
 import { InvoiceDocument } from '@/pages/Invoices/invoiceLayout/components/InvoiceTemplates';
 import { docFromInvoice, inr } from '@/pages/Invoices/invoiceLayout/components/invoiceDoc';
-import { downloadInvoiceLayoutPdf, printWidth } from './invoiceLayoutPdf';
+import { downloadInvoiceLayoutPdf, printInvoiceLayout, printWidth } from './invoiceLayoutPdf';
+import { downloadReceiptPdf } from './receiptPdf';
+import { PAYMENT_METHOD_LABELS } from './paymentMethods';
+
+const PAYMENT_OPTIONS = Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }));
+
+/** Today as YYYY-MM-DD in the user's time zone (default receipt date). */
+const todayISO = () => new Date().toLocaleDateString('en-CA');
+const EMPTY_PAYMENT = { isOpen: false, amount: 0, paymentDate: '', method: 'cash', reference: '', notes: '' };
 
 export default function SalesInvoiceDetails() {
   const { id: encryptedId } = useParams();
@@ -39,12 +52,20 @@ export default function SalesInvoiceDetails() {
   const id = encryptedId ? decryptData(decodeURIComponent(encryptedId)) : null;
 
   const { currentInvoice, loading, toast: reduxToast } = useSelector((state) => state.salesInvoice);
+  const { user } = useSelector((state) => state.auth || {});
   const [toasts, setToasts] = useState([]);
 
   // Modals
-  const [paymentModal, setPaymentModal] = useState({ isOpen: false, amount: 0, method: 'cash', reference: '', notes: '' });
+  const [paymentModal, setPaymentModal] = useState(EMPTY_PAYMENT);
   const [voidModal, setVoidModal] = useState({ isOpen: false, reason: '' });
+  const [deleteReceipt, setDeleteReceipt] = useState(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [receiptBusy, setReceiptBusy] = useState(null);
+
+  // The receipt API is a PATCH on the invoice (server checks sales.update); delete is DELETE /payments-in.
+  const canTakeReceipt = can(user, 'sales', 'update');
+  const canDeleteReceipt = can(user, 'sales', 'delete');
+  const canReturn = can(user, 'sales', 'create');
 
   const showToast = (message, color = 'success') => {
     const id = Date.now();
@@ -72,6 +93,20 @@ export default function SalesInvoiceDetails() {
       }
     }
   }, [reduxToast, dispatch, id]);
+
+  // Print the bill: the same pages as Download PDF, straight to the print dialog
+  const [printBusy, setPrintBusy] = useState(false);
+  const handlePrint = async () => {
+    if (!currentInvoice || printBusy) return;
+    setPrintBusy(true);
+    try {
+      await printInvoiceLayout({ invoice: currentInvoice });
+    } catch {
+      showToast('Could not open the print dialog.', 'danger');
+    } finally {
+      setPrintBusy(false);
+    }
+  };
 
   // PDF in the Invoice Layout design (same picture as the invoice on this page)
   const handleDownloadPdf = async () => {
@@ -109,6 +144,7 @@ export default function SalesInvoiceDetails() {
     setPaymentModal({
       isOpen: true,
       amount: currentInvoice.balanceAmount,
+      paymentDate: todayISO(),
       method: 'cash',
       reference: '',
       notes: '',
@@ -121,18 +157,46 @@ export default function SalesInvoiceDetails() {
       showToast('Please enter a valid amount.', 'danger');
       return;
     }
+    if (Number(paymentModal.amount) > Number(currentInvoice.balanceAmount) + 0.001) {
+      showToast(`Amount cannot be more than the balance (${inr(currentInvoice.balanceAmount)}).`, 'danger');
+      return;
+    }
     dispatch(
       markSalesInvoicePaid({
         id: currentInvoice._id,
         payload: {
           amount: Number(paymentModal.amount),
+          paymentDate: paymentModal.paymentDate || todayISO(),
           paymentMethod: paymentModal.method,
           reference: paymentModal.reference,
           notes: paymentModal.notes,
         },
       })
     );
-    setPaymentModal({ isOpen: false, amount: 0, method: 'cash', reference: '', notes: '' });
+    setPaymentModal(EMPTY_PAYMENT);
+  };
+
+  const handlePrintReceipt = async (receipt) => {
+    if (receiptBusy) return;
+    setReceiptBusy(receipt._id);
+    try {
+      await downloadReceiptPdf({ invoice: currentInvoice, receipt });
+    } catch {
+      showToast('Failed to download the receipt.', 'danger');
+    } finally {
+      setReceiptBusy(null);
+    }
+  };
+
+  const handleConfirmDeleteReceipt = () => {
+    if (!deleteReceipt) return;
+    dispatch(deletePaymentIn(deleteReceipt._id));
+    setDeleteReceipt(null);
+  };
+
+  const handleReturnClick = () => {
+    if (!currentInvoice) return;
+    navigate('/sales/return/create', { state: { invoiceId: currentInvoice._id } });
   };
 
   const handleVoidClick = () => {
@@ -156,7 +220,7 @@ export default function SalesInvoiceDetails() {
 
   const handleSendReminderClick = () => {
     if (!currentInvoice) return;
-    dispatch(sendPaymentReminder(currentInvoice._id));
+    dispatch(sendPaymentReminder({ id: currentInvoice._id, invoice: currentInvoice }));
   };
 
   const handleGeneratePaymentLinkClick = () => {
@@ -166,284 +230,267 @@ export default function SalesInvoiceDetails() {
 
   if (loading || !currentInvoice) {
     return (
-      <Card
-        h1="Sales Invoice Details"
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-6"
-      >
-        <Loader className="mb-4" />
-      </Card>
+      <div className="flex flex-col gap-5">
+        <PageHeader title="Sales invoice" />
+        <Card>
+          <SkeletonRows rows={6} cols={4} />
+        </Card>
+      </div>
     );
   }
 
-  // Set colors for status badge
-  const statusColors = {
-    draft: 'bg-gray-100 text-gray-700 dark:bg-white/5 dark:text-gray-400 border-gray-200 dark:border-white/10',
-    unpaid: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border-amber-200 dark:border-amber-500/20',
-    paid: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20',
-    voided: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 border-rose-200 dark:border-rose-500/20',
-  };
+  const canPay = ['unpaid', 'partially_paid'].includes(currentInvoice.status);
+  // Settings → Sales return days: after the window there is no return and no void.
+  const windowOpen = currentInvoice.canReturn !== false;
+  // A return already made against this invoice: no second Return, show "Product returned" instead
+  const invoiceReturns = currentInvoice.returns || [];
+  const canStartReturn = windowOpen && invoiceReturns.length === 0 && ['unpaid', 'partially_paid', 'paid'].includes(currentInvoice.status);
+  const receipts = currentInvoice.paymentHistory || [];
+
+  const moreItems = [
+    currentInvoice.status === 'unpaid' && { label: 'Send reminder', icon: Mail, onClick: handleSendReminderClick },
+    currentInvoice.status === 'unpaid' && { label: 'Payment link', icon: Send, onClick: handleGeneratePaymentLinkClick },
+    currentInvoice.status === 'unpaid' && windowOpen && { divider: true },
+    currentInvoice.status === 'unpaid' && windowOpen && { label: 'Void invoice', icon: Ban, danger: true, onClick: handleVoidClick },
+  ].filter(Boolean);
 
   return (
-    <div className="flex flex-col gap-6 mx-auto text-[var(--vs-text-primary)]">
-      <Card
-        h1={`Invoice - ${currentInvoice.invoiceNumber}`}
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-6"
+    <>
+      <DocumentLayout
+        header={{
+          title: 'Sales invoice',
+          docNo: currentInvoice.invoiceNumber,
+          actions: (
+            <>
+              <StatusBadge status={currentInvoice.status} size="md" />
+              {currentInvoice.invoiceType && <Badge tone="neutral" size="md">{currentInvoice.invoiceType}</Badge>}
+              <Button variant="secondary" onClick={handlePrint} loading={printBusy} startIcon={<Printer />}>
+                {printBusy ? 'Preparing…' : 'Print'}
+              </Button>
+              <Button variant="secondary" onClick={handleDownloadPdf} loading={pdfBusy} startIcon={<Download />}>
+                {pdfBusy ? 'Preparing PDF…' : 'Download PDF'}
+              </Button>
+              {currentInvoice.status === 'draft' && (
+                <>
+                  <Button variant="secondary" onClick={handleEditClick} startIcon={<Edit2 />}>Edit</Button>
+                  <Button onClick={handleConfirmInvoice} startIcon={<Check />}>Confirm Invoice</Button>
+                </>
+              )}
+              {canStartReturn && canReturn && (
+                <Button variant="secondary" onClick={handleReturnClick} startIcon={<Undo2 />}>Return</Button>
+              )}
+              {canPay && canTakeReceipt && (
+                <Button onClick={handleMarkPaidClick} startIcon={<CreditCard />}>Receipt</Button>
+              )}
+              {moreItems.length > 0 && (
+                <DropdownMenu
+                  items={moreItems}
+                  trigger={<Button variant="secondary" size="icon" aria-label="More actions"><MoreHorizontal /></Button>}
+                />
+              )}
+            </>
+          ),
+        }}
+        summary={
+          <TotalsPanel title="Payment" totalLabel="Balance" total={inr(currentInvoice.balanceAmount)}>
+            <TotalsRow label="Invoice total" value={inr(currentInvoice.totalAmount)} />
+            <TotalsRow label="Paid" value={inr(currentInvoice.paidAmount)} />
+            {receipts.length > 0 && <TotalsRow label="Receipts" value={receipts.length} />}
+          </TotalsPanel>
+        }
       >
-        {/* Top Control Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 -mx-6 px-6 border-b border-gray-200 dark:border-white/10 pb-6 mb-4">
-          <div className="flex items-center gap-3">
-            <span
-              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusColors[currentInvoice.status] || 'bg-gray-100 text-gray-700'
-                }`}
-            >
-              {currentInvoice.status?.toUpperCase()}
-            </span>
-            {currentInvoice.invoiceType && (
-              <span className="text-xs bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-md text-[var(--vs-text-secondary)] font-semibold">
-                {currentInvoice.invoiceType}
-              </span>
-            )}
-          </div>
+        {!windowOpen && ['unpaid', 'partially_paid', 'paid'].includes(currentInvoice.status) && currentInvoice.returnWindowEndsAt && (
+          <Alert tone="neutral">
+            Return window closed on {formatDate(currentInvoice.returnWindowEndsAt)}. Issue a credit note for any correction.
+          </Alert>
+        )}
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleDownloadPdf}
-              disabled={pdfBusy}
-              startIcon={pdfBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              className="!h-9 px-3"
-            >
-              {pdfBusy ? 'Preparing PDF…' : 'Download PDF'}
-            </Button>
-
-            {currentInvoice.status === 'draft' && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleEditClick}
-                  startIcon={<Edit2 className="w-3.5 h-3.5" />}
-                  className="!h-9 px-3"
-                >
-                  Edit
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={handleConfirmInvoice}
-                  startIcon={<Check className="w-3.5 h-3.5" />}
-                  className="!h-9 px-3"
-                >
-                  Confirm Invoice
-                </Button>
-              </>
-            )}
-
-            {currentInvoice.status === 'unpaid' && (
-              <>
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={handleMarkPaidClick}
-                  startIcon={<CreditCard className="w-3.5 h-3.5" />}
-                  className="!h-9 px-3"
-                >
-                  Record Payment
-                </Button>
-                <Button
-                  type="button"
-                  variant="danger"
-                  onClick={handleVoidClick}
-                  startIcon={<Ban className="w-3.5 h-3.5" />}
-                  className="!h-9 px-3"
-                >
-                  Void
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleSendReminderClick}
-                  startIcon={<Mail className="w-3.5 h-3.5" />}
-                  className="!h-9 px-3"
-                >
-                  Send Reminder
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleGeneratePaymentLinkClick}
-                  startIcon={<Send className="w-3.5 h-3.5" />}
-                  className="!h-9 px-3"
-                >
-                  Payment Link
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Payment status */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm mb-4">
-          <span className="text-[var(--vs-text-secondary)]">Total <span className="font-bold text-[var(--vs-text-primary)]">{inr(currentInvoice.totalAmount)}</span></span>
-          <span className="text-[var(--vs-text-secondary)]">Paid <span className="font-bold text-emerald-600 dark:text-emerald-400">{inr(currentInvoice.paidAmount)}</span></span>
-          <span className="text-[var(--vs-text-secondary)]">Balance <span className="font-bold text-rose-600 dark:text-rose-400">{inr(currentInvoice.balanceAmount)}</span></span>
-        </div>
         {currentInvoice.voidReason && (
-          <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs">
-            <span className="font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Void reason: </span>
-            <span className="text-[var(--vs-text-primary)]">{currentInvoice.voidReason}</span>
-          </div>
+          <Alert tone="danger" title="Void reason">{currentInvoice.voidReason}</Alert>
+        )}
+
+        {invoiceReturns.length > 0 && (
+          <Alert tone="warning" title="Product returned">
+            {invoiceReturns.map((r) => (
+              <div key={r._id}>
+                <Button
+                  variant="link"
+                  className="font-mono"
+                  onClick={() => navigate(`/sales/return/view/${encodeURIComponent(encryptData(r._id))}`)}
+                >
+                  {r.returnNumber}
+                </Button>
+                {' '}· {formatDate(r.returnDate)} · {r.status === 'draft' ? 'Draft' : 'Approved'} · {inr(r.totalAmount)}
+                {' — '}
+                {(r.lineItems || []).map((l) => `${l.productName} × ${l.qty}`).join(', ')}
+              </div>
+            ))}
+          </Alert>
+        )}
+
+        {/* Receipts taken against this invoice */}
+        {receipts.length > 0 && (
+          <Section title="Receipts" description={`${receipts.length} taken against this invoice`}>
+            <LineItemsTable
+              minWidth={620}
+              head={
+                <tr>
+                  <th className={LINE_TH}>Receipt No</th>
+                  <th className={LINE_TH}>Date</th>
+                  <th className={LINE_TH}>Mode</th>
+                  <th className={LINE_TH}>Reference</th>
+                  <th className={`${LINE_TH} text-right`}>Amount</th>
+                  <th className={`${LINE_TH} text-right`}>Actions</th>
+                </tr>
+              }
+            >
+              {receipts.map((r) => (
+                <LineRow key={r._id}>
+                  <td className={`${LINE_TD} font-mono font-semibold`}>{r.receiptNumber}</td>
+                  <td className={LINE_TD}>{formatDate(r.paymentDate)}</td>
+                  <td className={LINE_TD}>{PAYMENT_METHOD_LABELS[r.paymentMethod] || r.paymentMethod}</td>
+                  <td className={`${LINE_TD} text-ink-muted`}>{r.reference || '—'}</td>
+                  <td className={`${LINE_TD} text-right font-semibold tabular-nums`}>{inr(r.amount)}</td>
+                  <td className={`${LINE_TD} py-2`}>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        title="Print receipt"
+                        aria-label="Print receipt"
+                        onClick={() => handlePrintReceipt(r)}
+                        loading={receiptBusy === r._id}
+                      >
+                        <Printer />
+                      </Button>
+                      {canDeleteReceipt && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Delete receipt"
+                          aria-label="Delete receipt"
+                          className="text-danger hover:text-danger"
+                          onClick={() => setDeleteReceipt(r)}
+                        >
+                          <Trash2 />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </LineRow>
+              ))}
+            </LineItemsTable>
+          </Section>
         )}
 
         {/* The invoice, in the design chosen in Sales → Invoice Layout */}
-        <div className="overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-950/60 p-3 sm:p-6">
-          <div className="mx-auto bg-white shadow-sm" style={{ width: printWidth(currentInvoice.print?.layout?.theme) }}>
-            {printDoc && <InvoiceDocument layout={currentInvoice.print?.layout || {}} doc={printDoc} />}
-          </div>
-        </div>
-      </Card>
-
-      {/* Record Payment Modal */}
-      {paymentModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-xs p-4 pt-[10vh]">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden text-[var(--vs-text-primary)]">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-white/10">
-              <h3 className="text-lg font-bold">Record Payment</h3>
-              <p className="text-xs text-[var(--vs-text-secondary)] mt-0.5">
-                Invoice {currentInvoice.invoiceNumber}
-              </p>
+        <Section title="Invoice" description="As your customer sees it">
+          <div className="overflow-x-auto rounded-control bg-fill p-3 sm:p-6">
+            <div className="mx-auto bg-white shadow-card" style={{ width: printWidth(currentInvoice.print?.layout?.theme) }}>
+              {printDoc && <InvoiceDocument layout={currentInvoice.print?.layout || {}} doc={printDoc} />}
             </div>
-            <form onSubmit={handlePaymentSubmit}>
-              <div className="p-6 flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold">Payment Method</label>
-                  <select
-                    value={paymentModal.method}
-                    onChange={(e) => setPaymentModal({ ...paymentModal, method: e.target.value })}
-                    className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3.5 py-2.5 text-sm text-[var(--vs-text-primary)] outline-none"
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="upi">UPI</option>
-                    <option value="card">Card</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                    <option value="cheque">Cheque</option>
-                    <option value="online">Online Payment</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold">Payment Amount (₹)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={paymentModal.amount}
-                    onChange={(e) => setPaymentModal({ ...paymentModal, amount: e.target.value })}
-                    className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3.5 py-2.5 text-sm text-[var(--vs-text-primary)] outline-none"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold">Reference / Txn ID</label>
-                  <input
-                    type="text"
-                    placeholder="Optional reference number"
-                    value={paymentModal.reference}
-                    onChange={(e) => setPaymentModal({ ...paymentModal, reference: e.target.value })}
-                    className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3.5 py-2.5 text-sm text-[var(--vs-text-primary)] outline-none"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold">Notes</label>
-                  <textarea
-                    placeholder="Notes..."
-                    value={paymentModal.notes}
-                    onChange={(e) => setPaymentModal({ ...paymentModal, notes: e.target.value })}
-                    rows={2}
-                    className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3.5 py-2.5 text-sm text-[var(--vs-text-primary)] outline-none resize-none"
-                  />
-                </div>
-              </div>
-              <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 flex items-center justify-end gap-2.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setPaymentModal({ isOpen: false, amount: 0, method: 'cash', reference: '', notes: '' })}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary">
-                  Save Receipt
-                </Button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        </Section>
+      </DocumentLayout>
 
-      {/* Void Invoice Modal */}
-      {voidModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-xs p-4 pt-[10vh]">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden text-[var(--vs-text-primary)]">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-white/10">
-              <h3 className="text-lg font-bold">Void Sales Invoice</h3>
-              <p className="text-xs text-[var(--vs-text-secondary)] mt-0.5">
-                {currentInvoice?.deliveryChallanId
-                  ? 'The delivery challan will be reopened — cancel it there to return the stock.'
-                  : 'This will void the invoice and inventory changes.'}
-              </p>
-            </div>
-            <form onSubmit={handleVoidSubmit}>
-              <div className="p-6 flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold">Reason for Voiding<span className="text-red-500">*</span></label>
-                  <textarea
-                    required
-                    placeholder="Enter reason (min. 3 characters)..."
-                    value={voidModal.reason}
-                    onChange={(e) => setVoidModal({ ...voidModal, reason: e.target.value })}
-                    rows={3}
-                    className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3.5 py-2.5 text-sm text-[var(--vs-text-primary)] outline-none resize-none"
-                  />
-                </div>
-              </div>
-              <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 flex items-center justify-end gap-2.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setVoidModal({ isOpen: false, reason: '' })}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" variant="danger">
-                  Void Invoice
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Receipt */}
+      <Modal
+        open={paymentModal.isOpen}
+        onClose={() => setPaymentModal(EMPTY_PAYMENT)}
+        title="Receipt"
+        subtitle={`Invoice ${currentInvoice.invoiceNumber} · Balance ${inr(currentInvoice.balanceAmount)}`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPaymentModal(EMPTY_PAYMENT)}>Cancel</Button>
+            <Button type="submit" form="si-receipt-form">Save Receipt</Button>
+          </>
+        }
+      >
+        <form id="si-receipt-form" onSubmit={handlePaymentSubmit} className="flex flex-col gap-4">
+          <Field label="Receipt date" required>
+            <Input
+              type="date"
+              required
+              max={todayISO()}
+              value={paymentModal.paymentDate}
+              onChange={(e) => setPaymentModal({ ...paymentModal, paymentDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Payment method">
+            <Select
+              searchable={false}
+              value={paymentModal.method}
+              onChange={(v) => setPaymentModal({ ...paymentModal, method: v })}
+              options={PAYMENT_OPTIONS}
+            />
+          </Field>
+          <Field label="Payment amount (₹)" required>
+            <Input
+              type="number"
+              step="0.01"
+              min="0.01"
+              max={currentInvoice.balanceAmount}
+              required
+              value={paymentModal.amount}
+              onChange={(e) => setPaymentModal({ ...paymentModal, amount: e.target.value })}
+              className="text-right tabular-nums"
+            />
+          </Field>
+          <Field label="Reference / Txn ID">
+            <Input
+              placeholder="Optional reference number"
+              value={paymentModal.reference}
+              onChange={(e) => setPaymentModal({ ...paymentModal, reference: e.target.value })}
+            />
+          </Field>
+          <Field label="Notes">
+            <Textarea
+              rows={2}
+              placeholder="Notes..."
+              value={paymentModal.notes}
+              onChange={(e) => setPaymentModal({ ...paymentModal, notes: e.target.value })}
+            />
+          </Field>
+        </form>
+      </Modal>
 
-      {/* CoreUI Toaster */}
-      <CToaster className="p-3" style={{ zIndex: 2000, position: 'fixed', bottom: '20px', right: '20px' }}>
-        {toasts.map((t) => (
-          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
-            <div className="d-flex">
-              <CToastBody className="font-semibold">{t.message}</CToastBody>
-            </div>
-          </CToast>
-        ))}
-      </CToaster>
-    </div>
+      {/* Void invoice */}
+      <Modal
+        open={voidModal.isOpen}
+        onClose={() => setVoidModal({ isOpen: false, reason: '' })}
+        title="Void sales invoice"
+        subtitle={currentInvoice?.deliveryChallanId
+          ? 'This invoice was made from a delivery challan. Voiding it puts that stock back.'
+          : 'This will void the invoice and inventory changes.'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setVoidModal({ isOpen: false, reason: '' })}>Cancel</Button>
+            <Button type="submit" form="si-void-form" variant="danger">Void Invoice</Button>
+          </>
+        }
+      >
+        <form id="si-void-form" onSubmit={handleVoidSubmit}>
+          <Field label="Reason for voiding" required>
+            <Textarea
+              required
+              rows={3}
+              placeholder="Enter reason (min. 3 characters)..."
+              value={voidModal.reason}
+              onChange={(e) => setVoidModal({ ...voidModal, reason: e.target.value })}
+            />
+          </Field>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteReceipt}
+        onClose={() => setDeleteReceipt(null)}
+        onConfirm={handleConfirmDeleteReceipt}
+        title="Delete receipt"
+        message={deleteReceipt ? `Delete receipt ${deleteReceipt.receiptNumber} of ${inr(deleteReceipt.amount)}? The invoice balance and the customer ledger go back by this amount.` : ''}
+      />
+
+      <ToastStack toasts={toasts} />
+    </>
   );
 }

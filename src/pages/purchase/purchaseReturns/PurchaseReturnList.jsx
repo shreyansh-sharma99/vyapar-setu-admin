@@ -1,18 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Edit2, Trash2, Wallet, Hourglass, TrendingDown, FileMinus, Store, Truck, Package, IndianRupee } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import Table from '@/components/table/Table';
-import Card from '@/components/breadCrumbs/Card';
-import TableInfoCard from '@/components/table/TableInfoCard';
-import DeleteModal from '@/components/modal/DeleteModal';
+import { Eye, Edit2, Trash2, Wallet, Hourglass, TrendingDown, FileMinus, Truck, Package, IndianRupee, Plus, Undo2 } from 'lucide-react';
+import { Button, Card, ConfirmDialog, DataTable, Input, PageHeader, StatCard } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import PurchaseToaster from '../components/PurchaseToaster';
 import RefundReceivedModal from '../components/RefundReceivedModal';
-import { FilterSelect, StatusBadge } from '../components/ui';
 import useApi from '../components/useApi';
 import { notify, notifyError } from '../components/toast';
-import { PATHS, editPath, errMsg, fmtDate, formatINR, formatQty, num, returnRefundLeft, storeName, supplierName, viewPath } from '../components/helpers';
+import { PATHS, editPath, errMsg, fmtDate, formatINR, formatQty, num, returnRefundLeft, supplierName, viewPath } from '../components/helpers';
 import { fetchPurchaseReturns, deletePurchaseReturn } from './services/purchaseReturnSlice';
 import { getPurchaseReturnStatsApi } from './services/purchaseReturnService';
 
@@ -25,56 +21,52 @@ const FILTERS = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-const dateInput = 'h-10 px-3 text-sm rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] outline-none';
-
-/** One-line "most returns" picker: the dropdown lists 1, 2, 3 … */
-const RANK_TONE = [
-  'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300',
-  'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
-];
+/** Rank chip colours: 1st, 2nd, 3rd. */
+const RANK_TONE = ['bg-highlight-soft text-highlight', 'bg-fill text-ink-muted', 'bg-warning-soft text-warning'];
 
 /** Top 3 card (store / supplier / product): rank, name, count + value and a bar against the leader. */
-function RankCard({ title, icon, rows, qty = false }) {
+function RankCard({ title, icon: Icon, rows, qty = false }) {
   const count = (r) => (qty ? `${formatQty(r.qty)} units` : `${r.returns} ${r.returns === 1 ? 'return' : 'returns'}`);
   const metric = (r) => num(qty ? r.qty : r.returns);
   const top = rows.slice(0, 3);
   const max = Math.max(1, ...top.map(metric));
   return (
-    <div className="rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] p-3 flex flex-col gap-2.5 min-w-0">
+    <Card padding="none" className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
-          <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">{icon}</span>
+        <span className="flex items-center gap-2.5 text-[13px] font-medium text-ink-muted">
+          <span className="grid size-8 place-items-center rounded-[10px] bg-brand-soft text-brand-ink">
+            <Icon className="size-4" aria-hidden="true" />
+          </span>
           {title}
         </span>
-        {rows.length > 3 && <span className="text-[10px] text-[var(--vs-text-secondary)]">top 3 of {rows.length}</span>}
+        {rows.length > 3 && <span className="text-xs text-ink-subtle">top 3 of {rows.length}</span>}
       </div>
       {top.length === 0 ? (
-        <div className="text-sm text-[var(--vs-text-secondary)] py-2">No returns yet</div>
+        <div className="py-2 text-sm text-ink-subtle">No returns yet</div>
       ) : (
-        <ul className="flex flex-col gap-2 m-0 p-0 list-none">
+        <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
           {top.map((r, i) => (
-            <li key={`${r.id}-${i}`} className="flex items-center gap-2.5 min-w-0">
-              <span className={`w-6 h-6 shrink-0 rounded-full text-[11px] font-bold flex items-center justify-center ${RANK_TONE[i]}`}>{r.rank}</span>
-              <div className="flex-1 min-w-0 flex flex-col gap-1">
-                <div className="flex items-baseline justify-between gap-2 min-w-0">
-                  <span className="text-sm font-semibold text-[var(--vs-text-primary)] truncate" title={r.name}>
+            <li key={`${r.id}-${i}`} className="flex min-w-0 items-center gap-2.5">
+              <span className={cn('grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold', RANK_TONE[i])}>{r.rank}</span>
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex min-w-0 items-baseline justify-between gap-2">
+                  <span className="truncate text-sm font-semibold text-ink" title={r.name}>
                     {r.name}
                   </span>
-                  <span className="text-xs font-semibold text-[var(--vs-text-secondary)] whitespace-nowrap">
+                  <span className="whitespace-nowrap text-xs font-semibold text-ink-subtle">
                     {count(r)}
-                    {num(r.value) > 0 && <span className="font-mono text-[var(--vs-text-primary)]"> · {formatINR(r.value)}</span>}
+                    {num(r.value) > 0 && <span className="tabular-nums text-ink"> · {formatINR(r.value)}</span>}
                   </span>
                 </div>
-                <div className="h-1.5 rounded-full bg-gray-100 dark:bg-white/5 overflow-hidden">
-                  <div className="h-full rounded-full bg-indigo-500/70" style={{ width: `${Math.max(6, (metric(r) / max) * 100)}%` }} />
+                <div className="h-1.5 overflow-hidden rounded-full bg-fill">
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(6, (metric(r) / max) * 100)}%` }} />
                 </div>
               </div>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -131,158 +123,160 @@ export default function PurchaseReturnList() {
     }
   };
 
-  const iconBtn = 'p-1 rounded-lg transition-colors cursor-pointer';
-
-  const headers = [
+  const columns = [
+    { key: 'returnNumber', header: 'Return no', type: 'mono', mobile: 'title' },
+    { key: 'returnDate', header: 'Date', render: (r) => fmtDate(r.returnDate) },
+    { key: 'supplier', header: 'Supplier', render: (r) => <span className="font-semibold">{supplierName(r)}</span> },
     {
-      label: 'Actions',
-      key: 'actions',
-      render: (r) => (
-        <div className="flex items-center justify-center gap-0.5">
-          <button type="button" title="View" onClick={() => navigate(viewPath('returns', r._id))} className={`${iconBtn} text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10`}>
-            <Eye className="w-4 h-4" />
-          </button>
-          {r.status === 'draft' && (
-            <button type="button" title="Edit" onClick={() => navigate(editPath('returns', r._id))} className={`${iconBtn} text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10`}>
-              <Edit2 className="w-4 h-4" />
-            </button>
-          )}
-          {returnRefundLeft(r) > 0 && (
-            <button
-              type="button"
-              title={`Collect ${formatINR(returnRefundLeft(r))} from the supplier`}
-              onClick={() => setRefundTarget(r)}
-              className={`${iconBtn} text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10`}
-            >
-              <IndianRupee className="w-4 h-4" />
-            </button>
-          )}
-          {['draft', 'cancelled'].includes(r.status) && (
-            <button type="button" title="Delete" onClick={() => setDeleteTarget(r)} className={`${iconBtn} text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10`}>
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      ),
-    },
-    { label: 'Return no', key: 'returnNumber', value: 'checked', cellClassName: 'font-mono font-semibold' },
-    { label: 'Date', key: 'returnDate', value: 'checked', render: (r) => fmtDate(r.returnDate) },
-    { label: 'Supplier', key: 'supplier', value: 'checked', render: (r) => <span className="font-medium">{supplierName(r)}</span> },
-    {
-      label: 'Against bill',
       key: 'bill',
-      value: 'checked',
-      render: (r) => (r.purchaseBillId ? <span className="font-mono text-xs">{r.purchaseBillId.billNumber || '—'}</span> : '—'),
+      header: 'Against bill',
+      hideBelow: 'xl',
+      render: (r) => (r.purchaseBillId ? <span className="font-mono text-[13px]">{r.purchaseBillId.billNumber || '—'}</span> : '—'),
     },
-    { label: 'Store', key: 'store', value: 'checked', render: (r) => storeName(r) },
+    { key: 'totalAmount', header: 'Goods value (₹)', type: 'money', mobile: 'amount', render: (r) => formatINR(r.totalAmount) },
     {
-      label: 'Goods value',
-      key: 'totalAmount',
-      value: 'checked',
-      render: (r) => (
-        <div className="flex flex-col">
-          <span className="font-semibold">{formatINR(r.totalAmount)}</span>
-          {num(r.lossAmount) > 0 && <span className="text-[11px] text-rose-600 dark:text-rose-400">Loss {formatINR(r.lossAmount)}</span>}
-        </div>
-      ),
+      key: 'lossAmount',
+      header: 'Loss (₹)',
+      type: 'money',
+      hideBelow: 'xl',
+      render: (r) => (num(r.lossAmount) > 0 ? <span className="font-medium text-danger">{formatINR(r.lossAmount)}</span> : <span className="font-normal text-ink-subtle">—</span>),
     },
     {
-      label: 'Money back',
       key: 'refund',
-      value: 'checked',
+      header: 'Money back',
       render: (r) => {
         const left = returnRefundLeft(r);
         if (left > 0) {
           return (
-            <span className="font-semibold text-rose-600 dark:text-rose-400" title={`${formatINR(left)} still to collect`}>
-              Not received <span className="font-normal text-[11px]">({formatINR(left)})</span>
+            <span className="font-semibold text-danger" title={`${formatINR(left)} still to collect`}>
+              Not received
             </span>
           );
         }
-        if (r.refundStatus === 'received') return <span className="font-semibold text-emerald-600 dark:text-emerald-400">Received</span>;
-        if (r.status === 'confirmed' && num(r.billAdjustedAmount) > 0) return <span className="text-xs text-[var(--vs-text-secondary)]">Cut from bill</span>;
-        return <span className="text-[var(--vs-text-secondary)]">—</span>;
+        if (r.refundStatus === 'received') return <span className="font-semibold text-success">Received</span>;
+        if (r.status === 'confirmed' && num(r.billAdjustedAmount) > 0) return <span className="text-xs text-ink-muted">Cut from bill</span>;
+        return <span className="text-ink-subtle">—</span>;
       },
     },
-    { label: 'Status', key: 'status', value: 'checked', render: (r) => <StatusBadge status={r.status} label={r.status === 'draft' ? 'Not finished' : undefined} /> },
+    {
+      key: 'refundLeft',
+      header: 'To collect (₹)',
+      type: 'money',
+      render: (r) => {
+        const left = returnRefundLeft(r);
+        if (left <= 0) return <span className="font-normal text-ink-subtle">—</span>;
+        return (
+          <span className="inline-flex items-center justify-end gap-2">
+            <span className="text-danger">{formatINR(left)}</span>
+            <Button variant="soft" size="xs" startIcon={<IndianRupee />} onClick={() => setRefundTarget(r)} title={`Collect ${formatINR(left)} from the supplier`}>
+              Collect
+            </Button>
+          </span>
+        );
+      },
+    },
+    { key: 'status', header: 'Status', type: 'status', statusLabel: (r) => (r.status === 'draft' ? 'Not finished' : undefined) },
+  ];
+
+  const rowActions = (r) => [
+    { label: 'View', icon: Eye, onClick: () => navigate(viewPath('returns', r._id)) },
+    r.status === 'draft' && { label: 'Edit', icon: Edit2, onClick: () => navigate(editPath('returns', r._id)) },
+    returnRefundLeft(r) > 0 && { label: `Collect ${formatINR(returnRefundLeft(r))}`, icon: IndianRupee, onClick: () => setRefundTarget(r) },
+    ['draft', 'cancelled'].includes(r.status) && { divider: true },
+    ['draft', 'cancelled'].includes(r.status) && { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(r) },
   ];
 
   return (
-    <div>
-      <Card
-        h1="Purchase Returns"
-        bodyClassName="px-4 pb-4 pt-2 flex flex-col gap-2"
-        rightNode={
-          <div className="flex flex-wrap items-center gap-2">
-            <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className={dateInput} title="From date" />
-            <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className={dateInput} title="To date" />
-            <FilterSelect value={status} onChange={changeStatus} options={FILTERS} />
-          </div>
-        }
-      >
-        <TableInfoCard
-          stats={[
-            {
-              label: 'Received back',
-              value: formatINR(stats?.received),
-              icon: <Wallet className="w-4 h-4 text-emerald-500" />,
-              colorClass: 'text-emerald-600 dark:text-emerald-400',
-              isActive: status === 'refund_received',
-              onClick: () => changeStatus(status === 'refund_received' ? 'all' : 'refund_received'),
-            },
-            {
-              label: 'To receive',
-              value: formatINR(stats?.toReceive),
-              icon: <Hourglass className="w-4 h-4 text-rose-500" />,
-              colorClass: 'text-rose-600 dark:text-rose-400',
-              isActive: status === 'refund_pending',
-              onClick: () => changeStatus(status === 'refund_pending' ? 'all' : 'refund_pending'),
-            },
-            { label: 'Loss', value: formatINR(stats?.loss), icon: <TrendingDown className="w-4 h-4 text-amber-500" />, colorClass: 'text-amber-600 dark:text-amber-400' },
-            { label: 'Cut from bills', value: formatINR(stats?.setOff), icon: <FileMinus className="w-4 h-4 text-indigo-500" />, colorClass: 'text-indigo-600 dark:text-indigo-400' },
-          ]}
-        />
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Purchase Returns"
+        actions={<Button startIcon={<Plus />} onClick={() => navigate(`${PATHS.returns}/create`)}>New Return</Button>}
+      />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <RankCard key={`s-${refresh}`} title="Top store" icon={<Store className="w-3.5 h-3.5" />} rows={stats?.topStores || []} />
-          <RankCard key={`p-${refresh}`} title="Top supplier" icon={<Truck className="w-3.5 h-3.5" />} rows={stats?.topSuppliers || []} />
-          <RankCard key={`q-${refresh}`} title="Top product" icon={<Package className="w-3.5 h-3.5" />} rows={stats?.topProducts || []} qty />
+      <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Received back"
+            value={formatINR(stats?.received)}
+            icon={Wallet}
+            tone="success"
+            active={status === 'refund_received'}
+            onClick={() => changeStatus(status === 'refund_received' ? 'all' : 'refund_received')}
+          />
+          <StatCard
+            label="To receive"
+            value={formatINR(stats?.toReceive)}
+            icon={Hourglass}
+            tone="danger"
+            active={status === 'refund_pending'}
+            onClick={() => changeStatus(status === 'refund_pending' ? 'all' : 'refund_pending')}
+          />
+          <StatCard label="Loss" value={formatINR(stats?.loss)} icon={TrendingDown} tone="warning" />
+          <StatCard label="Cut from bills" value={formatINR(stats?.setOff)} icon={FileMinus} tone="primary" />
         </div>
+        {(dateFrom || dateTo) && <p className="m-0 text-xs text-ink-subtle">Totals are for the selected return dates.</p>}
+      </div>
 
-        <Table
-          headers={headers}
-          data={list}
-          loading={listLoading}
-          searchPlaceholder="Search return no, supplier, product..."
-          searchTerm={searchTerm}
-          onSearchTermChange={setSearchTerm}
-          onSearchClick={() => {
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <RankCard key={`p-${refresh}`} title="Top supplier" icon={Truck} rows={stats?.topSuppliers || []} />
+        <RankCard key={`q-${refresh}`} title="Top product" icon={Package} rows={stats?.topProducts || []} qty />
+      </div>
+
+      <DataTable
+        columns={columns}
+        rows={list}
+        loading={listLoading}
+        tabs={FILTERS}
+        tab={status}
+        onTabChange={changeStatus}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search return no, supplier, product...',
+          onSubmit: () => {
             setPage(1);
             setQuery(searchTerm.trim());
-          }}
-          onSearchClear={() => {
+          },
+          onClear: () => {
             setPage(1);
             setQuery('');
-          }}
-          emptyMessage="No purchase returns found."
-          currentPage={page}
-          pageSize={pageSize}
-          totalRows={meta?.total || 0}
-          onPageChange={setPage}
-          onPageSizeChange={(s) => {
+          },
+        }}
+        filters={
+          <>
+            <Input size="sm" type="date" aria-label="From date" title="From date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} wrapperClassName="w-40" />
+            <Input size="sm" type="date" aria-label="To date" title="To date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} wrapperClassName="w-40" />
+          </>
+        }
+        rowActions={rowActions}
+        onRowClick={(r) => navigate(viewPath('returns', r._id))}
+        empty={{
+          icon: Undo2,
+          title: 'No purchase returns found.',
+          action: <Button startIcon={<Plus />} onClick={() => navigate(`${PATHS.returns}/create`)}>New Return</Button>,
+        }}
+        pagination={{
+          page,
+          pageSize,
+          total: meta?.total || 0,
+          onPageChange: setPage,
+          onPageSizeChange: (s) => {
             setPageSize(s);
             setPage(1);
-          }}
-          actions={<Button onClick={() => navigate(`${PATHS.returns}/create`)}>New Return</Button>}
-        />
-      </Card>
-      <DeleteModal
-        isOpen={!!deleteTarget}
-        isLoading={saving}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
+          },
+          pageSizeOptions: [10, 20, 50, 100],
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
         title="Delete purchase return"
         message={`Delete ${deleteTarget?.returnNumber || 'this return'}? This cannot be undone.`}
+        confirmLabel="Delete"
+        icon={Trash2}
+        loading={saving}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
       />
       {refundTarget && (
         <RefundReceivedModal

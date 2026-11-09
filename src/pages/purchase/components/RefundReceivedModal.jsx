@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { Check, Loader2 } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import { Input } from '@/components/inputs/Input';
+import { Check } from 'lucide-react';
+import { Alert, Button, Field, FormGrid, Input, Modal } from '@/components/ui';
 import PayMethodPicker from './PayMethodPicker';
-import { Field, Modal } from './ui';
 import { notify, notifyError } from './toast';
 import { errMsg, formatINR, num, returnRefundLeft, supplierName, todayISO } from './helpers';
 import { recordReturnRefundApi } from '../purchaseReturns/services/purchaseReturnService';
@@ -51,37 +49,40 @@ export default function RefundReceivedModal({ ret, onClose, onDone }) {
     <Modal
       open
       onClose={saving ? undefined : onClose}
+      hideClose={saving}
+      closeOnBackdrop={!saving}
       title="Money received back?"
       subtitle={`${ret.returnNumber} · ${supplierName(ret)}`}
-      maxWidth="max-w-lg"
+      size="lg"
+      bodyClassName="flex flex-col gap-4"
       footer={
         <>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>
             Not yet
           </Button>
-          <Button onClick={confirm} disabled={saving} startIcon={saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}>
+          <Button onClick={confirm} loading={saving} startIcon={<Check />}>
             Yes, received
           </Button>
         </>
       }
     >
-      <p className="text-sm">
-        {supplierName(ret)} has to give back <span className="font-bold">{formatINR(left)}</span> for these goods. Did you get it?
+      <p className="m-0 text-sm text-ink-muted">
+        {supplierName(ret)} has to give back <span className="font-bold tabular-nums text-ink">{formatINR(left)}</span> for these goods. Did you get it?
       </p>
-      <div className="grid grid-cols-2 gap-3">
+      <FormGrid cols={2}>
         <Field label="Amount received (₹)" required>
-          <Input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="!font-bold" />
+          <Input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="text-right font-bold tabular-nums" />
         </Field>
         <Field label="Received on">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
-      </div>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-semibold">How did they pay?</span>
+      </FormGrid>
+      <div className="flex flex-col">
+        <span className="mb-2 text-[13px] font-semibold text-ink-muted">How did they pay?</span>
         <PayMethodPicker method={method} onMethodChange={setMethod} reference={reference} onReferenceChange={setReference} compact />
       </div>
-      {value > 0 && value < left && <p className="text-xs text-[var(--vs-text-secondary)]">{formatINR(Math.round((left - value) * 100) / 100)} will still be pending.</p>}
-      {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+      {value > 0 && value < left && <p className="m-0 text-xs text-ink-subtle">{formatINR(Math.round((left - value) * 100) / 100)} will still be pending.</p>}
+      {error && <Alert tone="danger">{error}</Alert>}
     </Modal>
   );
 }

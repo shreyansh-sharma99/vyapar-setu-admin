@@ -1,8 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react';
+import { Button, Input } from '@/components/ui';
 import { UNIT_OPTIONS, emptyAlternateUnit } from '../utils/productUtils';
-
-const inputCls =
-  'w-full h-10 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/30 outline-none focus:border-indigo-500';
 
 
 /**
@@ -22,23 +20,18 @@ export default function AlternateUnitsEditor({ baseUnit, rows = [], onChange, er
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <span className="text-sm font-semibold text-[var(--vs-text-primary)]">Alternate units</span>
-          <p className="text-xs text-[var(--vs-text-secondary)] m-0">
+          <span className="text-sm font-semibold text-ink">Alternate units</span>
+          <p className="text-xs text-ink-muted m-0">
             Buy or sell in packs. Stock is always kept in {base}.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={add}
-          disabled={rows.length >= 10}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 disabled:opacity-50 cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add unit
-        </button>
+        <Button variant="soft" size="sm" onClick={add} disabled={rows.length >= 10} startIcon={<Plus />}>
+          Add unit
+        </Button>
       </div>
 
       {rows.length === 0 ? (
-        <div className="text-xs text-[var(--vs-text-secondary)] border border-dashed border-[var(--vs-border)] rounded-lg px-3 py-3">
+        <div className="text-xs text-ink-muted border border-dashed border-line-strong rounded-control px-3 py-3">
           No alternate units. Add one if you buy or sell this product by the box, pack or dozen.
         </div>
       ) : (
@@ -46,49 +39,54 @@ export default function AlternateUnitsEditor({ baseUnit, rows = [], onChange, er
           {rows.map((row, idx) => (
             <div
               key={idx}
-              className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_1.2fr_auto] items-center gap-2 p-2 rounded-lg border border-[var(--vs-border)] bg-[var(--vs-bg-secondary)]"
+              className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_1.2fr_auto] items-center gap-2 p-2 rounded-control border border-line bg-fill-2"
             >
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--vs-text-secondary)] shrink-0">1</span>
-                <input
-                  type="text"
+                <span className="text-xs text-ink-muted shrink-0">1</span>
+                <Input
+                  size="sm"
                   list="product-unit-options"
                   value={row.unit}
                   placeholder="box"
                   onChange={(e) => update(idx, 'unit', e.target.value)}
-                  className={`${inputCls} ${errors[idx]?.unit ? '!border-rose-500' : ''}`}
+                  invalid={!!errors[idx]?.unit}
+                  className={errors[idx]?.unit ? undefined : 'bg-surface'}
                 />
               </div>
-              <span className="text-xs text-[var(--vs-text-secondary)] text-center">=</span>
+              <span className="text-xs text-ink-muted text-center">=</span>
               <div className="flex items-center gap-2">
-                <input
+                <Input
+                  size="sm"
                   type="number"
                   min="0"
                   step="any"
                   value={row.factor}
                   placeholder="12"
                   onChange={(e) => update(idx, 'factor', e.target.value)}
-                  className={`${inputCls} ${errors[idx]?.factor ? '!border-rose-500' : ''}`}
+                  invalid={!!errors[idx]?.factor}
+                  className={errors[idx]?.factor ? 'tabular-nums' : 'bg-surface tabular-nums'}
                 />
-                <span className="text-xs font-semibold text-[var(--vs-text-primary)] shrink-0">{base}</span>
+                <span className="text-xs font-semibold text-ink shrink-0">{base}</span>
               </div>
-              <input
-                type="text"
+              <Input
+                size="sm"
                 value={row.barcode || ''}
                 placeholder="Pack barcode (optional)"
                 onChange={(e) => update(idx, 'barcode', e.target.value)}
-                className={inputCls}
+                className="bg-surface"
               />
-              <button
-                type="button"
+              <Button
+                variant="danger-soft"
+                size="icon-sm"
                 onClick={() => remove(idx)}
-                className="h-10 w-10 flex items-center justify-center rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 cursor-pointer justify-self-end"
+                className="justify-self-end"
                 title="Remove unit"
+                aria-label="Remove unit"
               >
-                <Trash2 className="w-4 h-4" />
-              </button>
+                <Trash2 />
+              </Button>
               {(errors[idx]?.unit || errors[idx]?.factor) && (
-                <span className="text-xs text-rose-500 sm:col-span-5">{errors[idx]?.unit || errors[idx]?.factor}</span>
+                <span className="text-xs font-medium text-danger sm:col-span-5">{errors[idx]?.unit || errors[idx]?.factor}</span>
               )}
             </div>
           ))}

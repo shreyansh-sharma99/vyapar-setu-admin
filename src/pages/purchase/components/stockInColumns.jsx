@@ -15,9 +15,9 @@ export const stockInDetailColumns = (items = []) =>
           label: 'Batch',
           render: (l) =>
             l.batchNo || l.expiryDate ? (
-              <div className="text-xs">
+              <div className="whitespace-nowrap text-xs">
                 {l.batchNo && <div className="font-mono">{l.batchNo}</div>}
-                {l.expiryDate && <div className="text-[var(--vs-text-secondary)]">Exp {fmtDate(l.expiryDate)}</div>}
+                {l.expiryDate && <div className="text-ink-subtle">Exp {fmtDate(l.expiryDate)}</div>}
               </div>
             ) : (
               '—'
@@ -28,7 +28,7 @@ export const stockInDetailColumns = (items = []) =>
           key: 'sp',
           label: 'New SP / pc',
           align: 'right',
-          render: (l) => (num(l.sellingPrice) > 0 ? <span className="font-semibold text-indigo-600 dark:text-indigo-400">{formatINR(l.sellingPrice)}</span> : '—'),
+          render: (l) => (num(l.sellingPrice) > 0 ? <span className="font-semibold text-brand-ink">{formatINR(l.sellingPrice)}</span> : '—'),
         },
       ]
     : [];

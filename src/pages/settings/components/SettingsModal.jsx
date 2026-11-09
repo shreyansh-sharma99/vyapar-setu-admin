@@ -1,36 +1,33 @@
 import { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Settings, Loader2, X, Eye, EyeOff } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import { Input } from '@/components/inputs/Input';
+import { Settings, Eye, EyeOff } from 'lucide-react';
+import { Alert, Button, Field, FormGrid, Input, Modal, Section, SettingRow, Spinner, Switch } from '@/components/ui';
 import { fetchSettings, updateSettings } from '../services/settingsSlice';
-import Switch from '@/components/inputs/Switch';
-import { Label } from '@/components/inputs/Label';
-import Loader from '@/components/loader/Loader';
 import { formatDateWithTiming } from '@/utility/dateTiming';
 
 /** Password-style input with a show / hide toggle, for secrets. */
-function SecretInput({ value, onChange, placeholder, label }) {
+function SecretInput({ value, onChange, placeholder, label, ...props }) {
   const [visible, setVisible] = useState(false);
   return (
     <Input
+      {...props}
       type={visible ? 'text' : 'password'}
       value={value}
       onChange={onChange}
       placeholder={placeholder}
       autoComplete="new-password"
       spellCheck={false}
+      className="pr-12"
       endIcon={
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={() => setVisible((v) => !v)}
-          className="p-1 rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/70 cursor-pointer"
           aria-label={visible ? `Hide ${label}` : `Show ${label}`}
           title={visible ? 'Hide' : 'Show'}
         >
-          {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-        </button>
+          {visible ? <EyeOff /> : <Eye />}
+        </Button>
       }
     />
   );
@@ -48,6 +45,8 @@ export default function SettingsModal({ isOpen, onClose }) {
   const [razorpayKeySecret, setRazorpayKeySecret] = useState('');
   const [razorpayWebhookSecret, setRazorpayWebhookSecret] = useState('');
   const [blockInvoiceOnCreditLimit, setBlockInvoiceOnCreditLimit] = useState(false);
+  const [salesReturnWindowDays, setSalesReturnWindowDays] = useState(7);
+  const [barcodeHoldDays, setBarcodeHoldDays] = useState(20);
 
   useEffect(() => {
     if (isOpen) {
@@ -70,6 +69,8 @@ export default function SettingsModal({ isOpen, onClose }) {
       setRazorpayKeySecret(settings.razorpayKeySecret || '');
       setRazorpayWebhookSecret(settings.razorpayWebhookSecret || '');
       setBlockInvoiceOnCreditLimit(settings.blockInvoiceOnCreditLimit || false);
+      setSalesReturnWindowDays(settings.salesReturnWindowDays ?? 7);
+      setBarcodeHoldDays(settings.barcodeHoldDays ?? 20);
     }
   }, [settings]);
 
@@ -85,13 +86,27 @@ export default function SettingsModal({ isOpen, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, handleClose]);
 
+  // Barcode hold days can never be less than Sales return days (the server checks the same).
+  const returnDaysNum = Number(salesReturnWindowDays);
+  const holdDaysNum = Number(barcodeHoldDays);
+  const daysError = !Number.isInteger(returnDaysNum) || returnDaysNum < 0 || returnDaysNum > 365
+    ? 'Sales return days must be a whole number from 0 to 365.'
+    : !Number.isInteger(holdDaysNum) || holdDaysNum < 1 || holdDaysNum > 365
+      ? 'Barcode hold days must be a whole number from 1 to 365.'
+      : holdDaysNum < returnDaysNum
+        ? `Barcode hold days (${holdDaysNum}) cannot be less than Sales return days (${returnDaysNum}).`
+        : '';
+
   const handleSave = async () => {
+    if (daysError) return;
     const payload = {
       lowStockAlertThreshold: Number(lowStockAlertThreshold),
       razorpayKeyId,
       razorpayKeySecret,
       razorpayWebhookSecret,
       blockInvoiceOnCreditLimit,
+      salesReturnWindowDays: returnDaysNum,
+      barcodeHoldDays: holdDaysNum,
     };
     await dispatch(updateSettings(payload));
     handleClose();
@@ -99,134 +114,109 @@ export default function SettingsModal({ isOpen, onClose }) {
 
   if (!isMounted && !isOpen) return null;
 
-  return createPortal(
-    <div
-      className={`fixed inset-0 z-[999999] flex items-center justify-center p-4 ${isClosing ? 'modal-backdrop-exit' : 'modal-backdrop-enter'}`}
-      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
-    >
-      <div
-        className={`relative w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden ${isClosing ? 'modal-content-exit' : 'modal-content-enter'}`}
-        style={{
-          background: 'var(--vs-bg-primary)',
-          border: '1px solid var(--vs-border)',
-        }}
-      >
-        <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: 'var(--vs-border)' }}>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center">
-              <Settings className="w-5 h-5 text-indigo-500" />
-            </div>
-            <h1 className="!text-[24px] font-semibold !text-blue-600 dark:text-blue-400 m-0">
-              Settings
-            </h1>
-          </div>
-          <button onClick={handleClose} className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-white/5 transition-colors group">
-            <X className="w-5 h-5 text-red-500 transition-colors" />
-          </button>
-        </div>
-
-        <div className="px-6 py-2">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader />
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto pr-2 custom-scrollbar">
-                <div>
-                  <Label className="block mb-1">
-                    Low Stock Alert Threshold
-                  </Label>
-                  <Input
-                    type="number"
-                    value={lowStockAlertThreshold}
-                    onChange={(e) => setLowStockAlertThreshold(e.target.value)}
-                    placeholder="Enter threshold"
-                  />
-                </div>
-
-                <div>
-                  <Label className="block mb-1">
-                    Razorpay Key ID
-                  </Label>
-                  <Input
-                    type="text"
-                    value={razorpayKeyId}
-                    onChange={(e) => setRazorpayKeyId(e.target.value)}
-                    placeholder="Enter Key ID"
-                  />
-                </div>
-
-                <div>
-                  <Label className="block mb-1">
-                    Razorpay Key Secret
-                  </Label>
-                  <SecretInput
-                    value={razorpayKeySecret}
-                    onChange={(e) => setRazorpayKeySecret(e.target.value)}
-                    placeholder="Enter Key Secret"
-                    label="key secret"
-                  />
-                </div>
-
-                <div>
-                  <Label className="block mb-1">
-                    Razorpay Webhook Secret
-                  </Label>
-                  <SecretInput
-                    value={razorpayWebhookSecret}
-                    onChange={(e) => setRazorpayWebhookSecret(e.target.value)}
-                    placeholder="Enter Webhook Secret"
-                    label="webhook secret"
-                  />
-                </div>
-
-                <div className="sm:col-span-2 flex items-center justify-between mt-2 p-3 rounded-xl border" style={{ borderColor: 'var(--vs-border)', backgroundColor: 'var(--vs-bg-secondary)' }}>
-                  <Label>
-                    Block Invoice On Credit Limit
-                  </Label>
-                  <Switch
-                    checked={blockInvoiceOnCreditLimit}
-                    onChange={(val) => setBlockInvoiceOnCreditLimit(val)}
-                  />
-                </div>
-              </div>
-
-              {settings?.createdAt && (
-                <div className="flex justify-between  text-xs pt-3 -mx-6 px-6" style={{ borderColor: 'var(--vs-border)', color: 'var(--vs-text-secondary)' }}>
-                  <span>Created At: {formatDateWithTiming(settings.createdAt)}</span>
-                  <span>Updated At: {formatDateWithTiming(settings.updatedAt)}</span>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <div
-          className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 dark:bg-white/5"
-          style={{ borderTop: '1px solid var(--vs-border)' }}
-        >
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleClose}
-            disabled={updateLoading || loading}
-          >
+  return (
+    <Modal
+      open={isMounted || isOpen}
+      onClose={handleClose}
+      size="lg"
+      className={isClosing ? 'modal-content-exit' : undefined}
+      bodyClassName="bg-page"
+      title={
+        <span className="flex items-center gap-2.5">
+          <span className="grid size-9 place-items-center rounded-control bg-brand-soft text-brand-ink">
+            <Settings className="size-5" />
+          </span>
+          Settings
+        </span>
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={handleClose} disabled={updateLoading || loading}>
             Cancel
           </Button>
-
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={updateLoading || loading}
-            startIcon={updateLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          >
+          <Button onClick={handleSave} disabled={loading || !!daysError} loading={updateLoading}>
             {updateLoading ? 'Saving...' : 'Save Changes'}
           </Button>
+        </>
+      }
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Spinner label="Loading settings…" />
         </div>
-      </div>
-    </div>,
-    document.body
+      ) : (
+        <div className="flex flex-col gap-4">
+          <Section title="Stock">
+            <FormGrid cols={2}>
+              <Field label="Low Stock Alert Threshold">
+                <Input
+                  type="number"
+                  value={lowStockAlertThreshold}
+                  onChange={(e) => setLowStockAlertThreshold(e.target.value)}
+                  placeholder="Enter threshold"
+                />
+              </Field>
+            </FormGrid>
+          </Section>
+
+          <Section title="Returns & barcodes">
+            <FormGrid cols={2}>
+              <Field label="Sales return days" hint="A sale can be returned (or voided) for this many days after the invoice date.">
+                <Input type="number" min="0" max="365" step="1" value={salesReturnWindowDays} onChange={(e) => setSalesReturnWindowDays(e.target.value)} invalid={!!daysError} />
+              </Field>
+              <Field label="Barcode hold days" hint="After a barcode's stock is fully 0, it stays blocked for other products this many days. Cannot be less than Sales return days.">
+                <Input type="number" min="1" max="365" step="1" value={barcodeHoldDays} onChange={(e) => setBarcodeHoldDays(e.target.value)} invalid={!!daysError} />
+              </Field>
+            </FormGrid>
+            {daysError && <Alert tone="danger" className="mt-4">{daysError}</Alert>}
+          </Section>
+
+          <Section title="Razorpay">
+            <FormGrid cols={2}>
+              <Field label="Razorpay Key ID" className="md:col-span-2">
+                <Input
+                  type="text"
+                  value={razorpayKeyId}
+                  onChange={(e) => setRazorpayKeyId(e.target.value)}
+                  placeholder="Enter Key ID"
+                />
+              </Field>
+              <Field label="Razorpay Key Secret">
+                <SecretInput
+                  value={razorpayKeySecret}
+                  onChange={(e) => setRazorpayKeySecret(e.target.value)}
+                  placeholder="Enter Key Secret"
+                  label="key secret"
+                />
+              </Field>
+              <Field label="Razorpay Webhook Secret">
+                <SecretInput
+                  value={razorpayWebhookSecret}
+                  onChange={(e) => setRazorpayWebhookSecret(e.target.value)}
+                  placeholder="Enter Webhook Secret"
+                  label="webhook secret"
+                />
+              </Field>
+            </FormGrid>
+          </Section>
+
+          <Section title="Credit">
+            <SettingRow title="Block Invoice On Credit Limit">
+              <Switch
+                checked={blockInvoiceOnCreditLimit}
+                onChange={(val) => setBlockInvoiceOnCreditLimit(val)}
+              />
+            </SettingRow>
+          </Section>
+
+          {settings?.createdAt && (
+            <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-ink-subtle">
+              <span>Created At: {formatDateWithTiming(settings.createdAt)}</span>
+              <span>Updated At: {formatDateWithTiming(settings.updatedAt)}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
   );
 }

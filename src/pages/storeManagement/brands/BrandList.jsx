@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { encryptData } from '@/utility/crypto';
 import { formatDateWithTiming } from '@/utility/dateTiming';
-import Button from '@/components/inputs/Button';
 import Table from '@/components/table/Table';
 import {
   getBrands,
@@ -12,10 +11,9 @@ import {
   changeBrandStatus,
   clearBrandToast,
 } from './services/brandSlice';
-import Card from '../../../components/breadCrumbs/Card';
 import DeleteModal from '@/components/modal/DeleteModal';
 import { useToasts } from '../products/utils/productUtils';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
+import { Button, PageHeader, StatusBadge, ToastStack } from '@/components/ui';
 
 export default function BrandList() {
   const dispatch = useDispatch();
@@ -103,7 +101,7 @@ export default function BrandList() {
       key: 'name',
       width: '25%',
       sortable: true,
-      cellClassName: 'font-semibold text-[var(--vs-text-primary)]',
+      cellClassName: 'font-semibold text-ink',
       value: 'checked'
     },
     {
@@ -119,12 +117,7 @@ export default function BrandList() {
       render: (item) => {
         const isActive = item.status === 'active';
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isActive
-            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-            : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
-            }`}>
-            {isActive ? 'Active' : 'Inactive'}
-          </span>
+          <StatusBadge status={isActive ? 'active' : 'inactive'} label={isActive ? 'Active' : 'Inactive'} />
         );
       },
       value: 'checked'
@@ -153,40 +146,38 @@ export default function BrandList() {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card h1="Brands" bodyClassName="p-4">
-        <Table
-          headers={headers}
-          data={brands}
-          loading={loading}
-          searchPlaceholder="Search brands..."
-          emptyMessage="No brands found. Click 'Add New Brand' to create one."
-          onEdit={handleEditClick}
-          onDelete={handleDeleteClick}
-          onView={handleViewClick}
-          onToggle={handleStatusToggle}
-          toggleField="status"
-          currentPage={pagination?.page || params.page || 1}
-          pageSize={pagination?.limit || params.limit || 10}
-          totalRows={pagination?.total || pagination?.totalItems || brands.length}
-          onPageChange={(page) => setParams((prev) => ({ ...prev, page }))}
-          onPageSizeChange={(limit) => setParams((prev) => ({ ...prev, limit, page: 1 }))}
-          onSortChange={({ key, direction }) => setParams((prev) => ({ ...prev, sort: key, order: direction }))}
-          searchTerm={searchTerm}
-          onSearchTermChange={setSearchTerm}
-          onSearchClick={handleSearchClick}
-          onSearchClear={handleSearchClear}
-          actions={
-            <Button
-              className="!h-10"
-              startIcon={<Plus className="w-3.5 h-3.5" />}
-              onClick={() => navigate('/brands/create')}
-            >
-              Add New Brand
-            </Button>
-          }
-        />
-      </Card>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Brands"
+        actions={
+          <Button startIcon={<Plus />} onClick={() => navigate('/brands/create')}>
+            Add New Brand
+          </Button>
+        }
+      />
+
+      <Table
+        headers={headers}
+        data={brands}
+        loading={loading}
+        searchPlaceholder="Search brands..."
+        emptyMessage="No brands found. Click 'Add New Brand' to create one."
+        onEdit={handleEditClick}
+        onDelete={handleDeleteClick}
+        onView={handleViewClick}
+        onToggle={handleStatusToggle}
+        toggleField="status"
+        currentPage={pagination?.page || params.page || 1}
+        pageSize={pagination?.limit || params.limit || 10}
+        totalRows={pagination?.total || pagination?.totalItems || brands.length}
+        onPageChange={(page) => setParams((prev) => ({ ...prev, page }))}
+        onPageSizeChange={(limit) => setParams((prev) => ({ ...prev, limit, page: 1 }))}
+        onSortChange={({ key, direction }) => setParams((prev) => ({ ...prev, sort: key, order: direction }))}
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        onSearchClick={handleSearchClick}
+        onSearchClear={handleSearchClear}
+      />
 
       <DeleteModal
         isOpen={deleteModal.isOpen}
@@ -197,15 +188,7 @@ export default function BrandList() {
         message="Are you sure you want to delete this brand? This action cannot be undone."
       />
 
-      <CToaster className="p-3" style={{ zIndex: 2000, position: 'fixed', bottom: '20px', right: '20px' }}>
-        {toasts.map((t) => (
-          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
-            <div className="d-flex">
-              <CToastBody className="font-semibold">{t.message}</CToastBody>
-            </div>
-          </CToast>
-        ))}
-      </CToaster>
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

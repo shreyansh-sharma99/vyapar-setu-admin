@@ -6,7 +6,7 @@ import apiClient from '@/utility/Http';
  * The server always sets the final price (the SP of the batch the goods come from — else the
  * Price master — + offer + GST master for the document date, capped at that batch's MRP);
  * this file only shows the same figures on screen:
- *  - pricing lookup (GET /lookups/pricing, with the store's open batches) and a copy of the
+ *  - pricing lookup (GET /lookups/pricing, with the open batches) and a copy of the
  *    server's resolveLinePrice,
  *  - batch list for the "Which batch?" picker (GET /lookups/batches),
  *  - helpers for a typed (manual) price, which needs sales.change_price + a reason.
@@ -19,18 +19,17 @@ const num = (v) => {
 const round2 = (n) => Math.round((num(n) + Number.EPSILON) * 100) / 100;
 const floor2 = (n) => Math.floor((num(n) + Number.EPSILON) * 100) / 100;
 
-/** GET /lookups/pricing?productIds&date&storeId → { prices: { [id]: { sellingPrice, priceIncludesGst, offer, gstRate, cessRate, taxRateId, mrp, batches } } } */
-export const getSalesPricingApi = async (productIds = [], date, storeId) => {
+/** GET /lookups/pricing?productIds&date → { prices: { [id]: { sellingPrice, priceIncludesGst, offer, gstRate, cessRate, taxRateId, mrp, batches } } } */
+export const getSalesPricingApi = async (productIds = [], date) => {
   const params = { productIds: productIds.join(',') };
   if (date) params.date = date;
-  if (storeId) params.storeId = storeId;
   const response = await apiClient.get('/lookups/pricing', { params });
   return response.data;
 };
 
-/** GET /lookups/batches?productId&storeId → open batches in the order they are sold */
-export const getSaleBatchesApi = async (productId, storeId) => {
-  const response = await apiClient.get('/lookups/batches', { params: { productId, storeId } });
+/** GET /lookups/batches?productId → open batches in the order they are sold */
+export const getSaleBatchesApi = async (productId) => {
+  const response = await apiClient.get('/lookups/batches', { params: { productId } });
   return response.data?.data?.batches || [];
 };
 
@@ -58,6 +57,12 @@ export const resolveLinePrice = ({ masterPrice, priceIncludesGst = true, batchPr
     priceSource = 'batch';
     listPrice = num(batchPrice);
     inclusive = batchPriceIncludesGst !== false;
+  }
+  // no selling price (batch or master): sell at the MRP, which includes GST (same as the server)
+  if (!(listPrice > 0) && num(mrp) > 0) {
+    priceSource = 'mrp';
+    listPrice = num(mrp);
+    inclusive = true;
   }
   if (clearancePrice !== null && clearancePrice !== undefined && num(clearancePrice) > 0) {
     priceSource = 'clearance';
@@ -148,10 +153,9 @@ export const batchLabel = (b) =>
     .filter(Boolean)
     .join(' · ');
 
-/** Line fields for a picked batch (batches belong to one store). */
-export const batchFields = (b, storeId) => ({
+/** Line fields for a picked batch. */
+export const batchFields = (b) => ({
   batchId: b._id,
-  batchStoreId: storeId || '',
   batchNo: b.batchNo || '',
   batchMrp: num(b.mrp),
   batchSp: num(b.sellingPrice) > 0 ? num(b.sellingPrice) : null,
@@ -161,10 +165,7 @@ export const batchFields = (b, storeId) => ({
   batchSplit: false,
 });
 
-export const NO_BATCH = { batchId: '', batchStoreId: '', batchNo: '', batchMrp: 0, batchSp: null, batchSpIncl: true, batchClearance: null, batchLabel: '' };
-
-/** A batch picked in another store does not count (the store was changed afterwards). */
-const liveBatch = (line, storeId) => (line.batchId && String(line.batchStoreId || '') !== String(storeId || '') ? { ...line, ...NO_BATCH } : line);
+export const NO_BATCH = { batchId: '', batchNo: '', batchMrp: 0, batchSp: null, batchSpIncl: true, batchClearance: null, batchLabel: '' };
 
 /**
  * Everything a sales screen needs for dated pricing.
@@ -173,22 +174,21 @@ const liveBatch = (line, storeId) => (line.batchId && String(line.batchStoreId |
  * @param {Array}    p.lineItems       - the screen's line state
  * @param {Function} p.setLineItems
  * @param {string}   p.date            - document date (YYYY-MM-DD)
- * @param {string}   p.storeId         - for the batch picker ('' = no picker)
  * @param {Object}   p.productCache    - productId → product (units, for the unit factor)
  * @param {boolean}  [p.withPrices=true]  - price / offer / GST (not for challans)
  * @param {boolean}  [p.withBatches=true] - "Which MRP?" picker (invoices, challans)
  */
-export const useDatedSalesLines = ({ lineItems, setLineItems, date, storeId, productCache = {}, withPrices = true, withBatches = true }) => {
+export const useDatedSalesLines = ({ lineItems, setLineItems, date, productCache = {}, withPrices = true, withBatches = true }) => {
   const ids = [...new Set(lineItems.map((l) => l.productId).filter(Boolean).map(String))].sort().join(',');
-  // the store's open batches come with the prices (batch SP / MRP)
-  const key = `${ids}|${date || ''}|${withBatches ? storeId || '' : ''}`;
+  // the open batches come with the prices (batch SP / MRP)
+  const key = `${ids}|${date || ''}`;
   const [state, setState] = useState({ key: null, data: null });
   const [picker, setPicker] = useState(null); // { index, product, batches }
 
   useEffect(() => {
     let alive = true;
-    const [idList, day, store] = key.split('|');
-    getSalesPricingApi(idList ? idList.split(',') : [], day || undefined, store || undefined)
+    const [idList, day] = key.split('|');
+    getSalesPricingApi(idList ? idList.split(',') : [], day || undefined)
       .then((res) => {
         if (alive) setState({ key, data: res?.data || null });
       })
@@ -202,35 +202,34 @@ export const useDatedSalesLines = ({ lineItems, setLineItems, date, storeId, pro
 
   const prices = state.data?.prices || {};
 
-  const current = lineItems.map((l) => liveBatch(l, storeId));
   const viewLines = withPrices
-    ? current.map((l) => pricedLine(l, prices[String(l.productId)], productCache[String(l.productId)], { useBatches: withBatches }))
-    : current;
+    ? lineItems.map((l) => pricedLine(l, prices[String(l.productId)], productCache[String(l.productId)], { useBatches: withBatches }))
+    : lineItems;
 
   /** After a product is put on line `index`: open "Which batch?" when its open batches differ in SP or MRP. */
   const afterProductPicked = useCallback(async (index, product) => {
-    if (!withBatches || !storeId || !product?._id) return;
+    if (!withBatches || !product?._id) return;
     try {
-      const batches = await getSaleBatchesApi(product._id, storeId);
+      const batches = await getSaleBatchesApi(product._id);
       if (batchesDiffer(batches)) setPicker({ index, product, batches });
     } catch {
       // no picker: the server takes the oldest batch
     }
-  }, [withBatches, storeId]);
+  }, [withBatches]);
 
   const pickBatch = (batch) => {
     if (!picker) return;
     const { index } = picker;
-    setLineItems((prev) => prev.map((l, i) => (i === index ? { ...l, ...batchFields(batch, storeId) } : l)));
+    setLineItems((prev) => prev.map((l, i) => (i === index ? { ...l, ...batchFields(batch) } : l)));
     setPicker(null);
   };
 
   /** Open the picker again for a line (change the batch). */
   const changeBatch = async (index) => {
     const line = lineItems[index];
-    if (!line?.productId || !storeId) return;
+    if (!line?.productId) return;
     try {
-      const batches = await getSaleBatchesApi(line.productId, storeId);
+      const batches = await getSaleBatchesApi(line.productId);
       setPicker({ index, product: { _id: line.productId, name: line.productName }, batches });
     } catch {
       // ignore
@@ -247,9 +246,6 @@ export const useDatedSalesLines = ({ lineItems, setLineItems, date, storeId, pro
 
   const setReason = (index, reason) => setLineItems((prev) => prev.map((l, i) => (i === index ? { ...l, priceOverrideReason: reason } : l)));
   const resetPrice = (index) => setLineItems((prev) => prev.map((l, i) => (i === index ? { ...l, priceOverride: false, priceOverrideReason: '' } : l)));
-  /** Batches belong to one store: forget picked batches when the store changes. */
-  const clearBatches = () => setLineItems((prev) => prev.map((l) => (l.batchId ? { ...l, ...NO_BATCH } : l)));
-
   /** First problem with typed prices (missing reason), or ''. */
   const priceProblem = () => {
     if (!withPrices) return '';
@@ -260,8 +256,7 @@ export const useDatedSalesLines = ({ lineItems, setLineItems, date, storeId, pro
   /** Extra payload fields for a line (picked batch, typed price + reason). */
   const payloadExtras = (line) => {
     const out = {};
-    const live = liveBatch(line, storeId);
-    if (withBatches && live.batchId) out.batchId = live.batchId;
+    if (withBatches && line.batchId) out.batchId = line.batchId;
     if (withPrices && line.priceOverride) {
       out.priceOverride = true;
       out.priceOverrideReason = String(line.priceOverrideReason || '').trim();
@@ -280,18 +275,17 @@ export const useDatedSalesLines = ({ lineItems, setLineItems, date, storeId, pro
     editPrice,
     setReason,
     resetPrice,
-    clearBatches,
     priceProblem,
     payloadExtras,
   };
 };
 
 /**
- * Line fields kept from a saved document line (edit a draft); storeId = the document's store.
+ * Line fields kept from a saved document line (edit a draft).
  * A batch the user picked stays picked; a batch the server planned (`batchAuto`) is planned
  * again on save. `batchSplit`: this line is one part of a qty split by batch.
  */
-export const datedFieldsFromSaved = (item, storeId) => {
+export const datedFieldsFromSaved = (item) => {
   const took = Array.isArray(item.batches) && item.batches[0] ? item.batches[0] : null;
   const picked = item.batchId && !item.batchAuto;
   return {
@@ -301,7 +295,6 @@ export const datedFieldsFromSaved = (item, storeId) => {
     ...(picked
       ? {
           batchId: item.batchId?._id || item.batchId,
-          batchStoreId: storeId || '',
           batchNo: took?.batchNo || '',
           batchLabel: took ? batchLabel({ ...took, qtyRemaining: took.qty }).replace(/ · [\d.]+ left$/, '') : 'Picked batch',
           batchMrp: num(took?.mrp),

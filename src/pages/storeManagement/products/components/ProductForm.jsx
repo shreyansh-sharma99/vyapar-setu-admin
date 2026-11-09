@@ -1,35 +1,44 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import { useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Loader2,
   Plus,
   Trash2,
   Image as ImageIcon,
   X,
   QrCode,
-  Store as StoreIcon,
+  Boxes,
+  ChevronDown,
+  ChevronUp,
   Lock,
   ExternalLink,
 } from 'lucide-react';
-import { Label } from '@/components/inputs/Label';
-import { Input } from '@/components/inputs/Input';
-import Select from '@/components/inputs/Select';
-import Button from '@/components/inputs/Button';
-import Card from '@/components/breadCrumbs/Card';
+import {
+  Button,
+  Checkbox,
+  EmptyState,
+  Field,
+  FormActions,
+  FormGrid,
+  Input,
+  Label,
+  Section,
+  Select,
+  TagInput,
+  Textarea,
+} from '@/components/ui';
 import FileInput from '@/components/inputs/FileInput';
-import TagInput from '@/components/inputs/TagInputs';
-import Checkbox from '@/components/inputs/Checkbox';
 import BarcodeScannerModal from '@/components/modal/BarcodeScannerModal';
 import { getSubcategoriesApi } from '../../subcategories/services/subcategoryService';
 import { getSimilarProductsApi } from '../services/productService';
+import { runBarcodeCheck, BLOCKING } from '@/pages/purchase/components/barcodeCheck';
 import { getTaxRatesApi } from '@/pages/masterSettings/services/gstRateService';
+import useGstRates from '@/pages/masterSettings/components/useGstRates';
+import { can } from '@/utility/shopPermissions';
 import dayjs from 'dayjs';
 import DuplicateWarning from './DuplicateWarning';
-import {
-  toNumberOr,
-  useDebouncedValue,
-} from '../utils/productUtils';
+import { toNumberOr } from '../utils/productUtils';
 
 const DEFAULT_THRESHOLD = '5';
 
@@ -70,7 +79,6 @@ const numText = (v, { zeroAsEmpty = false } = {}) => {
 const buildDefaults = (p) => ({
   name: p?.name || '',
   sku: p?.sku || '',
-  barcode: p?.barcode || '',
   categoryId: refId(p?.categoryId),
   subCategoryId: refId(p?.subCategoryId),
   brandId: refId(p?.brandId),
@@ -91,30 +99,47 @@ const buildDefaults = (p) => ({
   isCustomizable: String(p?.isCustomizable ?? false),
   unit: p?.unit || 'pcs',
   reorderQty: numText(p?.reorderQty, { zeroAsEmpty: true }),
+  // single location: one low-stock alert for the product (empty on a new product = not set)
+  lowStockAlertThreshold: p ? numText(p.lowStockAlertThreshold ?? DEFAULT_THRESHOLD) : '',
 });
 
 /**
  * Shared create / edit product form.
- * mode = 'create' → per-store opening stock
- * mode = 'edit'   → per-store stock is read-only; only threshold and rack are sent.
+ * mode = 'create' → new product (stock comes from purchases / opening stock)
+ * mode = 'edit'   → stock is read-only; the low-stock alert is sent.
  */
 export default function ProductForm({
   mode = 'create',
   product = null,
-  stores = [],
   categories = [],
   brands = [],
   manufacturers = [],
   submitting = false,
   error = null,
   onSubmit,
-  onValidationError,
 }) {
   const navigate = useNavigate();
   const isEdit = mode === 'edit';
+  // GST % choices: the platform's list (Admin Owner → Settings → GST Rates)
+  const { options: gstOptions } = useGstRates();
   const productId = product?._id || null;
+  const { user } = useSelector((state) => state.auth || {});
+  // Opening stock on a new product: needs Inventory → Create (owner always).
+  const canAddOpening = !isEdit && can(user, 'inventory', 'create');
+  const [opening, setOpening] = useState(() => ({
+    open: false, qty: '', unitCost: '', mrp: '', sellingPrice: '', barcode: '', mfgDate: '', expiryDate: '', openingDate: dayjs().format('YYYY-MM-DD'),
+  }));
+  // Live barcode check of the opening stock (in use / on hold elsewhere → red, blocks Create Product)
+  const [barcodeCheck, setBarcodeCheck] = useState({ code: '', status: '', tone: '', text: '' });
+  const checkOpeningBarcode = async (value) => {
+    const res = await runBarcodeCheck(value, null);
+    setBarcodeCheck((prev) => (String(value || '').trim() === res.code ? res : prev));
+  };
+  const barcodeBlocked = !!opening.barcode.trim() && opening.barcode.trim() === barcodeCheck.code && BLOCKING.includes(barcodeCheck.status);
+  const [openingError, setOpeningError] = useState('');
+  const setOpeningField = (field) => (e) => setOpening((prev) => ({ ...prev, [field]: e.target.value }));
 
-  const { register, handleSubmit, control, watch, setValue, getValues, formState: { errors } } = useForm({
+  const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm({
     defaultValues: buildDefaults(product),
   });
 
@@ -156,7 +181,6 @@ export default function ProductForm({
   const selectedCategoryId = watch('categoryId');
   const isGstApplicable = watch('isGstApplicable');
   const isCustomizable = watch('isCustomizable');
-  const barcode = watch('barcode');
 
   // ── subcategories for the selected category ──
   useEffect(() => {
@@ -176,57 +200,20 @@ export default function ProductForm({
   const subcategories = subcats.categoryId === selectedCategoryId ? subcats.list : [];
   const subcategoriesLoading = !!selectedCategoryId && subcats.categoryId !== selectedCategoryId;
 
-  // ── duplicate check (name blur + barcode change) ──
-  const runSimilarCheck = useCallback((name, code) => {
+  // ── duplicate check (name blur; the barcode is checked at stock-in) ──
+  const runSimilarCheck = useCallback((name) => {
     const n = String(name || '').trim();
-    const b = String(code || '').trim();
-    if (n.length < 3 && b.length < 4) return;
-    const key = `${n.toLowerCase()}|${b}`;
-    const params = { name: n, barcode: b, limit: 5 };
+    if (n.length < 3) return;
+    const key = n.toLowerCase();
+    const params = { name: n, limit: 5 };
     if (productId) params.excludeId = productId;
     getSimilarProductsApi(params)
       .then((res) => setSimilar({ key, items: Array.isArray(res?.data) ? res.data : [] }))
       .catch(() => setSimilar({ key, items: [] }));
   }, [productId]);
 
-  const debouncedBarcode = useDebouncedValue(barcode, 500);
-  useEffect(() => {
-    const code = String(debouncedBarcode || '').trim();
-    if (code.length < 4) return;
-    if (isEdit && code === (product?.barcode || '')) return;
-    runSimilarCheck(getValues('name'), code);
-  }, [debouncedBarcode, isEdit, product, runSimilarCheck, getValues]);
-
   const showSimilar = similar.items.length > 0 && similar.key !== dismissedKey;
 
-  // ── per-store rows (derived: stores + product + local edits) ──
-  const storeRows = useMemo(
-    () =>
-      (stores || []).map((s) => {
-        const existing = (product?.storeStocks || []).find(
-          (ss) => String(refId(ss.storeId)) === String(s._id)
-        );
-        const thresholdDefault = existing
-          ? numText(existing.lowStockAlertThreshold ?? product?.lowStockAlertThreshold ?? DEFAULT_THRESHOLD)
-          : isEdit
-            ? numText(product?.lowStockAlertThreshold ?? DEFAULT_THRESHOLD)
-            : DEFAULT_THRESHOLD;
-        return {
-          storeId: s._id,
-          storeName: s.name,
-          code: s.code,
-          isDefault: s.isDefault,
-          isActive: s.isActive,
-          currentStock: toNumberOr(existing?.stock, 0),
-          damagedStock: toNumberOr(existing?.damagedStock, 0),
-          hasRow: !!existing,
-          stock: '',
-          lowStockAlertThreshold: thresholdDefault,
-          rackLocation: existing?.rackLocation || '',
-        };
-      }),
-    [stores, product, isEdit]
-  );
 
 
   // ── images / custom fields ──
@@ -259,39 +246,30 @@ export default function ProductForm({
 
   // ── submit ──
   const submit = (data) => {
-    if (!isEdit && (!stores || stores.length === 0)) {
-      onValidationError?.('No store or warehouse found. Create at least one store before adding products.');
+    // Opening stock (optional): with a quantity, the MRP is required (like any new batch).
+    const openingQty = canAddOpening ? toNumberOr(opening.qty, 0) : 0;
+    if (openingQty > 0 && barcodeBlocked) {
+      setOpening((prev) => ({ ...prev, open: true }));
       return;
     }
-
-    // Add product: no low-stock alert yet (0 = not set) — each warehouse gets it from the purchase line
-    // ("Low stock alert" on the PO / GRN) or later from Edit product → Store Settings.
-    const alertOf = (r) => (isEdit ? Math.max(0, toNumberOr(r.lowStockAlertThreshold, Number(DEFAULT_THRESHOLD))) : 0);
-    const thresholds = storeRows.map(alertOf);
-    const productThreshold = !isEdit ? 0 : thresholds.length ? Math.min(...thresholds) : Number(DEFAULT_THRESHOLD);
+    if (openingQty > 0 && !(toNumberOr(opening.mrp, 0) > 0)) {
+      setOpening((prev) => ({ ...prev, open: true }));
+      setOpeningError('Enter the MRP for the opening stock.');
+      return;
+    }
+    setOpeningError('');
+    // Empty low-stock alert on a new product = not set (0); it can also come from a purchase line.
+    const productThreshold = Math.max(0, toNumberOr(data.lowStockAlertThreshold, isEdit ? Number(DEFAULT_THRESHOLD) : 0));
 
     let tagList = [];
     if (Array.isArray(data.tags)) tagList = data.tags.map((t) => String(t).trim()).filter(Boolean);
     else if (typeof data.tags === 'string') tagList = data.tags.split(',').map((t) => t.trim()).filter(Boolean);
-
-    const storeStocks = storeRows.map((r) => {
-      const row = {
-        storeId: r.storeId,
-        lowStockAlertThreshold: alertOf(r),
-        rackLocation: (r.rackLocation || '').trim(),
-      };
-      if (!isEdit) {
-        row.stock = Math.max(0, toNumberOr(r.stock, 0));
-      }
-      return row;
-    });
 
     const payload = {
       categoryId: data.categoryId,
       subCategoryId: data.subCategoryId,
       name: data.name.trim(),
       sku: (data.sku || '').trim().toUpperCase(),
-      barcode: (data.barcode || '').trim(),
       shortDescription: (data.shortDescription || '').trim(),
       fullDescription: (data.fullDescription || '').trim(),
       basePrice: String(data.basePrice),
@@ -312,19 +290,15 @@ export default function ProductForm({
       customizationFields: data.isCustomizable === 'true'
         ? JSON.stringify(customFields.filter((f) => String(f.label || '').trim()))
         : '[]',
-      storeStocks,
     };
 
     // Add and edit have no price, MRP, cost or stock: they come from purchases
-    // (and Prices & Offers) and are shown on the product page. Low-stock alerts per store come
-    // from the purchase lines, so edit leaves the store rows alone.
+    // (and Prices & Offers) and are shown on the product page.
     delete payload.basePrice;
     delete payload.discountedPrice;
     delete payload.mrp;
     delete payload.costPrice;
     if (isEdit) {
-      delete payload.storeStocks;
-      delete payload.lowStockAlertThreshold;
       delete payload.isGstIncludedInPrice;
     }
     if (initialPricingMode) {
@@ -333,6 +307,18 @@ export default function ProductForm({
         priceIncludesGst: data.isGstIncludedInPrice === 'true',
         gstRate: data.isGstApplicable === 'true' ? toNumberOr(data.gstRateOverride, 0) : 0,
         cessRate: 0,
+      };
+    }
+    if (openingQty > 0) {
+      payload.openingStock = {
+        qty: openingQty,
+        unitCost: Math.max(0, toNumberOr(opening.unitCost, 0)),
+        mrp: toNumberOr(opening.mrp, 0),
+        ...(toNumberOr(opening.sellingPrice, 0) > 0 ? { sellingPrice: toNumberOr(opening.sellingPrice, 0) } : {}),
+        barcode: opening.barcode.trim(),
+        mfgDate: opening.mfgDate || null,
+        expiryDate: opening.expiryDate || null,
+        openingDate: opening.openingDate || null,
       };
     }
 
@@ -352,399 +338,397 @@ export default function ProductForm({
   ];
 
   return (
-    <form onSubmit={handleSubmit(submit)} className="flex flex-col gap-6">
+    <form onSubmit={handleSubmit(submit)} className="flex flex-col gap-5">
       {/* Basic information */}
-      <Card title="Basic Information" bodyClassName="p-6 flex flex-col gap-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="name">Product Name<span className="text-rose-500">*</span></Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="Product Name"
-              error={errors.name}
-              {...register('name', {
-                required: 'Product name is required',
-                onBlur: (e) => runSimilarCheck(e.target.value, getValues('barcode')),
-              })}
-            />
-            {errors.name && <span className="text-xs text-red-500 mt-1 block">{errors.name.message}</span>}
-          </div>
+      <Section title="Basic Information" description="Name, code and where it sits in your catalog">
+        <div className="flex flex-col gap-4">
+          <FormGrid cols={2}>
+            <Field label="Product Name" required error={errors.name?.message}>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Product Name"
+                {...register('name', {
+                  required: 'Product name is required',
+                  onBlur: (e) => runSimilarCheck(e.target.value),
+                })}
+              />
+            </Field>
 
-          <div>
-            <Label htmlFor="sku">SKU</Label>
-            <Input
-              id="sku"
-              type="text"
-              placeholder="e.g. RICE-BAS-5KG"
-              className="uppercase"
-              error={errors.sku}
-              {...register('sku', {
-                maxLength: { value: 40, message: 'SKU can be at most 40 characters' },
-                pattern: { value: /^[A-Za-z0-9._\-/]*$/, message: 'SKU may contain only letters, numbers, . _ - /' },
-              })}
-            />
-            {errors.sku ? (
-              <span className="text-xs text-red-500 mt-1 block">{errors.sku.message}</span>
-            ) : (
-              <span className="text-[11px] text-[var(--vs-text-secondary)] mt-1 block">Unique code for this product in your shop. Saved in capitals.</span>
+            <Field
+              label="SKU"
+              error={errors.sku?.message}
+              hint="Unique code for this product in your shop. Saved in capitals."
+            >
+              <Input
+                id="sku"
+                type="text"
+                placeholder="e.g. RICE-BAS-5KG"
+                className="uppercase"
+                {...register('sku', {
+                  maxLength: { value: 40, message: 'SKU can be at most 40 characters' },
+                  pattern: { value: /^[A-Za-z0-9._\-/]*$/, message: 'SKU may contain only letters, numbers, . _ - /' },
+                })}
+              />
+            </Field>
+
+            {isEdit && (
+              <Field label="Barcode" hint="Set when stock comes in. It can change once the product has no stock.">
+                <Input id="barcode" type="text" value={product?.barcode || ''} placeholder="No barcode yet" readOnly disabled />
+              </Field>
             )}
-          </div>
 
-          <div>
-            <Label htmlFor="barcode">Barcode</Label>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input id="barcode" type="text" placeholder="e.g. 8901234567890" {...register('barcode')} />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsBarcodeModalOpen(true)}
-                className="px-3"
-                title="Scan Barcode"
-              >
-                <QrCode className="w-4 h-4" />
-              </Button>
-            </div>
-            <span className="text-[11px] text-[var(--vs-text-secondary)] mt-1 block">
-              No barcode? Leave empty and use “Generate Barcodes” on the product list.
-            </span>
-          </div>
-
-          <div>
-            <Label htmlFor="categoryId">Category<span className="text-rose-500">*</span></Label>
             <Controller
               name="categoryId"
               control={control}
               rules={{ required: 'Category is required' }}
               render={({ field }) => (
-                <Select
-                  id="categoryId"
-                  options={categories.map((cat) => ({ value: cat._id, label: cat.name }))}
-                  placeholder="Select Category"
-                  value={field.value}
-                  onChange={(val) => {
-                    if (val !== field.value) setValue('subCategoryId', '');
-                    field.onChange(val);
-                  }}
-                  error={!!errors.categoryId}
-                />
+                <Field label="Category" required error={errors.categoryId?.message}>
+                  <Select
+                    id="categoryId"
+                    options={categories.map((cat) => ({ value: cat._id, label: cat.name }))}
+                    placeholder="Select Category"
+                    value={field.value}
+                    onChange={(val) => {
+                      if (val !== field.value) setValue('subCategoryId', '');
+                      field.onChange(val);
+                    }}
+                    error={!!errors.categoryId}
+                  />
+                </Field>
               )}
             />
-            {errors.categoryId && <span className="text-xs text-red-500 mt-1 block">{errors.categoryId.message}</span>}
-          </div>
 
-          <div>
-            <Label htmlFor="subCategoryId">Subcategory<span className="text-rose-500">*</span></Label>
             <Controller
               name="subCategoryId"
               control={control}
               rules={{ required: 'Subcategory is required' }}
               render={({ field }) => (
-                <Select
-                  id="subCategoryId"
-                  options={subcategories.map((sub) => ({ value: sub._id, label: sub.name }))}
-                  placeholder={selectedCategoryId ? 'Select Subcategory' : 'Select Category first'}
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={!!errors.subCategoryId}
-                  disabled={!selectedCategoryId || subcategoriesLoading}
-                  loading={subcategoriesLoading}
-                />
+                <Field label="Subcategory" required error={errors.subCategoryId?.message}>
+                  <Select
+                    id="subCategoryId"
+                    options={subcategories.map((sub) => ({ value: sub._id, label: sub.name }))}
+                    placeholder={selectedCategoryId ? 'Select Subcategory' : 'Select Category first'}
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={!!errors.subCategoryId}
+                    disabled={!selectedCategoryId || subcategoriesLoading}
+                    loading={subcategoriesLoading}
+                  />
+                </Field>
               )}
             />
-            {errors.subCategoryId && <span className="text-xs text-red-500 mt-1 block">{errors.subCategoryId.message}</span>}
-          </div>
 
-          <div>
-            <Label htmlFor="brandId">Brand<span className="text-rose-500">*</span></Label>
             <Controller
               name="brandId"
               control={control}
               rules={{ required: 'Brand is required' }}
               render={({ field }) => (
-                <Select
-                  id="brandId"
-                  options={brands.map((b) => ({ value: b._id, label: b.name }))}
-                  placeholder="Select Brand"
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={!!errors.brandId}
-                />
+                <Field label="Brand" required error={errors.brandId?.message}>
+                  <Select
+                    id="brandId"
+                    options={brands.map((b) => ({ value: b._id, label: b.name }))}
+                    placeholder="Select Brand"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={!!errors.brandId}
+                  />
+                </Field>
               )}
             />
-            {errors.brandId && <span className="text-xs text-red-500 mt-1 block">{errors.brandId.message}</span>}
-          </div>
 
-          <div>
-            <Label htmlFor="manufacturerId">Manufacturer<span className="text-rose-500">*</span></Label>
             <Controller
               name="manufacturerId"
               control={control}
               rules={{ required: 'Manufacturer is required' }}
               render={({ field }) => (
-                <Select
-                  id="manufacturerId"
-                  options={manufacturers.map((m) => ({ value: m._id, label: m.name }))}
-                  placeholder="Select Manufacturer"
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={!!errors.manufacturerId}
-                />
+                <Field label="Manufacturer" required error={errors.manufacturerId?.message}>
+                  <Select
+                    id="manufacturerId"
+                    options={manufacturers.map((m) => ({ value: m._id, label: m.name }))}
+                    placeholder="Select Manufacturer"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={!!errors.manufacturerId}
+                  />
+                </Field>
               )}
             />
-            {errors.manufacturerId && <span className="text-xs text-red-500 mt-1 block">{errors.manufacturerId.message}</span>}
-          </div>
-        </div>
+          </FormGrid>
 
-        {showSimilar && <DuplicateWarning items={similar.items} onDismiss={() => setDismissedKey(similar.key)} />}
-      </Card>
+          {showSimilar && <DuplicateWarning items={similar.items} onDismiss={() => setDismissedKey(similar.key)} />}
+        </div>
+      </Section>
 
       {/* GST */}
-      <Card title="GST & HSN" bodyClassName="p-6 flex flex-col gap-4">
-        {gstLocked && productId && (
-          <div className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/70 dark:bg-indigo-950/30 text-xs text-indigo-700 dark:text-indigo-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <span className="flex items-start gap-2">
-              <Lock className="w-4 h-4 shrink-0 mt-px" />
-              <span>
-                GST rates are managed in Master Settings → GST Rates and cannot be changed here.
-                {masterGst && (
-                  <>
-                    {' '}Current: <span className="font-bold">{formatGst(masterGst.gstRate, masterGst.cessRate)}</span>
-                    {masterGst.source === 'master' && masterGst.effectiveFrom ? ` · from ${dayjs(masterGst.effectiveFrom).format('DD MMM YYYY')}` : ''}
-                  </>
-                )}
+      <Section title="GST & HSN" description="Tax details used on bills">
+        <div className="flex flex-col gap-4">
+          {gstLocked && productId && (
+            <div className="flex flex-col justify-between gap-2 rounded-control bg-brand-soft p-3 text-xs text-brand-ink sm:flex-row sm:items-center">
+              <span className="flex items-start gap-2">
+                <Lock className="mt-px size-4 shrink-0" />
+                <span>
+                  GST rates are managed in Master Settings → GST Rates and cannot be changed here.
+                  {masterGst && (
+                    <>
+                      {' '}Current: <span className="font-bold">{formatGst(masterGst.gstRate, masterGst.cessRate)}</span>
+                      {masterGst.source === 'master' && masterGst.effectiveFrom ? ` · from ${dayjs(masterGst.effectiveFrom).format('DD MMM YYYY')}` : ''}
+                    </>
+                  )}
+                </span>
               </span>
-            </span>
-            <Link
-              to="/master/gst-rates"
-              className="inline-flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400 hover:underline shrink-0"
-            >
-              Change in GST master <ExternalLink className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <Label htmlFor="isGstApplicable">Is GST Applicable?</Label>
+              <Button as={Link} to="/master/gst-rates" variant="link" size="xs" endIcon={<ExternalLink />} className="shrink-0">
+                Change in GST master
+              </Button>
+            </div>
+          )}
+          <FormGrid cols={3}>
             <Controller
               name="isGstApplicable"
               control={control}
               render={({ field }) => (
-                <Select id="isGstApplicable" options={yesNo} value={field.value} onChange={field.onChange} disabled={gstLocked} />
+                <Field label="Is GST Applicable?">
+                  <Select id="isGstApplicable" options={yesNo} searchable={false} value={field.value} onChange={field.onChange} disabled={gstLocked} />
+                </Field>
               )}
             />
-          </div>
 
-          {isGstApplicable === 'true' && (
-            <div>
-              <Label htmlFor="gstRateOverride">GST Rate (%)</Label>
-              <Input
-                id="gstRateOverride"
-                type="number"
-                step="0.01"
-                placeholder="18"
-                readOnly={gstLocked}
-                className={gstLocked ? 'opacity-60 cursor-not-allowed' : ''}
-                {...register('gstRateOverride', { min: 0, max: 100 })}
+            {isGstApplicable === 'true' && (
+              <Controller
+                name="gstRateOverride"
+                control={control}
+                render={({ field }) => {
+                  // An old product keeps (and shows) its stored rate even if the platform removed it.
+                  const options = gstOptions.map((o) => ({ value: String(o.value), label: o.label }));
+                  if (field.value !== '' && !options.some((o) => o.value === String(field.value))) {
+                    options.push({ value: String(field.value), label: `${field.value}% (old rate)` });
+                  }
+                  return (
+                    <Field label="GST Rate (%)">
+                      <Select id="gstRateOverride" options={options} value={String(field.value)} onChange={field.onChange} disabled={gstLocked} />
+                    </Field>
+                  );
+                }}
               />
+            )}
+          </FormGrid>
+          <FormGrid cols={3}>
+            <Field label="HSN / SAC Code">
+              <Input id="hsnSacCode" type="text" placeholder="e.g. 85171200" {...register('hsnSacCode')} />
+            </Field>
+            <Field label="Min Order Qty">
+              <Input id="minOrderQty" type="number" min="1" placeholder="1" {...register('minOrderQty', { min: 1 })} />
+            </Field>
+          </FormGrid>
+          {!isEdit && (
+            <p className="m-0 text-xs text-ink-subtle">
+              Selling price, MRP, cost and stock are entered on the purchase (order / bill) or the opening stock below, and shown on the product page.
+            </p>
+          )}
+        </div>
+      </Section>
+
+      {/* Stock settings (one location) */}
+      <Section title="Stock Settings" description="When to warn you about low stock">
+        <div className="flex flex-col gap-4">
+          <FormGrid cols={3}>
+            <Field label="Low Stock Alert">
+              <Input id="lowStockAlertThreshold" type="number" min="0" step="any" placeholder={isEdit ? DEFAULT_THRESHOLD : 'Not set'} {...register('lowStockAlertThreshold', { min: 0 })} />
+            </Field>
+          </FormGrid>
+          {!isEdit && (
+            <div className="flex items-start gap-2 rounded-control bg-brand-soft p-3 text-xs text-brand-ink">
+              <Boxes className="mt-px size-4 shrink-0" />
+              <span>
+                Stock comes in through a Purchase{canAddOpening ? ', or the opening stock below' : ''}. The low-stock alert can also be set on the purchase line.
+              </span>
             </div>
           )}
-
         </div>
-        {(
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="hsnSacCode">HSN / SAC Code</Label>
-              <Input id="hsnSacCode" type="text" placeholder="e.g. 85171200" {...register('hsnSacCode')} />
-            </div>
-            <div>
-              <Label htmlFor="minOrderQty">Min Order Qty</Label>
-              <Input id="minOrderQty" type="number" min="1" placeholder="1" {...register('minOrderQty', { min: 1 })} />
-            </div>
+      </Section>
+
+      {/* Opening stock (create only, optional) */}
+      {canAddOpening && (
+        <Section title="Opening Stock (optional)" description="Stock that is already on your shelf">
+          <div className="flex flex-col gap-4">
+            <Button
+              variant="link"
+              size="xs"
+              startIcon={opening.open ? <ChevronUp /> : <ChevronDown />}
+              onClick={() => setOpening((prev) => ({ ...prev, open: !prev.open }))}
+              className="self-start"
+            >
+              {opening.open ? 'Hide opening stock' : 'This product is already on the shelf — add its stock'}
+            </Button>
+            {opening.open && (
+              <>
+                <FormGrid cols={4}>
+                  <Field label="Quantity">
+                    <Input id="openingQty" type="number" min="0" step="any" placeholder="e.g. 10" value={opening.qty} onChange={setOpeningField('qty')} />
+                  </Field>
+                  <Field label="Cost Price (₹ / pc)">
+                    <Input id="openingCost" type="number" min="0" step="0.01" value={opening.unitCost} onChange={setOpeningField('unitCost')} />
+                  </Field>
+                  <Field label="MRP (₹ / pc)" required={toNumberOr(opening.qty, 0) > 0}>
+                    <Input id="openingMrp" type="number" min="0" step="0.01" placeholder="Required" value={opening.mrp} onChange={setOpeningField('mrp')} invalid={!!openingError} />
+                  </Field>
+                  <Field label="Selling Price (₹ / pc)">
+                    <Input id="openingSp" type="number" min="0" step="0.01" placeholder="Optional" value={opening.sellingPrice} onChange={setOpeningField('sellingPrice')} />
+                  </Field>
+                  <div className="flex min-w-0 flex-col">
+                    <Label htmlFor="openingBarcode">Barcode</Label>
+                    <div className="flex gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Input
+                          id="openingBarcode"
+                          type="text"
+                          maxLength={64}
+                          placeholder="Optional"
+                          value={opening.barcode}
+                          onChange={setOpeningField('barcode')}
+                          onBlur={(e) => checkOpeningBarcode(e.target.value)}
+                          invalid={barcodeBlocked}
+                        />
+                      </div>
+                      <Button variant="secondary" size="icon" onClick={() => setIsBarcodeModalOpen(true)} title="Scan Barcode" aria-label="Scan Barcode">
+                        <QrCode />
+                      </Button>
+                    </div>
+                  </div>
+                  <Field label="Mfg Date">
+                    <Input id="openingMfg" type="date" value={opening.mfgDate} onChange={setOpeningField('mfgDate')} />
+                  </Field>
+                  <Field label="Expiry Date">
+                    <Input id="openingExpiry" type="date" value={opening.expiryDate} onChange={setOpeningField('expiryDate')} />
+                  </Field>
+                  <Field label="Opening Date">
+                    <Input id="openingDate" type="date" max={dayjs().format('YYYY-MM-DD')} value={opening.openingDate} onChange={setOpeningField('openingDate')} />
+                  </Field>
+                </FormGrid>
+                {openingError && <p role="alert" className="m-0 text-xs font-medium text-danger">{openingError}</p>}
+                {barcodeCheck.text && opening.barcode.trim() === barcodeCheck.code && (
+                  <p className={`m-0 text-xs ${barcodeCheck.tone === 'error' ? 'text-danger' : 'text-brand-ink'}`}>
+                    Barcode {barcodeCheck.code}: {barcodeCheck.text}
+                  </p>
+                )}
+                <p className="m-0 text-xs text-ink-subtle">
+                  Goes into stock as one batch dated on the opening date, so it is sold before later purchases. A batch number is given automatically. Leave the quantity empty to skip.
+                  No barcode? Leave it empty and use “Generate Barcodes” on the product list.
+                </p>
+              </>
+            )}
           </div>
-        )}
-        {!isEdit && (
-          <p className="text-[11px] text-[var(--vs-text-secondary)] m-0">
-            Selling price, MRP, cost and stock are entered on the purchase (GRN / bill) or opening stock, and shown on the product page.
-          </p>
-        )}
-      </Card>
-
-      {/* Stores */}
-      {!isEdit && (!stores || stores.length === 0) && (
-        <div className="p-5 rounded-2xl border-2 border-dashed border-amber-300 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-950/20 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <StoreIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-sm text-amber-900 dark:text-amber-300">No Store or Warehouse Found</h4>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                You must add at least one store/warehouse before you can add products and allocate stock.
-              </p>
-            </div>
-          </div>
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => navigate('/stores/create')}
-            className="shrink-0 flex items-center gap-1.5 whitespace-nowrap text-xs"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create Store / Warehouse</span>
-          </Button>
-        </div>
+        </Section>
       )}
-
-      {!isEdit && stores && stores.length > 0 && (
-        <div className="p-4 rounded-2xl border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/70 dark:bg-indigo-950/30 text-xs text-indigo-700 dark:text-indigo-300 flex items-start gap-2">
-          <StoreIcon className="w-4 h-4 shrink-0 mt-px" />
-          <span>
-            Stock comes in through{' '}
-            <Link to="/purchase/receipts/create" className="font-semibold underline">Purchase (GRN)</Link> or{' '}
-            <Link to="/inventory/opening-stock/create" className="font-semibold underline">Opening Stock</Link>. Low-stock alerts are set per warehouse on
-            the purchase order / goods receipt ("Low stock alert" column).
-          </span>
-        </div>
-      )}
-
 
       {/* Descriptions & tags */}
-      <Card title="Descriptions & Tags" bodyClassName="p-6">
-        <div className="flex flex-col gap-4">
-          <div>
-            <Label htmlFor="shortDescription">Short Description<span className="text-rose-500">*</span></Label>
+      <Section title="Descriptions & Tags" description="Text and search tags for this product">
+        <FormGrid cols={1}>
+          <Field label="Short Description" required error={errors.shortDescription?.message}>
             <Input
               id="shortDescription"
               type="text"
               placeholder="Short summary of the product..."
-              error={errors.shortDescription}
               {...register('shortDescription', { required: 'Short description is required' })}
             />
-            {errors.shortDescription && <span className="text-xs text-red-500 mt-1 block">{errors.shortDescription.message}</span>}
-          </div>
+          </Field>
 
-          <div>
-            <Label htmlFor="fullDescription">Full Description</Label>
-            <textarea
+          <Field label="Full Description">
+            <Textarea
               id="fullDescription"
               placeholder="Detailed explanation of the product features, specs..."
-              rows="5"
-              className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/25 transition-all duration-200 outline-none focus:border-indigo-500/60 focus:bg-indigo-500/[0.04] dark:focus:bg-indigo-500/[0.08] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)]"
+              rows={5}
               {...register('fullDescription')}
             />
-          </div>
+          </Field>
 
-          <div>
-            <Label htmlFor="tags">Tags</Label>
-            <Controller
-              name="tags"
-              control={control}
-              render={({ field }) => (
+          <Controller
+            name="tags"
+            control={control}
+            render={({ field }) => (
+              <Field label="Tags">
                 <TagInput value={field.value} onChange={field.onChange} placeholder="Type a tag and press Enter" />
-              )}
-            />
-          </div>
-        </div>
-      </Card>
+              </Field>
+            )}
+          />
+        </FormGrid>
+      </Section>
 
       {/* Customization */}
-      <Card title="Product Customization" bodyClassName="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <Label htmlFor="isCustomizable">Is Product Customizable?</Label>
+      <Section title="Product Customization" description="Extra details a buyer fills in for this product">
+        <div className="flex flex-col gap-4">
+          <FormGrid cols={2}>
             <Controller
               name="isCustomizable"
               control={control}
               render={({ field }) => (
-                <Select id="isCustomizable" options={yesNo} value={field.value} onChange={field.onChange} />
+                <Field label="Is Product Customizable?">
+                  <Select id="isCustomizable" options={yesNo} searchable={false} value={field.value} onChange={field.onChange} />
+                </Field>
               )}
             />
-          </div>
-        </div>
+          </FormGrid>
 
-        {isCustomizable === 'true' && (
-          <div className="bg-[var(--vs-bg-secondary)] p-4 sm:p-6 rounded-2xl border border-[var(--vs-border)] flex flex-col gap-4">
-            <span className="text-sm font-semibold text-[var(--vs-text-primary)]">Custom Fields Builder</span>
-            <div className="overflow-x-auto rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)]">
-              <table className="w-full border-collapse border-spacing-0 min-w-[560px]">
-                <thead className="bg-[var(--vs-active-bg)] dark:bg-indigo-950/40 text-[var(--vs-active-text)] dark:text-indigo-300">
-                  <tr>
-                    <th className="border border-[var(--vs-border)] p-3 text-sm font-semibold text-left">Field Label</th>
-                    <th className="border border-[var(--vs-border)] p-3 text-sm font-semibold text-left w-64">Field Type</th>
-                    <th className="border border-[var(--vs-border)] p-3 text-sm font-semibold text-center w-36">Required</th>
-                    <th className="border border-[var(--vs-border)] p-3 text-sm font-semibold text-center w-32">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-[var(--vs-bg-primary)]">
-                  {customFields.map((field, idx) => (
-                    <tr key={idx} className="hover:bg-[var(--vs-drop-hover)] transition-colors">
-                      <td className="border border-[var(--vs-border)] p-3">
-                        <input
-                          type="text"
-                          placeholder="e.g. Engraving Name"
-                          value={field.label}
-                          onChange={(e) => handleCustomFieldChange(idx, 'label', e.target.value)}
-                          className="w-full rounded-xl border border-[var(--vs-input-border)] bg-[var(--vs-input-bg)] px-3.5 py-2 text-sm text-[var(--vs-text-primary)] placeholder:text-[var(--vs-text-secondary)]/50 transition-all duration-200 outline-none focus:border-indigo-500/60"
-                        />
-                      </td>
-                      <td className="border border-[var(--vs-border)] p-3 align-middle">
-                        <Select
-                          options={[
-                            { value: 'TextInput', label: 'Text Input' },
-                            { value: 'ImageUpload', label: 'Image Upload' },
-                          ]}
-                          value={field.fieldType}
-                          onChange={(val) => handleCustomFieldChange(idx, 'fieldType', val)}
-                        />
-                      </td>
-                      <td className="border border-[var(--vs-border)] p-3 align-middle">
-                        <div className="flex justify-center items-center h-11">
-                          <Checkbox
-                            id={`isRequired-${idx}`}
-                            label="Required"
-                            checked={field.isRequired}
-                            onChange={(checked) => handleCustomFieldChange(idx, 'isRequired', checked)}
-                          />
-                        </div>
-                      </td>
-                      <td className="border border-[var(--vs-border)] p-3 align-middle">
-                        <div className="flex gap-2 justify-center items-center h-11">
-                          <button
-                            type="button"
-                            onClick={() => addCustomFieldRow(idx)}
-                            className="h-10 w-10 flex items-center justify-center rounded-xl bg-[var(--vs-active-bg)] hover:opacity-90 text-[var(--vs-active-text)] transition-all border border-[var(--vs-border-sidebar-line)]"
-                            title="Add Field"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                          {customFields.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeCustomFieldRow(idx)}
-                              className="h-10 w-10 flex items-center justify-center rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 transition-all border border-rose-500/20"
-                              title="Remove Field"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {isCustomizable === 'true' && (
+            <div className="flex flex-col gap-3 rounded-card bg-fill p-4 sm:p-5">
+              <span className="text-sm font-semibold text-ink">Custom Fields Builder</span>
+              <div className="hidden gap-3 px-3 text-[13px] font-semibold text-ink-muted md:grid md:grid-cols-[minmax(0,1fr)_16rem_9rem_8rem]">
+                <span>Field Label</span>
+                <span>Field Type</span>
+                <span className="text-center">Required</span>
+                <span className="text-center">Actions</span>
+              </div>
+              {customFields.map((field, idx) => (
+                <div
+                  key={idx}
+                  className="grid grid-cols-1 items-center gap-3 rounded-control bg-surface p-3 shadow-card md:grid-cols-[minmax(0,1fr)_16rem_9rem_8rem]"
+                >
+                  <Input
+                    type="text"
+                    aria-label="Field Label"
+                    placeholder="e.g. Engraving Name"
+                    value={field.label}
+                    onChange={(e) => handleCustomFieldChange(idx, 'label', e.target.value)}
+                  />
+                  <Select
+                    aria-label="Field Type"
+                    searchable={false}
+                    options={[
+                      { value: 'TextInput', label: 'Text Input' },
+                      { value: 'ImageUpload', label: 'Image Upload' },
+                    ]}
+                    value={field.fieldType}
+                    onChange={(val) => handleCustomFieldChange(idx, 'fieldType', val)}
+                  />
+                  <div className="flex items-center md:justify-center">
+                    <Checkbox
+                      id={`isRequired-${idx}`}
+                      label="Required"
+                      checked={field.isRequired}
+                      onChange={(checked) => handleCustomFieldChange(idx, 'isRequired', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 md:justify-center">
+                    <Button variant="soft" size="icon" onClick={() => addCustomFieldRow(idx)} title="Add Field" aria-label="Add Field">
+                      <Plus />
+                    </Button>
+                    {customFields.length > 1 && (
+                      <Button variant="danger-soft" size="icon" onClick={() => removeCustomFieldRow(idx)} title="Remove Field" aria-label="Remove Field">
+                        <Trash2 />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        )}
-      </Card>
+          )}
+        </div>
+      </Section>
 
       {/* Images */}
-      <Card title="Product Images" bodyClassName="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
+      <Section title="Product Images" description="Upload one or more photos">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="flex min-w-0 flex-col">
             <Label>Upload Image</Label>
             <FileInput
               onUploadSuccess={handleUploadSuccess}
@@ -755,36 +739,37 @@ export default function ProductForm({
               multiple={true}
             />
           </div>
-          <div className="flex flex-col gap-3">
-            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Images List ({images.length})</span>
+          <div className="flex min-w-0 flex-col gap-3">
+            <span className="text-[13px] font-semibold text-ink-muted">Images List ({images.length})</span>
             {images.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-6 border border-dashed border-gray-200 dark:border-white/10 rounded-2xl bg-gray-50/50 dark:bg-white/[0.02]">
-                <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
-                <span className="text-xs text-gray-500 dark:text-gray-400">No images uploaded yet.</span>
+              <div className="rounded-control border border-dashed border-line bg-fill">
+                <EmptyState icon={ImageIcon} text="No images uploaded yet." className="py-6" />
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-3 overflow-y-auto max-h-[220px] p-1">
+              <div className="grid max-h-[220px] grid-cols-3 gap-3 overflow-y-auto p-1">
                 {images.map((img, idx) => (
-                  <div key={idx} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 aspect-square">
-                    <img src={getImageUrl(img)} alt={`Product image ${idx + 1}`} className="w-full h-full object-cover" />
-                    <button
-                      type="button"
+                  <div key={idx} className="relative aspect-square overflow-hidden rounded-control border border-line">
+                    <img src={getImageUrl(img)} alt={`Product image ${idx + 1}`} className="size-full object-cover" />
+                    <Button
+                      variant="danger"
+                      size="icon-sm"
                       onClick={() => removeImage(idx)}
-                      className="absolute top-1.5 right-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-all shadow-md cursor-pointer z-10"
                       title="Remove Image"
+                      aria-label="Remove Image"
+                      className="absolute right-1.5 top-1.5 z-10 rounded-full"
                     >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                      <X />
+                    </Button>
                   </div>
                 ))}
               </div>
             )}
           </div>
         </div>
-      </Card>
+      </Section>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-xs text-red-600 dark:text-red-400">
+        <div role="alert" className="rounded-control bg-danger-soft px-4 py-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -792,23 +777,25 @@ export default function ProductForm({
       <BarcodeScannerModal
         isOpen={isBarcodeModalOpen}
         onClose={() => setIsBarcodeModalOpen(false)}
-        onSave={(val) => setValue('barcode', val, { shouldValidate: true, shouldDirty: true })}
-        initialValue={barcode || ''}
+        onSave={(val) => {
+          setOpening((prev) => ({ ...prev, barcode: val }));
+          checkOpeningBarcode(val);
+        }}
+        initialValue={opening.barcode || ''}
       />
 
-      <div className="mt-4 flex justify-end gap-3 border-t border-gray-100 dark:border-white/10 pt-5">
-        <Button type="button" variant="outline" onClick={() => navigate('/products')} disabled={submitting}>
+      <FormActions>
+        <Button variant="secondary" onClick={() => navigate('/products')} disabled={submitting}>
           Cancel
         </Button>
         <Button
           type="submit"
-          variant="primary"
-          disabled={submitting || (!isEdit && (!stores || stores.length === 0))}
-          startIcon={submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+          loading={submitting}
+          disabled={submitting || (toNumberOr(opening.qty, 0) > 0 && barcodeBlocked)}
         >
           {isEdit ? 'Update Product' : 'Create Product'}
         </Button>
-      </div>
+      </FormActions>
     </form>
   );
 }

@@ -2,15 +2,14 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Ban, CheckCircle2, Edit2, HandCoins, Printer, Trash2 } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import DeleteModal from '@/components/modal/DeleteModal';
+import { Alert, Button, ConfirmDialog, DetailList, DocumentLayout, PartyCard, Section, StatusBadge, TotalsPanel, TotalsRow } from '@/components/ui';
 import PurchaseToaster from '../components/PurchaseToaster';
 import RefundReceivedModal from '../components/RefundReceivedModal';
 import LinesTable from '../components/LinesTable';
 import { DocTotals } from '../components/Totals';
-import { ConfirmModal, InfoRow, PageLoading, PageShell, Section, StatusBadge } from '../components/ui';
+import { ConfirmModal, PageLoading } from '../components/ui';
 import { notify, notifyError } from '../components/toast';
-import { PATHS, decId, editPath, errMsg, fmtDate, formatINR, formatQty, methodLabel, num, refId, returnRefundLeft, storeName, supplierName, viewPath } from '../components/helpers';
+import { PATHS, decId, editPath, errMsg, fmtDate, formatINR, formatQty, methodLabel, num, refId, returnRefundLeft, supplierName, viewPath } from '../components/helpers';
 import { cancelPurchaseReturn, confirmPurchaseReturn, deletePurchaseReturn, fetchPurchaseReturn } from './services/purchaseReturnSlice';
 
 export default function PurchaseReturnDetails() {
@@ -55,14 +54,14 @@ export default function PurchaseReturnDetails() {
   };
 
   const columns = [
-    { key: 'i', label: '#', render: (_, i) => i + 1 },
+    { key: 'i', label: '#', render: (_, i) => <span className="text-ink-subtle">{i + 1}</span> },
     {
       key: 'product',
       label: 'Product',
       render: (l) => (
         <div>
-          <div className="font-medium">{l.productName}</div>
-          <div className="text-[11px] text-[var(--vs-text-secondary)]">{l.sku ? `SKU ${l.sku}` : ''}</div>
+          <div className="font-semibold">{l.productName}</div>
+          {l.sku && <div className="text-xs text-ink-subtle">SKU {l.sku}</div>}
         </div>
       ),
     },
@@ -71,20 +70,30 @@ export default function PurchaseReturnDetails() {
       key: 'bucket',
       label: 'From',
       render: (l) => (
-        <span className={l.fromBucket === 'damaged' ? 'text-rose-600 dark:text-rose-400 font-semibold' : ''}>{l.fromBucket === 'damaged' ? 'Damaged stock' : 'Sellable stock'}</span>
+        <span className={l.fromBucket === 'damaged' ? 'font-semibold text-danger' : 'text-ink-muted'}>{l.fromBucket === 'damaged' ? 'Damaged stock' : 'Sellable stock'}</span>
       ),
     },
     { key: 'reason', label: 'Reason', render: (l) => l.reason || '—' },
     { key: 'rate', label: 'Rate', align: 'right', render: (l) => formatINR(l.rate) },
     { key: 'taxable', label: 'Taxable', align: 'right', render: (l) => formatINR(l.taxableValue) },
-    { key: 'gst', label: 'GST', align: 'right', render: (l) => `${num(l.taxPercent)}% · ${formatINR(l.taxAmount)}` },
+    {
+      key: 'gst',
+      label: 'GST',
+      align: 'right',
+      render: (l) => (
+        <>
+          <div>{formatINR(l.taxAmount)}</div>
+          <div className="text-xs text-ink-subtle">{num(l.taxPercent)}%</div>
+        </>
+      ),
+    },
     { key: 'total', label: 'Amount', align: 'right', render: (l) => <span className="font-semibold">{formatINR(l.total)}</span> },
   ];
 
   const modalCfg = {
     confirm: {
       title: 'Confirm return',
-      message: `Confirm ${ret.returnNumber}? The goods will be taken out of ${storeName(ret)} and ${formatINR(agreed)} will be reduced from what you owe ${supplierName(ret)}.${num(ret.lossAmount) > 0 ? ` ${formatINR(ret.lossAmount)} is booked as a loss.` : ''}`,
+      message: `Confirm ${ret.returnNumber}? The goods will be taken out of stock and ${formatINR(agreed)} will be reduced from what you owe ${supplierName(ret)}.${num(ret.lossAmount) > 0 ? ` ${formatINR(ret.lossAmount)} is booked as a loss.` : ''}`,
       label: 'Confirm return',
       variant: 'primary',
       onConfirm: () => run(confirmPurchaseReturn(ret._id), 'Purchase return confirmed'),
@@ -99,134 +108,140 @@ export default function PurchaseReturnDetails() {
     },
   }[modal];
 
-  return (
-    <PageShell title={`Purchase return ${ret.returnNumber}`} description="Debit note">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--vs-border)] pb-4">
-        <StatusBadge status={ret.status} size="lg" />
-        <div className="flex flex-wrap items-center gap-2 print:hidden">
-          {ret.status === 'draft' && (
-            <>
-              <Button size="sm" onClick={() => setModal('confirm')} startIcon={<CheckCircle2 className="w-4 h-4" />}>
-                Confirm
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate(editPath('returns', ret._id))} startIcon={<Edit2 className="w-4 h-4" />}>
-                Edit
-              </Button>
-            </>
-          )}
-          {refundLeft > 0 && (
-            <Button size="sm" onClick={() => setModal('refund')} startIcon={<HandCoins className="w-4 h-4" />}>
-              Money received?
-            </Button>
-          )}
-          {ret.status !== 'cancelled' && !(num(ret.refundReceived) > 0) && (
-            <Button size="sm" variant="outline" onClick={() => setModal('cancel')} startIcon={<Ban className="w-4 h-4" />}>
-              Cancel
-            </Button>
-          )}
-          {['draft', 'cancelled'].includes(ret.status) && (
-            <Button size="sm" variant="danger" onClick={() => setModal('delete')} startIcon={<Trash2 className="w-4 h-4" />}>
-              Delete
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={() => window.print()} startIcon={<Printer className="w-4 h-4" />}>
-            Print
-          </Button>
-        </div>
-      </div>
+  const confirmed = ret.status === 'confirmed';
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Section title="Supplier" bodyClassName="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <button type="button" onClick={() => navigate(viewPath('suppliers', refId(ret.supplierId)))} className="text-left font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-                  {supplierName(ret)}
-                </button>
-              </div>
-              <InfoRow label="GSTIN" value={ret.supplierSnapshot?.gstin || 'Unregistered'} mono />
-              <InfoRow label="Phone" value={ret.supplierSnapshot?.phone} />
-            </Section>
-            <Section title="Return info" bodyClassName="p-4 grid grid-cols-2 gap-3">
-              <InfoRow label="Return no" value={ret.returnNumber} mono />
-              <InfoRow label="Date" value={fmtDate(ret.returnDate)} />
-              <InfoRow label="From store" value={storeName(ret)} />
-              {ret.purchaseBillId ? (
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--vs-text-secondary)]">Against bill</span>
-                  <button type="button" onClick={() => navigate(viewPath('bills', refId(ret.purchaseBillId)))} className="text-left text-sm font-mono font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-                    {ret.purchaseBillId.billNumber || 'View bill'}
-                  </button>
-                </div>
-              ) : (
-                <InfoRow label="Against bill" value="None (reduces overall payable)" />
+  return (
+    <DocumentLayout
+      header={{
+        title: 'Purchase return',
+        docNo: ret.returnNumber,
+        description: 'Debit note',
+        actions: (
+          <>
+            <StatusBadge status={ret.status} label={ret.status === 'draft' ? 'Not finished' : undefined} size="md" />
+            <div className="flex flex-wrap items-center gap-2 print:hidden">
+              <Button variant="secondary" onClick={() => window.print()} startIcon={<Printer />}>
+                Print
+              </Button>
+              {['draft', 'cancelled'].includes(ret.status) && (
+                <Button variant="danger-soft" onClick={() => setModal('delete')} startIcon={<Trash2 />}>
+                  Delete
+                </Button>
               )}
-              {num(ret.billAdjustedAmount) > 0 && <InfoRow label="Set off on bill" value={formatINR(ret.billAdjustedAmount)} />}
-              <InfoRow label="Created by" value={ret.createdByName} />
-              {ret.status === 'cancelled' && <InfoRow label="Cancel reason" value={ret.cancelReason || '—'} />}
-            </Section>
-          </div>
-          <Section title="Items returned" bodyClassName="p-3">
-            <LinesTable columns={columns} rows={ret.items || []} minWidth={900} />
-          </Section>
-          {ret.notes && (
-            <Section title="Notes">
-              <p className="text-sm whitespace-pre-wrap">{ret.notes}</p>
-            </Section>
-          )}
-        </div>
-        <div className="flex flex-col gap-6">
-          <Section title="Money from the supplier" bodyClassName="p-4 flex flex-col gap-2.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-[var(--vs-text-secondary)]">Goods value (cost + GST)</span>
-              <span className="font-mono">{formatINR(ret.totalAmount)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[var(--vs-text-secondary)]">Supplier gives</span>
-              <span className="font-mono font-semibold">{formatINR(agreed)}</span>
-            </div>
-            {num(ret.lossAmount) > 0 && (
-              <div className="flex justify-between text-rose-600 dark:text-rose-400">
-                <span>Loss</span>
-                <span className="font-mono font-semibold">{formatINR(ret.lossAmount)}</span>
-              </div>
-            )}
-            {ret.status === 'confirmed' && (
-              <>
-                {num(ret.billAdjustedAmount) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-[var(--vs-text-secondary)]">Cut from bill</span>
-                    <span className="font-mono">{formatINR(ret.billAdjustedAmount)}</span>
-                  </div>
-                )}
-                {num(ret.refundReceived) > 0 && (
-                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                    <span>
-                      Received{ret.refundReceivedAt ? ` on ${fmtDate(ret.refundReceivedAt)}` : ''}
-                      {ret.refundMethod ? ` · ${methodLabel(ret.refundMethod)}` : ''}
-                    </span>
-                    <span className="font-mono font-semibold">{formatINR(ret.refundReceived)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-baseline border-t border-[var(--vs-border)] pt-2.5">
-                  <span className="font-semibold">Still to receive</span>
-                  <span className={`font-mono text-lg font-bold ${refundLeft > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                    {refundLeft > 0 ? formatINR(refundLeft) : 'Nothing'}
-                  </span>
-                </div>
-                {refundLeft > 0 && (
-                  <Button onClick={() => setModal('refund')} className="w-full print:hidden" startIcon={<HandCoins className="w-4 h-4" />}>
-                    Money received?
+              {ret.status !== 'cancelled' && !(num(ret.refundReceived) > 0) && (
+                <Button variant="secondary" onClick={() => setModal('cancel')} startIcon={<Ban />}>
+                  Cancel
+                </Button>
+              )}
+              {ret.status === 'draft' && (
+                <>
+                  <Button variant="secondary" onClick={() => navigate(editPath('returns', ret._id))} startIcon={<Edit2 />}>
+                    Edit
                   </Button>
-                )}
-              </>
+                  <Button onClick={() => setModal('confirm')} startIcon={<CheckCircle2 />}>
+                    Confirm
+                  </Button>
+                </>
+              )}
+              {refundLeft > 0 && (
+                <Button onClick={() => setModal('refund')} startIcon={<HandCoins />}>
+                  Money received?
+                </Button>
+              )}
+            </div>
+          </>
+        ),
+      }}
+      summary={
+        <>
+          <TotalsPanel
+            title="Money from the supplier"
+            totalLabel="Still to receive"
+            total={confirmed ? (refundLeft > 0 ? formatINR(refundLeft) : 'Nothing') : undefined}
+            footer={
+              confirmed && refundLeft > 0 ? (
+                <Button variant="accent" fullWidth className="print:hidden" onClick={() => setModal('refund')} startIcon={<HandCoins />}>
+                  Money received?
+                </Button>
+              ) : null
+            }
+          >
+            <TotalsRow label="Goods value (cost + GST)" value={formatINR(ret.totalAmount)} />
+            <TotalsRow label="Supplier gives" value={formatINR(agreed)} bold />
+            {num(ret.lossAmount) > 0 && <TotalsRow label="Loss" value={formatINR(ret.lossAmount)} tone="danger" />}
+            {confirmed && num(ret.billAdjustedAmount) > 0 && <TotalsRow label="Cut from bill" value={formatINR(ret.billAdjustedAmount)} />}
+            {confirmed && num(ret.refundReceived) > 0 && (
+              <TotalsRow
+                label={`Received${ret.refundReceivedAt ? ` on ${fmtDate(ret.refundReceivedAt)}` : ''}${ret.refundMethod ? ` · ${methodLabel(ret.refundMethod)}` : ''}`}
+                value={formatINR(ret.refundReceived)}
+              />
             )}
-          </Section>
+          </TotalsPanel>
           <Section title="Price details">
             <DocTotals doc={ret} />
           </Section>
-        </div>
+        </>
+      }
+    >
+      {ret.status === 'cancelled' && (
+        <Alert tone="danger" title="This return is cancelled">
+          {ret.cancelReason || 'No reason given.'}
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <Section title="Supplier">
+          <div className="flex flex-col gap-4">
+            <PartyCard
+              name={supplierName(ret)}
+              sub={ret.supplierSnapshot?.phone}
+              actions={
+                <Button variant="secondary" size="sm" onClick={() => navigate(viewPath('suppliers', refId(ret.supplierId)))}>
+                  View
+                </Button>
+              }
+            />
+            <DetailList
+              cols={2}
+              items={[
+                { label: 'GSTIN', value: ret.supplierSnapshot?.gstin || 'Unregistered', mono: !!ret.supplierSnapshot?.gstin },
+                { label: 'Phone', value: ret.supplierSnapshot?.phone },
+              ]}
+            />
+          </div>
+        </Section>
+        <Section title="Return info">
+          <DetailList
+            cols={2}
+            items={[
+              { label: 'Return no', value: ret.returnNumber, mono: true },
+              { label: 'Date', value: fmtDate(ret.returnDate) },
+              ret.purchaseBillId
+                ? {
+                    label: 'Against bill',
+                    value: (
+                      <Button variant="link" size="sm" className="font-mono font-semibold" onClick={() => navigate(viewPath('bills', refId(ret.purchaseBillId)))}>
+                        {ret.purchaseBillId.billNumber || 'View bill'}
+                      </Button>
+                    ),
+                  }
+                : { label: 'Against bill', value: 'None (reduces overall payable)' },
+              num(ret.billAdjustedAmount) > 0 && { label: 'Set off on bill', value: formatINR(ret.billAdjustedAmount) },
+              { label: 'Created by', value: ret.createdByName },
+            ]}
+          />
+        </Section>
       </div>
+
+      <Section title="Items returned" description={`${(ret.items || []).length} ${(ret.items || []).length === 1 ? 'line' : 'lines'}`} bodyClassName="px-3 sm:px-4">
+        <LinesTable columns={columns} rows={ret.items || []} minWidth={720} />
+      </Section>
+
+      {ret.notes && (
+        <Section title="Notes">
+          <p className="m-0 whitespace-pre-wrap text-sm text-ink-muted">{ret.notes}</p>
+        </Section>
+      )}
 
       {modalCfg && (
         <ConfirmModal
@@ -241,13 +256,15 @@ export default function PurchaseReturnDetails() {
           onConfirm={modalCfg.onConfirm}
         />
       )}
-      <DeleteModal
-        isOpen={modal === 'delete'}
-        isLoading={saving}
-        onClose={() => setModal(null)}
-        onConfirm={runDelete}
+      <ConfirmDialog
+        open={modal === 'delete'}
         title="Delete purchase return"
         message={`Delete ${ret.returnNumber}? This cannot be undone.`}
+        confirmLabel="Delete"
+        icon={Trash2}
+        loading={saving}
+        onClose={() => setModal(null)}
+        onConfirm={runDelete}
       />
       {modal === 'refund' && (
         <RefundReceivedModal
@@ -260,6 +277,6 @@ export default function PurchaseReturnDetails() {
         />
       )}
       <PurchaseToaster />
-    </PageShell>
+    </DocumentLayout>
   );
 }

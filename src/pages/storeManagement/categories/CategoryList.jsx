@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { encryptData } from '@/utility/crypto';
 import { formatDateWithTiming } from '@/utility/dateTiming';
-import Button from '@/components/inputs/Button';
 import Table from '@/components/table/Table';
 import {
   getCategories,
@@ -12,10 +11,9 @@ import {
   clearCategoryToast,
   changeCategoryStatus,
 } from './services/categorySlice';
-import Card from '../../../components/breadCrumbs/Card';
 import DeleteModal from '@/components/modal/DeleteModal';
 import { useToasts } from '../products/utils/productUtils';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
+import { Button, PageHeader, StatusBadge, ToastStack } from '@/components/ui';
 
 export default function CategoryList() {
   const dispatch = useDispatch();
@@ -111,7 +109,7 @@ export default function CategoryList() {
       key: 'name',
       width: '25%',
       sortable: true,
-      cellClassName: 'font-semibold text-[var(--vs-text-primary)]',
+      cellClassName: 'font-semibold text-ink',
       value: 'checked'
     },
     {
@@ -127,12 +125,7 @@ export default function CategoryList() {
       render: (item) => {
         const isActive = item.status === 'active';
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isActive
-            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-            : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'
-            }`}>
-            {isActive ? 'Active' : 'Inactive'}
-          </span>
+          <StatusBadge status={isActive ? 'active' : 'inactive'} label={isActive ? 'Active' : 'Inactive'} />
         );
       },
       value: 'checked'
@@ -161,41 +154,39 @@ export default function CategoryList() {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card h1="Categories" bodyClassName="p-4">
-        <Table
-          headers={headers}
-          data={categories}
-          loading={loading}
-          searchPlaceholder="Search categories..."
-          emptyMessage="No categories found. Click 'Add New Category' to create one."
-          onEdit={handleEditClick}
-          onDelete={handleDeleteClick}
-          onView={handleViewClick}
-          onToggle={handleStatusToggle}
-          toggleField="status"
-          currentPage={pagination?.currentPage || 1}
-          pageSize={pagination?.limit || 10}
-          totalRows={pagination?.totalItems || 0}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
-          sortConfig={{ key: sort, direction: order }}
-          onSortChange={handleSortChange}
-          searchTerm={searchTerm}
-          onSearchTermChange={setSearchTerm}
-          onSearchClick={handleSearchClick}
-          onSearchClear={handleSearchClear}
-          actions={
-            <Button
-              className="!h-10"
-              startIcon={<Plus className="w-3.5 h-3.5" />}
-              onClick={() => navigate('/categories/create')}
-            >
-              Add New Category
-            </Button>
-          }
-        />
-      </Card>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Categories"
+        actions={
+          <Button startIcon={<Plus />} onClick={() => navigate('/categories/create')}>
+            Add New Category
+          </Button>
+        }
+      />
+
+      <Table
+        headers={headers}
+        data={categories}
+        loading={loading}
+        searchPlaceholder="Search categories..."
+        emptyMessage="No categories found. Click 'Add New Category' to create one."
+        onEdit={handleEditClick}
+        onDelete={handleDeleteClick}
+        onView={handleViewClick}
+        onToggle={handleStatusToggle}
+        toggleField="status"
+        currentPage={pagination?.currentPage || 1}
+        pageSize={pagination?.limit || 10}
+        totalRows={pagination?.totalItems || 0}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        sortConfig={{ key: sort, direction: order }}
+        onSortChange={handleSortChange}
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        onSearchClick={handleSearchClick}
+        onSearchClear={handleSearchClear}
+      />
 
       <DeleteModal
         isOpen={deleteModal.isOpen}
@@ -206,15 +197,7 @@ export default function CategoryList() {
         message="Are you sure you want to delete this category? This action cannot be undone."
       />
 
-      <CToaster className="p-3" style={{ zIndex: 2000, position: 'fixed', bottom: '20px', right: '20px' }}>
-        {toasts.map((t) => (
-          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
-            <div className="d-flex">
-              <CToastBody className="font-semibold">{t.message}</CToastBody>
-            </div>
-          </CToast>
-        ))}
-      </CToaster>
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

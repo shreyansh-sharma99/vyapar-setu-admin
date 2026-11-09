@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit2, ShieldAlert, Mail, Phone, MapPin, CheckCircle2, FileText, Map, CreditCard, Wallet } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import Card from '@/components/breadCrumbs/Card';
-import Loader from '@/components/loader/Loader';
+import { Edit2, ShieldAlert, MapPin, History } from 'lucide-react';
+import {
+  Badge, Button, Card, DetailList, EmptyState, PageHeader, PartyCard, Section, SkeletonRows, StatusBadge,
+} from '@/components/ui';
 import { decryptData, encryptData } from '@/utility/crypto';
+import { can } from '@/utility/shopPermissions';
 import { getCustomerById, clearCurrentCustomer } from './services/customerSlice';
+
 
 export default function CustomerDetails() {
   const { id: encryptedId } = useParams();
@@ -16,6 +18,8 @@ export default function CustomerDetails() {
   const id = encryptedId ? decryptData(decodeURIComponent(encryptedId)) : null;
 
   const { currentCustomer, loading, error } = useSelector((state) => state.customer);
+  const { user } = useSelector((state) => state.auth || {});
+  const canSeeLedger = can(user, 'sales', 'view');
 
   useEffect(() => {
     if (id) {
@@ -33,238 +37,116 @@ export default function CustomerDetails() {
     }
   };
 
+  const handleLedgerClick = () => {
+    if (currentCustomer?._id) {
+      navigate('/customers/ledger/' + encodeURIComponent(encryptData(currentCustomer._id)));
+    }
+  };
+
   if (loading) {
     return (
-      <Card
-        h1="Customer Details"
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-6"
-      ><Loader className="mb-4" /></Card>
+      <div className="flex flex-col gap-5">
+        <PageHeader title="Customer details" />
+        <Card>
+          <SkeletonRows rows={5} cols={3} />
+        </Card>
+      </div>
     );
   }
 
   if (!currentCustomer) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-[var(--vs-bg-primary)] rounded-2xl border border-[var(--vs-border)] max-w-md mx-auto my-12">
-        <div className="p-4 bg-rose-50 dark:bg-rose-500/10 rounded-full text-rose-500 mb-4">
-          <ShieldAlert className="w-12 h-12" />
-        </div>
-        <h2 className="text-xl font-bold text-[var(--vs-text-primary)]">Customer Not Found</h2>
-        <p className="text-sm text-[var(--vs-text-secondary)] mt-2">
-          The customer details you are trying to view are not available.
-        </p>
-        <Button onClick={() => navigate('/customers')} className="mt-6" variant="primary">
-          Back to Customers
-        </Button>
+      <div className="flex flex-col gap-5">
+        <PageHeader title="Customer details" />
+        <Card>
+          <EmptyState
+            icon={ShieldAlert}
+            title="Customer Not Found"
+            text="The customer details you are trying to view are not available."
+            action={<Button onClick={() => navigate('/customers')}>Back to Customers</Button>}
+          />
+        </Card>
       </div>
     );
   }
 
+  const fullName = `${currentCustomer.firstName || ''} ${currentCustomer.lastName || ''}`.trim();
+  const addresses = currentCustomer.addresses || [];
+
   return (
-    <div className="flex flex-col mx-auto">
-      <Card
-        h1="Customer Details"
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-0"
-      >
-        <div className="flex flex-col">
-
-          {/* ── Profile Header ── */}
-          <div className="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-4 border-b border-[var(--vs-border)] bg-[var(--vs-bg-secondary)] overflow-hidden">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-400" />
-
-            <div className="flex items-center gap-3 pl-2">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-indigo-500/20 uppercase ring-3 ring-indigo-100 dark:ring-indigo-950/50">
-                {currentCustomer.firstName?.[0] || ''}{currentCustomer.lastName?.[0] || ''}
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-[var(--vs-text-primary)] leading-tight">
-                  {currentCustomer.firstName} {currentCustomer.lastName}
-                </h2>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-full text-[11px] font-semibold ${currentCustomer.status === 'active'
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
-                  : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400'
-                  }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${currentCustomer.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                  {currentCustomer.status === 'active' ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              startIcon={<Edit2 className="w-3.5 h-3.5" />}
-              onClick={handleEditClick}
-            >
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title={fullName || 'Customer details'}
+        actions={
+          <>
+            <StatusBadge status={currentCustomer.status === 'active' ? 'active' : 'inactive'} size="md" />
+            {canSeeLedger && (
+              <Button variant="secondary" startIcon={<History />} onClick={handleLedgerClick}>
+                Ledger
+              </Button>
+            )}
+            <Button startIcon={<Edit2 />} onClick={handleEditClick}>
               Edit Profile
             </Button>
+          </>
+        }
+      />
+
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <Section title="Profile">
+          <div className="flex flex-col gap-5">
+            <PartyCard
+              name={fullName || '—'}
+              sub={currentCustomer.gstin ? `GSTIN ${currentCustomer.gstin}` : 'No GSTIN'}
+              meta={{ label: 'Opening balance', value: `₹${(currentCustomer.openingBalance ?? 0).toLocaleString('en-IN')}` }}
+            />
+            <DetailList
+              cols={2}
+              items={[
+                { label: 'Email address', value: currentCustomer.email },
+                { label: 'Phone number', value: currentCustomer.phone, mono: true },
+              ]}
+            />
           </div>
+        </Section>
 
-          {/* ── Info Cards Grid ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 mt-2">
+        <Section title="Tax & credit">
+          <DetailList
+            cols={2}
+            items={[
+              { label: 'GSTIN', value: currentCustomer.gstin || 'Not Provided', mono: !!currentCustomer.gstin },
+              { label: 'State code', value: currentCustomer.stateCode || 'Not Provided' },
+              { label: 'Credit limit', value: `₹${(currentCustomer.creditLimit ?? 0).toLocaleString('en-IN')}` },
+              { label: 'Opening balance', value: `₹${(currentCustomer.openingBalance ?? 0).toLocaleString('en-IN')}` },
+            ]}
+          />
+        </Section>
+      </div>
 
-            {/* ── Contact Information Card ── */}
-            <div className="md:col-span-1 bg-[var(--vs-bg-primary)] overflow-hidden border-b md:border-b-0 md:border-r border-[var(--vs-border)]">
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--vs-bg-secondary)] border-b border-[var(--vs-border)]">
-                <div className="p-1 rounded-md bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
-                  <Mail className="w-3.5 h-3.5" />
-                </div>
-                <h3 className="text-[13px] font-bold text-[var(--vs-active-text)]">
-                  Contact Information
-                </h3>
-              </div>
-
-              <div className="px-4 py-3 flex flex-col">
-                {/* Email */}
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
-                    <Mail className="w-4 h-4" />
+      <Section title="Address directory" description={addresses.length ? `${addresses.length} saved` : undefined}>
+        {addresses.length === 0 ? (
+          <EmptyState icon={MapPin} title="No addresses" text="No addresses listed for this customer." />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {addresses.map((addr, idx) => (
+              <div key={idx} className="flex items-start gap-3 rounded-control bg-fill p-3.5">
+                <span className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-brand-soft text-brand-ink">
+                  <MapPin className="size-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold capitalize text-ink">{addr.type} Address</span>
+                    {addr.isDefault && <Badge tone="primary">Default</Badge>}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">Email Address</p>
-                    <p className="text-[13px] font-semibold text-[var(--vs-text-primary)] truncate leading-tight mt-px">{currentCustomer.email}</p>
-                  </div>
-                </div>
-
-                <div className="border-t border-dashed border-[var(--vs-border)] my-2.5" />
-
-                {/* Phone */}
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
-                    <Phone className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">Phone Number</p>
-                    <p className="text-[13px] font-semibold text-[var(--vs-text-primary)] leading-tight mt-px">{currentCustomer.phone}</p>
-                  </div>
+                  <p className="m-0 mt-1 text-sm font-medium text-ink">{addr.street}</p>
+                  <p className="m-0 text-xs text-ink-muted">{addr.city}, {addr.state} - {addr.pincode}</p>
+                  <p className="m-0 mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">{addr.country}</p>
                 </div>
               </div>
-            </div>
-
-            {/* ── Tax & Credit Details Card ── */}
-            <div className="md:col-span-1 bg-[var(--vs-bg-primary)] overflow-hidden border-b md:border-b-0 md:border-r border-[var(--vs-border)]">
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--vs-bg-secondary)] border-b border-[var(--vs-border)]">
-                <div className="p-1 rounded-md bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                </div>
-                <h3 className="text-[13px] font-bold text-[var(--vs-active-text)]">
-                  Tax & Credit Details
-                </h3>
-              </div>
-
-              <div className="px-4 py-3 flex flex-col">
-                {/* GSTIN */}
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">GSTIN</p>
-                    <p className="text-[13px] font-bold text-[var(--vs-text-primary)] truncate leading-tight mt-px">{currentCustomer.gstin || 'Not Provided'}</p>
-                  </div>
-                </div>
-
-                <div className="border-t border-dashed border-[var(--vs-border)] my-2.5" />
-
-                {/* State Code */}
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-500 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 shrink-0">
-                    <Map className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">State Code</p>
-                    <p className="text-[13px] font-bold text-[var(--vs-text-primary)] leading-tight mt-px">{currentCustomer.stateCode || 'Not Provided'}</p>
-                  </div>
-                </div>
-
-                <div className="border-t border-dashed border-[var(--vs-border)] my-2.5" />
-
-                {/* Credit Limit */}
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 dark:text-rose-400 border border-rose-100 dark:border-rose-900/50 shrink-0">
-                    <CreditCard className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">Credit Limit</p>
-                    <p className="text-[13px] font-bold text-[var(--vs-text-primary)] leading-tight mt-px">
-                      ₹{(currentCustomer.creditLimit ?? 0).toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="border-t border-dashed border-[var(--vs-border)] my-2.5" />
-
-                {/* Opening Balance */}
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-500 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50 shrink-0">
-                    <Wallet className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold text-[var(--vs-text-secondary)] uppercase tracking-wider leading-none">Opening Balance</p>
-                    <p className="text-[13px] font-bold text-[var(--vs-text-primary)] leading-tight mt-px">
-                      ₹{(currentCustomer.openingBalance ?? 0).toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Address Directory Card ── */}
-            <div className="md:col-span-1 bg-[var(--vs-bg-primary)] overflow-hidden">
-              {/* Card Header */}
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--vs-bg-secondary)] border-b border-[var(--vs-border)]">
-                <div className="p-1 rounded-md bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
-                  <MapPin className="w-3.5 h-3.5" />
-                </div>
-                <h3 className="text-[13px] font-bold text-[var(--vs-active-text)]">
-                  Address Directory
-                </h3>
-              </div>
-
-              {/* Card Body */}
-              <div className="px-4 py-3">
-                {!currentCustomer.addresses || currentCustomer.addresses.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-[var(--vs-border)] rounded-lg bg-[var(--vs-bg-secondary)]/30">
-                    <MapPin className="w-6 h-6 text-[var(--vs-text-secondary)] opacity-40 mb-1" />
-                    <p className="text-xs font-medium text-[var(--vs-text-secondary)]">No addresses listed for this customer.</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {currentCustomer.addresses.map((addr, idx) => (
-                      <div key={idx} className="flex items-start gap-3 p-3 rounded-lg border border-[var(--vs-border)] bg-[var(--vs-bg-secondary)]/40 hover:bg-[var(--vs-bg-secondary)] transition-colors duration-150">
-                        <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
-                          <MapPin className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[13px] font-bold text-[var(--vs-text-primary)] capitalize leading-none">{addr.type} Address</span>
-                            {addr.isDefault && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/50">
-                                <CheckCircle2 className="w-2.5 h-2.5" /> Default
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[13px] text-[var(--vs-text-primary)] font-medium leading-tight mt-px">{addr.street}</p>
-                          <p className="text-xs text-[var(--vs-text-secondary)] leading-tight mt-px">{addr.city}, {addr.state} - {addr.pincode}</p>
-                          <p className="text-[11px] text-[var(--vs-text-secondary)] uppercase font-semibold leading-tight mt-px tracking-wider">{addr.country}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
+            ))}
           </div>
-
-        </div>
-      </Card>
+        )}
+      </Section>
     </div>
   );
 }

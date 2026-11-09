@@ -1,22 +1,96 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
-import { PieChart, DollarSign, TrendingUp, Calculator, Layers, FileText } from 'lucide-react';
-import Card from '@/components/breadCrumbs/Card';
-import Button from '@/components/inputs/Button';
-import { Label } from '@/components/inputs/Label';
-import DatePicker from '@/components/inputs/Datepicker';
-import Table from '@/components/table/Table';
-import TableInfoCard from '@/components/table/TableInfoCard';
-import Tabs from '@/components/inputs/Tabs';
+import { PieChart, IndianRupee, Landmark, Calculator, FileText, Download, FileSpreadsheet } from 'lucide-react';
+import { Alert, Badge, Button, DataTable, PageHeader, Segmented, toast } from '@/components/ui';
+import { downloadGstr1Api, getGstr1TableApi } from './services/reportService';
 import { getGstr1 } from './services/reportSlice';
-import ReportTabs from './ReportTabs';
+import { DateFilterBar, StatRow } from './components/ReportBits';
 
+// One tab = one table. Rows come page by page from the server; "Download CSV" gives the same
+// table with the same columns and every row (the server builds both from one column list).
 const GSTR1_SUB_TABS = [
-  { label: 'Summary by Invoice Type (B2B / B2C)', value: 'byType' },
-  { label: 'Summary by Tax Rate', value: 'byRate' },
-  { label: 'View All Summaries', value: 'all' },
+  { label: 'Summary (B2B / B2C)', value: 'byType' },
+  { label: 'By tax rate', value: 'byRate' },
+  { label: 'B2B', value: 'b2b' },
+  { label: 'B2CL', value: 'b2cl' },
+  { label: 'B2CS', value: 'b2cs' },
+  { label: 'CDNR', value: 'cdnr' },
+  { label: 'CDNUR', value: 'cdnur' },
+  { label: 'HSN B2B', value: 'hsnB2B' },
+  { label: 'HSN B2C', value: 'hsnB2C' },
+  { label: 'Documents', value: 'docs' },
 ];
+const EMPTY = {
+  byType: 'No invoices in these dates.',
+  b2b: 'No B2B invoices (buyer with a GSTIN) in these dates.',
+  b2cl: 'No B2CL invoices (inter-state, unregistered buyer, above ₹1,00,000).',
+  b2cs: 'No B2C sales in these dates.',
+  cdnr: 'No credit notes / returns to buyers with a GSTIN.',
+  cdnur: 'No credit notes / returns against B2CL invoices. (Returns on ordinary B2C sales are taken off inside B2CS.)',
+};
+
+const fmtDay = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+const MONEY = 'text-xs tabular-nums';
+// credit notes / returns are minus (red); 0 shows as —
+const money = (v, cls = '') => (Number(v) ? <span className={`${MONEY} ${cls} ${Number(v) < 0 ? 'text-danger' : ''}`}>{Number(v) < 0 ? '−' : ''}₹{Math.abs(Number(v)).toFixed(2)}</span> : <span className={MONEY}>—</span>);
+
+/** Server column { key, header, type } → DataTable column. */
+const toColumn = (c) => {
+  const base = { key: c.key, header: c.header };
+  switch (c.type) {
+    case 'money': return { ...base, type: 'money', render: (r) => money(r[c.key], c.key === 'taxable' ? 'font-semibold' : '') };
+    case 'date': return { ...base, render: (r) => <span className="text-xs">{fmtDay(r[c.key])}</span> };
+    case 'rate': return { ...base, render: (r) => <span className="font-mono text-xs font-bold">{Number(r[c.key]) || 0}%</span> };
+    case 'number': return { ...base, type: 'number', render: (r) => <span className="text-xs font-semibold tabular-nums">{Number(r[c.key]) || 0}</span> };
+    case 'mono': return { ...base, render: (r) => <span className="font-mono text-xs">{r[c.key] || '—'}</span> };
+    default:
+      return c.key === 'type'
+        ? { ...base, render: (r) => <Badge tone={/Credit/.test(r.type) ? 'danger' : 'primary'}>{r.type || '—'}</Badge> }
+        : { ...base, render: (r) => <span className="text-xs">{r[c.key] || '—'}</span> };
+  }
+};
+
+/** One GSTR-1 table with server-side pages. */
+function Gstr1Table({ name, range }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [state, setState] = useState({ key: '', rows: [], total: 0, columns: [], error: '' });
+  const key = `${name}|${range.dateFrom}|${range.dateTo}|${page}|${pageSize}`;
+
+  useEffect(() => {
+    let alive = true;
+    getGstr1TableApi({ name, page, limit: pageSize, ...range })
+      .then((d) => alive && setState({ key, rows: d.rows || [], total: d.total || 0, columns: d.columns || [], error: '' }))
+      .catch((e) => alive && setState({ key, rows: [], total: 0, columns: [], error: e?.response?.data?.message || 'Could not load this table.' }));
+    return () => {
+      alive = false;
+    };
+  }, [key, name, page, pageSize, range]);
+
+  const columns = useMemo(() => state.columns.map(toColumn), [state.columns]);
+  if (state.error) return <Alert tone="danger">{state.error}</Alert>;
+  return (
+    <DataTable
+      columns={columns}
+      rows={state.rows}
+      rowKey={(r, i) => `${page}-${i}`}
+      loading={state.key !== key}
+      pagination={{
+        page,
+        pageSize,
+        total: state.total,
+        onPageChange: setPage,
+        onPageSizeChange: (s) => {
+          setPageSize(s);
+          setPage(1);
+        },
+      }}
+      pageSizeOptions={[10, 20, 50, 100]}
+      empty={{ icon: FileText, title: EMPTY[name] || 'Nothing in these dates.' }}
+    />
+  );
+}
 
 export default function Gstr1Report() {
   const dispatch = useDispatch();
@@ -28,17 +102,26 @@ export default function Gstr1Report() {
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
   const [dateTo, setDateTo] = useState(initialDateTo);
   const [activeSubTab, setActiveSubTab] = useState('byType');
+  const [downloading, setDownloading] = useState('');
+  const range = useMemo(() => ({ ...(dateFrom ? { dateFrom } : {}), ...(dateTo ? { dateTo } : {}) }), [dateFrom, dateTo]);
 
-  const { gstr1, loading } = useSelector((state) => ({
-    gstr1: state.reports.gstr1,
-    loading: state.reports.loading.gstr1,
-  }));
+  const download = async (format) => {
+    setDownloading(format);
+    try {
+      await downloadGstr1Api({ ...range, format, ...(format === 'csv' ? { name: activeSubTab } : {}) });
+    } catch {
+      toast.error('Could not download the GSTR-1 file');
+    } finally {
+      setDownloading('');
+    }
+  };
+
+  const { gstr1 } = useSelector((state) => ({ gstr1: state.reports.gstr1 }));
 
   const fetchReport = (from = dateFrom, to = dateTo) => {
     const params = {};
     if (from) params.dateFrom = from;
     if (to) params.dateTo = to;
-
     setSearchParams(params);
     dispatch(getGstr1(params));
   };
@@ -48,8 +131,10 @@ export default function Gstr1Report() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleApplyFilter = () => {
-    fetchReport(dateFrom, dateTo);
+  const handleApplyFilter = ({ dateFrom: from, dateTo: to }) => {
+    setDateFrom(from);
+    setDateTo(to);
+    fetchReport(from, to);
   };
 
   const handleResetFilters = () => {
@@ -60,284 +145,62 @@ export default function Gstr1Report() {
     fetchReport(defaultFrom, defaultTo);
   };
 
-  const byType = gstr1?.byType || [];
-  const byRate = gstr1?.byRate || [];
-
-  // Overall tax statistics computed from byType
+  // net figures: invoices − credit notes / returns
   const overallStats = useMemo(() => {
-    let totalTaxable = 0;
-    let totalCgst = 0;
-    let totalSgst = 0;
-    let totalIgst = 0;
-    let totalCess = 0;
-    let grandTotal = 0;
-
-    byType.forEach((row) => {
-      totalTaxable += Number(row.taxable || 0);
-      totalCgst += Number(row.cgst || 0);
-      totalSgst += Number(row.sgst || 0);
-      totalIgst += Number(row.igst || 0);
-      totalCess += Number(row.cess || 0);
-      grandTotal += Number(row.total || 0);
-    });
-
-    const totalTax = totalCgst + totalSgst + totalIgst + totalCess;
-
+    const net = gstr1?.net || {};
+    const totalOf = (list) => (list || []).reduce((s, r) => s + Number(r.total || 0), 0);
+    const grandTotal = totalOf(gstr1?.byType) - totalOf(gstr1?.creditNotes);
+    const totalTax = Number(net.cgst || 0) + Number(net.sgst || 0) + Number(net.igst || 0) + Number(net.cess || 0);
+    const inr = (v) => `₹${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
     return [
-      {
-        label: 'Total Taxable Value',
-        value: `₹${totalTaxable.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <DollarSign className="w-3.5 h-3.5 text-indigo-500" />,
-        colorClass: 'text-indigo-600 dark:text-indigo-400 text-base font-bold',
-      },
-      {
-        label: 'CGST',
-        value: `₹${totalCgst.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <TrendingUp className="w-3.5 h-3.5 text-blue-500" />,
-      },
-      {
-        label: 'SGST',
-        value: `₹${totalSgst.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />,
-      },
-      {
-        label: 'IGST',
-        value: `₹${totalIgst.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <TrendingUp className="w-3.5 h-3.5 text-purple-500" />,
-      },
-      {
-        label: 'Total Tax Amount',
-        value: `₹${totalTax.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <Calculator className="w-3.5 h-3.5 text-amber-500" />,
-        colorClass: 'text-amber-600 dark:text-amber-400 text-base font-bold',
-      },
-      {
-        label: 'Grand Total Value',
-        value: `₹${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <PieChart className="w-3.5 h-3.5 text-emerald-600" />,
-        colorClass: 'text-emerald-600 dark:text-emerald-400 text-base font-bold',
-      },
+      { label: 'Net taxable value', value: inr(net.taxable), icon: IndianRupee, tone: 'primary' },
+      { label: 'Net tax', value: inr(totalTax), icon: Calculator, tone: 'warning' },
+      { label: 'Grand Total Value', value: inr(grandTotal), icon: PieChart, tone: 'success' },
+      { label: 'CGST', value: inr(net.cgst), icon: Landmark, tone: 'info' },
+      { label: 'SGST', value: inr(net.sgst), icon: Landmark, tone: 'info' },
+      { label: 'IGST', value: inr(net.igst), icon: Landmark, tone: 'neutral' },
     ];
-  }, [byType]);
+  }, [gstr1]);
 
-  const byTypeHeaders = [
-    {
-      label: 'Invoice Type',
-      key: 'type',
-      sortable: true,
-      render: (item) => (
-        <span className="font-bold text-[11px] uppercase px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-          {item.type || '—'}
-        </span>
-      ),
-      value: 'checked',
-    },
-    {
-      label: 'Invoice Count',
-      key: 'count',
-      sortable: true,
-      cellClassName: 'text-center font-semibold text-xs',
-      render: (item) => <span>{item.count || 0}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'Taxable Amount',
-      key: 'taxable',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs font-semibold',
-      render: (item) => <span>₹{Number(item.taxable || 0).toFixed(2)}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'CGST',
-      key: 'cgst',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.cgst > 0 ? `₹${Number(item.cgst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'SGST',
-      key: 'sgst',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.sgst > 0 ? `₹${Number(item.sgst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'IGST',
-      key: 'igst',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.igst > 0 ? `₹${Number(item.igst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'Cess',
-      key: 'cess',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.cess > 0 ? `₹${Number(item.cess).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'Total Invoice Value',
-      key: 'total',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs font-bold text-[var(--vs-text-primary)]',
-      render: (item) => <span>₹{Number(item.total || 0).toFixed(2)}</span>,
-      value: 'checked',
-    },
-  ];
-
-  const byRateHeaders = [
-    {
-      label: 'Tax Rate (%)',
-      key: 'taxRate',
-      sortable: true,
-      render: (item) => <span className="font-bold text-xs font-mono">{item.taxRate}%</span>,
-      value: 'checked',
-    },
-    {
-      label: 'Taxable Amount',
-      key: 'taxable',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs font-semibold',
-      render: (item) => <span>₹{Number(item.taxable || 0).toFixed(2)}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'CGST',
-      key: 'cgst',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.cgst > 0 ? `₹${Number(item.cgst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'SGST',
-      key: 'sgst',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.sgst > 0 ? `₹${Number(item.sgst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'IGST',
-      key: 'igst',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.igst > 0 ? `₹${Number(item.igst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'Cess',
-      key: 'cess',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.cess > 0 ? `₹${Number(item.cess).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
-    },
-    {
-      label: 'Total Tax',
-      key: 'totalTax',
-      sortable: true,
-      cellClassName: 'text-right font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400',
-      render: (item) => {
-        const tax = Number(item.cgst || 0) + Number(item.sgst || 0) + Number(item.igst || 0) + Number(item.cess || 0);
-        return <span>₹{tax.toFixed(2)}</span>;
-      },
-      value: 'checked',
-    },
-  ];
+  const counts = gstr1?.counts || {};
+  const tabs = GSTR1_SUB_TABS.map((t) => ({ ...t, count: counts[t.value] }));
 
   return (
-    <div>
-      <Card h1="GSTR-1 Summary Report" bodyClassName="px-4 pb-4 pt-2">
-        <ReportTabs />
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="GSTR-1 Summary Report"
+        description="Outward supplies for the period — the GSTR-1 tables, net of sales returns and credit notes. Downloads match the tables on this page."
+        actions={
+          <>
+            <Button variant="secondary" size="sm" startIcon={<Download />} loading={downloading === 'csv'} onClick={() => download('csv')}>
+              Download CSV
+            </Button>
+            <Button variant="secondary" size="sm" startIcon={<FileSpreadsheet />} loading={downloading === 'xlsx'} onClick={() => download('xlsx')}>
+              Excel (all tables)
+            </Button>
+          </>
+        }
+      />
 
-        {/* ── Filter Bar ── */}
-        <div className="mb-5 bg-[var(--vs-bg-secondary)] p-3 sm:p-4 rounded-xl border border-[var(--vs-border)]">
-          <div className="flex flex-wrap  gap-3 sm:gap-4">
-            <div className="w-40 sm:w-48">
-              <Label className="!text-[11px] font-bold text-[var(--vs-text-secondary)] uppercase">From Date</Label>
-              <DatePicker
-                id="gstr1DateFrom"
-                placeholder="YYYY-MM-DD"
-                defaultDate={dateFrom}
-                onChange={(selectedDates, dateStr) => setDateFrom(dateStr)}
-              />
-            </div>
-            <div className="w-40 sm:w-48">
-              <Label className="!text-[11px] font-bold text-[var(--vs-text-secondary)] uppercase">To Date</Label>
-              <DatePicker
-                id="gstr1DateTo"
-                placeholder="YYYY-MM-DD"
-                defaultDate={dateTo}
-                onChange={(selectedDates, dateStr) => setDateTo(dateStr)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={handleApplyFilter} className="h-9 px-4 text-xs font-bold !bg-[#0f6ebd] hover:!bg-[#0d60a6] text-white">
-                Apply Filter
-              </Button>
-              <Button variant="outline" onClick={handleResetFilters} className="h-9 px-3 text-xs">
-                Reset
-              </Button>
-            </div>
-          </div>
-        </div>
+      <DateFilterBar
+        idPrefix="gstr1"
+        value={{ dateFrom, dateTo }}
+        defaults={{ dateFrom: '2026-04-01', dateTo: '2027-03-31' }}
+        onApply={handleApplyFilter}
+        onReset={handleResetFilters}
+      />
 
-        {/* ── Summary Stats ── */}
-        <div className="mb-5">
-          <TableInfoCard stats={overallStats} className="!flex-nowrap overflow-x-auto !gap-5 py-2 [&_*]:whitespace-nowrap" />
-        </div>
+      <StatRow stats={overallStats} />
 
-        {/* ── Sub-Tabs Selector ── */}
-        <div className="mb-5">
-          <Tabs
-            tabs={GSTR1_SUB_TABS}
-            activeTab={activeSubTab}
-            onChange={(val) => setActiveSubTab(val)}
-          />
-        </div>
+      {gstr1?.shopStateMissing && (
+        <Alert tone="warning">Your shop state is not set in Invoice Settings, so the place of supply of some walk-in sales may be blank.</Alert>
+      )}
 
-        {/* ── Section 1: Summary by Invoice Type (B2B / B2C) ── */}
-        {(activeSubTab === 'byType' || activeSubTab === 'all') && (
-          <div className="mb-6">
-            <h2 className="!text-sm sm:text-base font-bold !text-[#0f6ebd] dark:!text-blue-400 mb-2.5 flex items-center gap-2 uppercase tracking-wide">
-              <FileText className="w-4 h-4 !text-[#0f6ebd] dark:!text-blue-400" />
-              Summary by Invoice Type (B2B / B2C)
-            </h2>
-            <Table
-              headers={byTypeHeaders}
-              data={byType}
-              loading={loading}
-              showSearch={false}
-              showPagination={false}
-              emptyMessage="No invoice type summaries available for the selected dates."
-            />
-          </div>
-        )}
+      <div className="max-w-full overflow-x-auto">
+        <Segmented aria-label="GSTR-1 tables" options={tabs} value={activeSubTab} onChange={setActiveSubTab} size="sm" />
+      </div>
 
-        {/* ── Section 2: Summary by Tax Rate ── */}
-        {(activeSubTab === 'byRate' || activeSubTab === 'all') && (
-          <div className="mb-4">
-            <h2 className="!text-sm sm:text-base font-bold !text-[#0f6ebd] dark:!text-blue-400 mb-2.5 flex items-center gap-2 uppercase tracking-wide">
-              <Calculator className="w-4 h-4 !text-[#0f6ebd] dark:!text-blue-400" />
-              Summary by Tax Rate
-            </h2>
-            <Table
-              headers={byRateHeaders}
-              data={byRate}
-              loading={loading}
-              showSearch={false}
-              showPagination={false}
-              emptyMessage="No rate-wise tax summaries available for the selected dates."
-            />
-          </div>
-        )}
-      </Card>
+      <Gstr1Table key={activeSubTab} name={activeSubTab} range={range} />
     </div>
   );
 }

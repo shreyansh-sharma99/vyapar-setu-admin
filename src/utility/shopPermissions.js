@@ -3,8 +3,8 @@
  *
  * The logged-in user lives in redux at `state.auth.user` (set by login and refreshed from
  * GET /auth/profile). Owners have `userType: 'owner'`; staff have `userType: 'staff'` plus
- * `roleName`, `designation`, `permissions` from their role (e.g. ['sales.view', 'sales.create'])
- * and `storeIds` (empty = all stores).
+ * `roleName`, `designation`, `permissions` from their role (e.g. ['sales.view', 'sales.create']).
+ * The shop has one stock location, so there is no per-store access.
  *
  * The backend enforces the same rules (403 on a refused call); this file only decides what
  * the UI shows.
@@ -13,6 +13,7 @@
 /** Route path prefix → permission module key. `null` = owner only. */
 export const MENU_PERMISSIONS = {
   '/': 'dashboard',
+  '/customers/ledger': 'sales', // the ledger is a sales screen (longest prefix wins)
   '/customers': 'customers',
   '/categories': 'catalog',
   '/subcategories': 'catalog',
@@ -20,9 +21,7 @@ export const MENU_PERMISSIONS = {
   '/manufacturers': 'catalog',
   '/master': 'catalog',
   '/products': 'catalog',
-  '/stores': 'stores',
-  '/inventory/transfers': 'stock_transfer',
-  '/inventory': 'inventory', // also /inventory/opening-stock
+  '/inventory': 'inventory',
   '/purchase/suppliers': 'suppliers',
   '/purchase': 'purchase',
   '/sales': 'sales',
@@ -43,9 +42,7 @@ export const HOME_CANDIDATES = [
   '/customers',
   '/products',
   '/inventory',
-  '/inventory/transfers',
   '/purchase/suppliers',
-  '/stores',
   '/reports',
 ];
 
@@ -127,17 +124,3 @@ export const canAccessPath = (user, path) => {
 /** First page the user may open (dashboard for owners). */
 export const getHomePath = (user) => HOME_CANDIDATES.find((p) => canAccessPath(user, p)) || '/';
 
-/**
- * Store ids the user is limited to, or `null` when they can use every store
- * (owners, and staff with an empty store list).
- */
-export const getAllowedStoreIds = (user) => {
-  if (!user || isOwner(user)) return null;
-  const ids = Array.isArray(user.storeIds) ? user.storeIds.map(String) : [];
-  return ids.length ? ids : null;
-};
-
-export const canUseStore = (user, storeId) => {
-  const allowed = getAllowedStoreIds(user);
-  return allowed === null || allowed.includes(String(storeId?._id || storeId));
-};

@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
+import { IdCard, Plus, ShieldCheck } from 'lucide-react';
+import { Alert, Avatar, Badge, Button, ConfirmDialog, PageHeader, Select, StatusBadge, ToastStack } from '@/components/ui';
 import { encryptData } from '@/utility/crypto';
 import { formatDateWithTiming } from '@/utility/dateTiming';
-import Button from '@/components/inputs/Button';
 import Table from '@/components/table/Table';
-import Card from '@/components/breadCrumbs/Card';
-import DeleteModal from '@/components/modal/DeleteModal';
 import {
   getStaffList,
   changeStaffStatus,
@@ -17,15 +15,13 @@ import {
   getDesignationOptions,
 } from './services/staffSlice';
 
-const filterSelectCls = 'h-10 px-3 text-sm rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] outline-none cursor-pointer shadow-sm max-w-[180px]';
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
 
 const refName = (ref, fallback = '') => (ref && typeof ref === 'object' ? (ref.name || fallback) : fallback);
-
-const storeNames = (staff) => {
-  const stores = Array.isArray(staff.storeIds) ? staff.storeIds : [];
-  if (stores.length === 0) return null;
-  return stores.map((s) => (typeof s === 'object' ? (s.name || s.code || 'Store') : 'Store'));
-};
 
 export default function StaffList() {
   const dispatch = useDispatch();
@@ -120,13 +116,17 @@ export default function StaffList() {
     {
       label: 'Name',
       key: 'name',
-      cellClassName: 'font-semibold text-[var(--vs-text-primary)]',
       render: (item) => (
-        <div className="flex flex-col">
-          <span className="font-semibold text-[var(--vs-text-primary)]">{item.name}</span>
-          {item.phone && <span className="text-[11px] text-[var(--vs-text-secondary)]">{item.phone}</span>}
+        <div className="flex items-center gap-2.5">
+          <Avatar name={item.name} size="sm" />
+          <span className="font-semibold text-ink">{item.name}</span>
         </div>
       ),
+    },
+    {
+      label: 'Phone',
+      key: 'phone',
+      render: (item) => <span className="whitespace-nowrap text-sm tabular-nums">{item.phone || '—'}</span>,
     },
     { label: 'Email', key: 'email' },
     {
@@ -135,8 +135,8 @@ export default function StaffList() {
       render: (item) => {
         const name = refName(item.designationId);
         return name
-          ? <span className="text-sm text-[var(--vs-text-primary)] whitespace-nowrap">{name}</span>
-          : <span className="text-xs text-[var(--vs-text-secondary)]">—</span>;
+          ? <span className="whitespace-nowrap text-sm text-ink">{name}</span>
+          : <span className="text-xs text-ink-subtle">—</span>;
       },
     },
     {
@@ -144,45 +144,20 @@ export default function StaffList() {
       key: 'roleId',
       render: (item) => {
         const name = refName(item.roleId, item.roleName || '');
-        if (!name) return <span className="text-xs text-rose-600 dark:text-rose-400">No role</span>;
-        return (
-          <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20 whitespace-nowrap">
-            {name}
-          </span>
-        );
-      },
-    },
-    {
-      label: 'Stores',
-      key: 'storeIds',
-      render: (item) => {
-        const names = storeNames(item);
-        if (!names) return <span className="text-xs text-[var(--vs-text-secondary)]">All stores</span>;
-        return (
-          <div className="flex flex-wrap gap-1 max-w-[240px]">
-            {names.map((n, i) => (
-              <span key={i} className="px-1.5 py-0.5 rounded text-[11px] bg-[var(--vs-bg-secondary)] border border-[var(--vs-border)] text-[var(--vs-text-primary)]">
-                {n}
-              </span>
-            ))}
-          </div>
-        );
+        if (!name) return <Badge tone="danger">No role</Badge>;
+        return <Badge tone="primary">{name}</Badge>;
       },
     },
     {
       label: 'Status',
       key: 'isActive',
-      render: (item) => (
-        <span className={`font-semibold text-xs ${item.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-          {item.isActive ? 'Active' : 'Inactive'}
-        </span>
-      ),
+      render: (item) => <StatusBadge status={item.isActive ? 'active' : 'inactive'} />,
     },
     {
       label: 'Last Login',
       key: 'lastLoginAt',
       render: (item) => (
-        <span className="text-xs text-[var(--vs-text-secondary)] whitespace-nowrap">
+        <span className="whitespace-nowrap text-xs text-ink-muted">
           {item.lastLoginAt ? formatDateWithTiming(item.lastLoginAt) : 'Never'}
         </span>
       ),
@@ -190,101 +165,87 @@ export default function StaffList() {
   ];
 
   return (
-    <div>
-      <Card
-        h1="Staff"
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Staff"
         description="Give your team their own login with only the access they need."
-        bodyClassName="px-4 pb-4 pt-2"
-        rightNode={
-          <div className="flex flex-wrap items-center gap-2">
-            <select
+        actions={
+          <>
+            <Button variant="secondary" startIcon={<ShieldCheck />} onClick={() => navigate('/staff/roles')}>Roles</Button>
+            <Button variant="secondary" startIcon={<IdCard />} onClick={() => navigate('/staff/designations')}>Designations</Button>
+            <Button startIcon={<Plus />} onClick={() => navigate('/staff/create')}>Add Staff</Button>
+          </>
+        }
+      />
+
+      {error && !loading && typeof error === 'string' && <Alert tone="danger">{error}</Alert>}
+
+      <Table
+        headers={headers}
+        data={staffList}
+        loading={loading}
+        showSearch={true}
+        searchPlaceholder="Search by name, email, phone or role..."
+        searchTerm={searchTerm}
+        onSearchTermChange={(val) => setSearchTerm(val)}
+        onSearchClick={() => { setCurrentPage(1); fetchStaff({ page: 1 }); }}
+        onSearchClear={() => { setSearchTerm(''); setCurrentPage(1); fetchStaff({ page: 1, search: '' }); }}
+        emptyMessage="No staff yet. Click 'Add Staff' to give a team member their own login."
+        onEdit={handleEdit}
+        onDelete={(item) => setDeleteModal({ isOpen: true, staff: item })}
+        onToggle={handleToggle}
+        toggleField="isActive"
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalRows={meta?.total || 0}
+        onPageChange={(page) => setCurrentPage(page)}
+        onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+        actions={
+          <>
+            <Select
+              size="sm"
               aria-label="Filter by role"
               value={selectedRole}
-              onChange={(e) => { setSelectedRole(e.target.value); setCurrentPage(1); }}
-              className={filterSelectCls}
-            >
-              <option value="">All Roles</option>
-              {(roleOptions || []).map((r) => (
-                <option key={r._id} value={r._id}>{r.name}</option>
-              ))}
-            </select>
-            <select
+              onChange={(v) => { setSelectedRole(v || ''); setCurrentPage(1); }}
+              placeholder="All roles"
+              clearable
+              options={(roleOptions || []).map((r) => ({ value: r._id, label: r.name }))}
+              wrapperClassName="w-40"
+            />
+            <Select
+              size="sm"
               aria-label="Filter by designation"
               value={selectedDesignation}
-              onChange={(e) => { setSelectedDesignation(e.target.value); setCurrentPage(1); }}
-              className={filterSelectCls}
-            >
-              <option value="">All Designations</option>
-              {(designationOptions || []).map((d) => (
-                <option key={d._id} value={d._id}>{d.name}</option>
-              ))}
-            </select>
-            <select
+              onChange={(v) => { setSelectedDesignation(v || ''); setCurrentPage(1); }}
+              placeholder="All designations"
+              clearable
+              options={(designationOptions || []).map((d) => ({ value: d._id, label: d.name }))}
+              wrapperClassName="w-44"
+            />
+            <Select
+              size="sm"
               aria-label="Filter by status"
               value={selectedStatus}
-              onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-              className={filterSelectCls}
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
+              onChange={(v) => { setSelectedStatus(v || 'all'); setCurrentPage(1); }}
+              searchable={false}
+              options={STATUS_OPTIONS}
+              wrapperClassName="w-36"
+            />
+          </>
         }
-      >
-        {error && !loading && typeof error === 'string' && (
-          <div className="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-sm text-red-600 dark:text-red-400">
-            {error}
-          </div>
-        )}
-        <Table
-          headers={headers}
-          data={staffList}
-          loading={loading}
-          showSearch={true}
-          searchPlaceholder="Search by name, email, phone or role..."
-          searchTerm={searchTerm}
-          onSearchTermChange={(val) => setSearchTerm(val)}
-          onSearchClick={() => { setCurrentPage(1); fetchStaff({ page: 1 }); }}
-          onSearchClear={() => { setSearchTerm(''); setCurrentPage(1); fetchStaff({ page: 1, search: '' }); }}
-          emptyMessage="No staff yet. Click 'Add Staff' to give a team member their own login."
-          onEdit={handleEdit}
-          onDelete={(item) => setDeleteModal({ isOpen: true, staff: item })}
-          onToggle={handleToggle}
-          toggleField="isActive"
-          currentPage={currentPage}
-          pageSize={pageSize}
-          totalRows={meta?.total || 0}
-          onPageChange={(page) => setCurrentPage(page)}
-          onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={() => navigate('/staff/roles')}>Roles</Button>
-              <Button variant="outline" onClick={() => navigate('/staff/designations')}>Designations</Button>
-              <Button onClick={() => navigate('/staff/create')}>Add Staff</Button>
-            </div>
-          }
-        />
-      </Card>
+      />
 
-      <DeleteModal
-        isOpen={deleteModal.isOpen}
-        isLoading={saving}
+      <ConfirmDialog
+        open={deleteModal.isOpen}
+        loading={saving}
         onClose={() => setDeleteModal({ isOpen: false, staff: null })}
         onConfirm={handleConfirmDelete}
         title="Remove Staff Member"
         message={`Remove ${deleteModal.staff?.name || 'this staff member'}? They will no longer be able to log in. Documents they created are kept.`}
+        confirmLabel="Remove"
       />
 
-      <CToaster className="p-3" style={{ zIndex: 2000, position: 'fixed', bottom: '20px', right: '20px' }}>
-        {toasts.map((t) => (
-          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
-            <div className="d-flex">
-              <CToastBody className="font-semibold">{t.message}</CToastBody>
-            </div>
-          </CToast>
-        ))}
-      </CToaster>
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

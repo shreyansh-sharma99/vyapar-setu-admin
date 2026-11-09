@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Loader2, Search, X } from 'lucide-react';
+import { Button, Input } from '@/components/ui';
 import { useDebouncedValue } from '../utils/productUtils';
 
 /**
@@ -60,62 +61,69 @@ export default function AsyncSearchSelect({
 
   return (
     <div ref={wrapperRef} className={`relative w-full ${className}`}>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-        <input
-          type="text"
-          autoComplete="off"
-          disabled={disabled}
-          value={open ? query : selectedLabel}
-          placeholder={selectedLabel || placeholder}
-          onFocus={() => {
-            setOpen(true);
-            setQuery('');
-          }}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            if (!open) setOpen(true);
-          }}
-          className="h-11 w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 pl-9 pr-16 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/40 outline-none transition-all focus:border-indigo-500/60 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
-        />
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          {loading && <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />}
-          {clearable && value && !disabled && (
-            <button
-              type="button"
-              onClick={() => onChange?.(null)}
-              className="p-1 rounded text-gray-400 hover:text-rose-500 cursor-pointer"
-              title="Clear"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
-        </div>
-      </div>
+      <Input
+        autoComplete="off"
+        role="combobox"
+        aria-expanded={open}
+        disabled={disabled}
+        value={open ? query : selectedLabel}
+        placeholder={selectedLabel || placeholder}
+        onFocus={() => {
+          setOpen(true);
+          setQuery('');
+        }}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          if (!open) setOpen(true);
+        }}
+        startIcon={<Search />}
+        endIcon={
+          <span className="flex items-center gap-1">
+            {loading && <Loader2 className="animate-spin text-brand" />}
+            {clearable && value && !disabled && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => onChange?.(null)}
+                className="size-6 hover:text-danger"
+                title="Clear"
+                aria-label="Clear"
+              >
+                <X className="!size-3.5" />
+              </Button>
+            )}
+            <ChevronDown className={`pointer-events-none transition-transform ${open ? 'rotate-180' : ''}`} />
+          </span>
+        }
+        className="pr-20"
+      />
 
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[1000] max-h-64 overflow-auto rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] shadow-xl">
+        <div
+          role="listbox"
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-[1000] max-h-64 overflow-auto rounded-control border border-line bg-surface p-1 shadow-[0_12px_32px_-8px_rgba(30,27,75,0.25)]"
+        >
           {results.failed ? (
-            <div className="px-3 py-2.5 text-sm text-rose-500">Could not load results. Try again.</div>
+            <div className="px-3 py-2.5 text-sm text-danger">Could not load results. Try again.</div>
           ) : results.options.length === 0 ? (
-            <div className="px-3 py-2.5 text-sm text-[var(--vs-text-secondary)]">
+            <div className="px-3 py-2.5 text-sm text-ink-muted">
               {loading ? 'Searching...' : emptyText}
             </div>
           ) : (
             results.options.map((opt) => (
-              <button
-                type="button"
+              <div
+                role="option"
+                aria-selected={opt.value === value}
                 key={opt.value}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   handleSelect(opt);
                 }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-500/10 cursor-pointer flex flex-col ${opt.value === value ? 'bg-indigo-50/70 dark:bg-indigo-500/10' : ''}`}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm cursor-pointer select-none flex flex-col ${opt.value === value ? 'bg-brand-soft' : 'hover:bg-fill'}`}
               >
-                <span className="font-medium text-[var(--vs-text-primary)]">{opt.label}</span>
-                {opt.sublabel && <span className="text-xs text-[var(--vs-text-secondary)]">{opt.sublabel}</span>}
-              </button>
+                <span className={`font-medium ${opt.value === value ? 'text-brand-ink' : 'text-ink'}`}>{opt.label}</span>
+                {opt.sublabel && <span className="text-xs text-ink-muted">{opt.sublabel}</span>}
+              </div>
             ))
           )}
         </div>

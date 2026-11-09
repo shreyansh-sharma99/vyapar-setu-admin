@@ -3,11 +3,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { Label } from '@/components/inputs/Label';
-import { Input } from '@/components/inputs/Input';
-import Select from '@/components/inputs/Select';
-import Button from '@/components/inputs/Button';
-import Card from '@/components/breadCrumbs/Card';
+import { Button, Field, FormActions, FormGrid, Input, PageHeader, Section, Select } from '@/components/ui';
 import { createCustomer, resetCustomerStatus } from './services/customerSlice';
 
 export default function CreateCustomer() {
@@ -99,293 +95,203 @@ export default function CreateCustomer() {
   };
 
   return (
-    <div className="flex flex-col gap-6 mx-auto">
-      <Card
-        h1="Create Customer"
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-6"
-      >
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Create Customer"
+        actions={
+          <Button variant="secondary" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>
+            Back
+          </Button>
+        }
+      />
 
-          {/* Card 1: Basic Information */}
-          <Card title="Basic Information" bodyClassName="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="firstName">First Name<span className="text-red-500">*</span></Label>
-                <Input
-                  id="firstName"
-                  type="text"
-                  placeholder="Enter first name"
-                  error={errors.firstName}
-                  {...register('firstName', { required: 'First name is required' })}
-                />
-                {errors.firstName && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.firstName.message}</span>
-                )}
-              </div>
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        <Section title="Basic Information" description="Name, contact and billing details">
+          <FormGrid cols={2}>
+            <Field label="First Name" required error={errors.firstName?.message}>
+              <Input
+                id="firstName"
+                type="text"
+                placeholder="Enter first name"
+                {...register('firstName', { required: 'First name is required' })}
+              />
+            </Field>
 
-              <div>
-                <Label htmlFor="lastName">Last Name<span className="text-red-500">*</span></Label>
-                <Input
-                  id="lastName"
-                  type="text"
-                  placeholder="Enter last name"
-                  error={errors.lastName}
-                  {...register('lastName', { required: 'Last name is required' })}
-                />
-                {errors.lastName && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.lastName.message}</span>
-                )}
-              </div>
+            <Field label="Last Name" required error={errors.lastName?.message}>
+              <Input
+                id="lastName"
+                type="text"
+                placeholder="Enter last name"
+                {...register('lastName', { required: 'Last name is required' })}
+              />
+            </Field>
 
-              <div>
-                <Label htmlFor="email">Email Address<span className="text-red-500">*</span></Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter email address"
-                  error={errors.email}
-                  {...register('email', {
-                    required: 'Email is required',
-                    pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Invalid email address' }
-                  })}
-                />
-                {errors.email && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.email.message}</span>
-                )}
-              </div>
+            <Field label="Email Address" required error={errors.email?.message}>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter email address"
+                {...register('email', {
+                  required: 'Email is required',
+                  pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Invalid email address' }
+                })}
+              />
+            </Field>
 
-              <div>
-                <Label htmlFor="phone">Phone Number<span className="text-red-500">*</span></Label>
-                <Input
-                  id="phone"
-                  type="text"
-                  placeholder="Enter phone number"
-                  error={errors.phone}
-                  {...register('phone', {
-                    required: 'Phone number is required',
-                    pattern: { value: /^\d{10}$/, message: 'Must be a 10 digit number' }
-                  })}
-                />
-                {errors.phone && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.phone.message}</span>
-                )}
-              </div>
+            <Field label="Phone Number" required error={errors.phone?.message}>
+              <Input
+                id="phone"
+                type="text"
+                placeholder="Enter phone number"
+                {...register('phone', {
+                  required: 'Phone number is required',
+                  pattern: { value: /^\d{10}$/, message: 'Must be a 10 digit number' }
+                })}
+              />
+            </Field>
 
-              <div>
-                <Label htmlFor="gstin">GSTIN</Label>
-                <Input
-                  id="gstin"
-                  type="text"
-                  placeholder="e.g. 07AAQCP3629R1ZF"
-                  error={errors.gstin}
-                  {...register('gstin', {
-                    validate: value => !value || /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[0-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(value) || 'Invalid GSTIN format',
-                    onChange: (e) => {
-                      const val = e.target.value.toUpperCase();
-                      setValue('gstin', val);
-                      if (val.length >= 2) {
-                        const code = val.substring(0, 2);
-                        if (/^\d{2}$/.test(code)) {
-                          setValue('stateCode', code);
-                        }
+            <Field label="GSTIN" error={errors.gstin?.message}>
+              <Input
+                id="gstin"
+                type="text"
+                placeholder="e.g. 07AAQCP3629R1ZF"
+                {...register('gstin', {
+                  validate: value => !value || /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[0-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(value) || 'Invalid GSTIN format',
+                  onChange: (e) => {
+                    const val = e.target.value.toUpperCase();
+                    setValue('gstin', val);
+                    if (val.length >= 2) {
+                      const code = val.substring(0, 2);
+                      if (/^\d{2}$/.test(code)) {
+                        setValue('stateCode', code);
                       }
                     }
-                  })}
-                />
-                {errors.gstin && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.gstin.message}</span>
-                )}
-              </div>
+                  }
+                })}
+              />
+            </Field>
 
-              <div>
-                <Label htmlFor="stateCode">State Code</Label>
-                <Input
-                  id="stateCode"
-                  type="text"
-                  placeholder="e.g. 07"
-                  maxLength={2}
-                  error={errors.stateCode}
-                  {...register('stateCode', {
-                    validate: value => !value || /^\d{2}$/.test(value) || 'State code must be 2 digits',
-                  })}
-                />
-                {errors.stateCode && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.stateCode.message}</span>
-                )}
-              </div>
+            <Field label="State Code" error={errors.stateCode?.message}>
+              <Input
+                id="stateCode"
+                type="text"
+                placeholder="e.g. 07"
+                maxLength={2}
+                {...register('stateCode', {
+                  validate: value => !value || /^\d{2}$/.test(value) || 'State code must be 2 digits',
+                })}
+              />
+            </Field>
 
-              <div>
-                <Label htmlFor="creditLimit">Credit Limit</Label>
-                <Input
-                  id="creditLimit"
-                  type="number"
-                  placeholder="e.g. 50000"
-                  error={errors.creditLimit}
-                  {...register('creditLimit', {
-                    min: { value: 0, message: 'Credit limit cannot be negative' }
-                  })}
-                />
-                {errors.creditLimit && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.creditLimit.message}</span>
-                )}
-              </div>
+            <Field label="Credit Limit" error={errors.creditLimit?.message}>
+              <Input
+                id="creditLimit"
+                type="number"
+                placeholder="e.g. 50000"
+                {...register('creditLimit', {
+                  min: { value: 0, message: 'Credit limit cannot be negative' }
+                })}
+              />
+            </Field>
 
-              <div>
-                <Label htmlFor="openingBalance">Opening Balance</Label>
-                <Input
-                  id="openingBalance"
-                  type="number"
-                  placeholder="e.g. 0"
-                  error={errors.openingBalance}
-                  {...register('openingBalance')}
-                />
-                {errors.openingBalance && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.openingBalance.message}</span>
-                )}
-              </div>
+            <Field label="Opening Balance" error={errors.openingBalance?.message}>
+              <Input
+                id="openingBalance"
+                type="number"
+                placeholder="e.g. 0"
+                {...register('openingBalance')}
+              />
+            </Field>
+          </FormGrid>
+        </Section>
 
-            </div>
-          </Card>
-
-          {/* Card 2: Address Details */}
-          <Card title="Address Details" bodyClassName="p-6">
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label>Address Type</Label>
-                  <Controller
-                    name="address.type"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        options={[
-                          { value: 'home', label: 'Home' },
-                          { value: 'work', label: 'Work' },
-                          { value: 'other', label: 'Other' },
-                        ]}
-                        value={field.value}
-                        onChange={field.onChange}
-                      />
-                    )}
+        <Section title="Address Details" description="Billing address for this customer">
+          <FormGrid cols={3}>
+            <Controller
+              name="address.type"
+              control={control}
+              render={({ field }) => (
+                <Field label="Address Type">
+                  <Select
+                    options={[
+                      { value: 'home', label: 'Home' },
+                      { value: 'work', label: 'Work' },
+                      { value: 'other', label: 'Other' },
+                    ]}
+                    value={field.value}
+                    onChange={field.onChange}
                   />
-                </div>
+                </Field>
+              )}
+            />
 
-                <div>
-                  <Label htmlFor="pincode">PIN Code<span className="text-red-500">*</span></Label>
-                  <div className="relative">
-                    <Input
-                      id="pincode"
-                      type="text"
-                      placeholder="Enter 6-digit PIN code"
-                      error={errors.address?.pincode}
-                      {...register('address.pincode', {
-                        required: 'PIN Code is required',
-                        pattern: { value: /^\d{6}$/, message: 'Must be 6 digits' }
-                      })}
-                      onChange={handlePincodeChange}
-                    />
-                    {pincodeLoading && (
-                      <div className="absolute right-3 top-3">
-                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
-                      </div>
-                    )}
-                  </div>
-                  {errors.address?.pincode && (
-                    <span className="text-xs text-red-500 mt-1 block">{errors.address.pincode.message}</span>
-                  )}
-                </div>
+            <Field label="PIN Code" required error={errors.address?.pincode?.message}>
+              <Input
+                id="pincode"
+                type="text"
+                placeholder="Enter 6-digit PIN code"
+                endIcon={pincodeLoading ? <Loader2 className="animate-spin text-brand" /> : undefined}
+                {...register('address.pincode', {
+                  required: 'PIN Code is required',
+                  pattern: { value: /^\d{6}$/, message: 'Must be 6 digits' }
+                })}
+                onChange={handlePincodeChange}
+              />
+            </Field>
 
-                <div>
-                  <Label htmlFor="street">Street Address<span className="text-red-500">*</span></Label>
-                  <Input
-                    id="street"
-                    type="text"
-                    placeholder="e.g. Apartment, Suite, House No, Street name"
-                    error={errors.address?.street}
-                    {...register('address.street', { required: 'Street Address is required' })}
-                  />
-                  {errors.address?.street && (
-                    <span className="text-xs text-red-500 mt-1 block">{errors.address.street.message}</span>
-                  )}
-                </div>
-              </div>
+            <Field label="Street Address" required error={errors.address?.street?.message}>
+              <Input
+                id="street"
+                type="text"
+                placeholder="e.g. Apartment, Suite, House No, Street name"
+                {...register('address.street', { required: 'Street Address is required' })}
+              />
+            </Field>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="city">City / District<span className="text-red-500">*</span></Label>
-                  <Input
-                    id="city"
-                    type="text"
-                    placeholder="City"
-                    error={errors.address?.city}
-                    {...register('address.city', { required: 'City is required' })}
-                  />
-                  {errors.address?.city && (
-                    <span className="text-xs text-red-500 mt-1 block">{errors.address.city.message}</span>
-                  )}
-                </div>
+            <Field label="City / District" required error={errors.address?.city?.message}>
+              <Input
+                id="city"
+                type="text"
+                placeholder="City"
+                {...register('address.city', { required: 'City is required' })}
+              />
+            </Field>
 
-                <div>
-                  <Label htmlFor="state">State<span className="text-red-500">*</span></Label>
-                  <Input
-                    id="state"
-                    type="text"
-                    placeholder="State"
-                    error={errors.address?.state}
-                    {...register('address.state', { required: 'State is required' })}
-                  />
-                  {errors.address?.state && (
-                    <span className="text-xs text-red-500 mt-1 block">{errors.address.state.message}</span>
-                  )}
-                </div>
+            <Field label="State" required error={errors.address?.state?.message}>
+              <Input
+                id="state"
+                type="text"
+                placeholder="State"
+                {...register('address.state', { required: 'State is required' })}
+              />
+            </Field>
 
-                <div>
-                  <Label htmlFor="country">Country<span className="text-red-500">*</span></Label>
-                  <Input
-                    id="country"
-                    type="text"
-                    placeholder="Country"
-                    error={errors.address?.country}
-                    {...register('address.country', { required: 'Country is required' })}
-                  />
-                  {errors.address?.country && (
-                    <span className="text-xs text-red-500 mt-1 block">{errors.address.country.message}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Card>
+            <Field label="Country" required error={errors.address?.country?.message}>
+              <Input
+                id="country"
+                type="text"
+                placeholder="Country"
+                {...register('address.country', { required: 'Country is required' })}
+              />
+            </Field>
+          </FormGrid>
+        </Section>
 
-          {error && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-xs text-red-600 dark:text-red-400">
-              {error}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate('/customers')}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={loading}
-              startIcon={loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            >
-              Create Customer
-            </Button>
+        {error && (
+          <div className="rounded-control bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
+            {error}
           </div>
-        </form>
-      </Card>
+        )}
+
+        <FormActions>
+          <Button variant="secondary" onClick={() => navigate('/customers')} disabled={loading}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={loading}>
+            Create Customer
+          </Button>
+        </FormActions>
+      </form>
     </div>
   );
 }

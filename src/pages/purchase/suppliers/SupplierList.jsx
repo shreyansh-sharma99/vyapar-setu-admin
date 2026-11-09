@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Users, UserCheck, IndianRupee } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import Table from '@/components/table/Table';
-import TableInfoCard from '@/components/table/TableInfoCard';
-import Card from '@/components/breadCrumbs/Card';
-import DeleteModal from '@/components/modal/DeleteModal';
+import { Edit2, Eye, IndianRupee, Plus, Trash2, Truck, UserCheck, Users } from 'lucide-react';
+import { Button, ConfirmDialog, DataTable, PageHeader, StatCard, Switch } from '@/components/ui';
 import PurchaseToaster from '../components/PurchaseToaster';
-import { FilterSelect } from '../components/ui';
 import { notify, notifyError } from '../components/toast';
 import { PATHS, editPath, errMsg, formatINR, num, viewPath } from '../components/helpers';
 import { fetchSuppliers, setSupplierStatus, deleteSupplier } from './services/supplierSlice';
+
+const STATUS_TABS = [
+  { value: 'all', label: 'All suppliers' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
 
 export default function SupplierList() {
   const dispatch = useDispatch();
@@ -65,138 +66,117 @@ export default function SupplierList() {
     }
   };
 
-  const headers = [
+  const columns = [
     {
-      label: 'Supplier',
       key: 'name',
+      header: 'Supplier',
       sortable: true,
-      value: 'checked',
-      render: (s) => (
-        <div className="flex flex-col">
-          <button type="button" onClick={() => navigate(viewPath('suppliers', s._id))} className="text-left font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-            {s.name}
-          </button>
-          {s.companyName && <span className="text-[11px] text-[var(--vs-text-secondary)]">{s.companyName}</span>}
-        </div>
-      ),
+      mobile: 'title',
+      render: (s) => <span className="font-semibold text-ink">{s.name}</span>,
     },
-    { label: 'Phone', key: 'phone', value: 'checked', render: (s) => s.phone || '—' },
-    { label: 'GSTIN', key: 'gstin', value: 'checked', render: (s) => <span className="font-mono text-xs">{s.gstin || 'Unregistered'}</span> },
-    { label: 'City', key: 'city', value: 'checked', render: (s) => s.address?.city || '—' },
-    { label: 'Credit days', key: 'paymentTermsDays', value: 'checked', render: (s) => (num(s.paymentTermsDays) ? `${s.paymentTermsDays} days` : 'On receipt') },
+    { key: 'companyName', header: 'Company', hideBelow: 'lg', render: (s) => s.companyName || '—' },
+    { key: 'phone', header: 'Phone', render: (s) => s.phone || '—' },
+    { key: 'gstin', header: 'GSTIN', hideBelow: 'lg', render: (s) => (s.gstin ? <span className="font-mono text-[13px]">{s.gstin}</span> : <span className="text-ink-subtle">Unregistered</span>) },
+    { key: 'city', header: 'City', hideBelow: 'xl', render: (s) => s.address?.city || '—' },
+    { key: 'paymentTermsDays', header: 'Credit days', hideBelow: 'xl', render: (s) => (num(s.paymentTermsDays) ? `${s.paymentTermsDays} days` : 'On receipt') },
     {
-      label: 'Payable',
       key: 'payableBalance',
+      header: 'Payable (₹)',
+      type: 'money',
       sortable: true,
-      value: 'checked',
+      mobile: 'amount',
       render: (s) => {
         const bal = num(s.payableBalance);
-        if (bal < 0) return <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatINR(-bal)} advance</span>;
-        return <span className={bal > 0 ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-[var(--vs-text-secondary)]'}>{formatINR(bal)}</span>;
+        if (bal < 0) return <span className="text-success">{formatINR(-bal)} advance</span>;
+        return <span className={bal > 0 ? 'text-danger' : 'font-normal text-ink-subtle'}>{formatINR(bal)}</span>;
       },
     },
     {
-      label: 'Status',
       key: 'isActive',
-      value: 'checked',
+      header: 'Active',
       render: (s) => (
-        <span className={`font-semibold text-xs ${s.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-          {s.isActive ? 'Active' : 'Inactive'}
-        </span>
+        <Switch size="sm" checked={!!s.isActive} onChange={(v) => handleToggle(s, v)} label={s.isActive ? 'Active' : 'Inactive'} />
       ),
     },
   ];
 
-  return (
-    <div>
-      <Card
-        h1="Suppliers"
-        bodyClassName="px-4 pb-4 pt-2"
-        rightNode={
-          <FilterSelect
-            value={status}
-            onChange={changeStatus}
-            options={[
-              { value: 'all', label: 'All suppliers' },
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-            ]}
-          />
-        }
-      >
-        <div className="pb-2">
-          <TableInfoCard
-            stats={[
-              {
-                label: 'Total suppliers',
-                value: stats?.total ?? 0,
-                icon: <Users className="w-4 h-4 text-indigo-500" />,
-                colorClass: 'text-indigo-600 dark:text-indigo-400',
-                isActive: status === 'all',
-                onClick: () => changeStatus('all'),
-              },
-              {
-                label: 'Active',
-                value: stats?.active ?? 0,
-                icon: <UserCheck className="w-4 h-4 text-emerald-500" />,
-                colorClass: 'text-emerald-600 dark:text-emerald-400',
-                isActive: status === 'active',
-                onClick: () => changeStatus(status === 'active' ? 'all' : 'active'),
-              },
-              {
-                label: 'Total payable',
-                value: formatINR(stats?.totalPayable),
-                icon: <IndianRupee className="w-4 h-4 text-rose-500" />,
-                colorClass: 'text-rose-600 dark:text-rose-400',
-              },
-            ]}
-          />
-        </div>
+  const rowActions = (s) => [
+    { label: 'View', icon: Eye, onClick: () => navigate(viewPath('suppliers', s._id)) },
+    { label: 'Edit', icon: Edit2, onClick: () => navigate(editPath('suppliers', s._id)) },
+    { divider: true },
+    { label: 'Delete', icon: Trash2, danger: true, onClick: () => setDeleteTarget(s) },
+  ];
 
-        <Table
-          headers={headers}
-          data={list}
-          loading={listLoading}
-          searchPlaceholder="Search name, phone, GSTIN, city..."
-          searchTerm={searchTerm}
-          onSearchTermChange={setSearchTerm}
-          onSearchClick={() => {
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Suppliers"
+        actions={<Button startIcon={<Plus />} onClick={() => navigate(`${PATHS.suppliers}/create`)}>Add Supplier</Button>}
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard label="Total suppliers" value={stats?.total ?? 0} icon={Users} tone="primary" active={status === 'all'} onClick={() => changeStatus('all')} />
+        <StatCard
+          label="Active"
+          value={stats?.active ?? 0}
+          icon={UserCheck}
+          tone="success"
+          active={status === 'active'}
+          onClick={() => changeStatus(status === 'active' ? 'all' : 'active')}
+        />
+        <StatCard label="Total payable" value={formatINR(stats?.totalPayable)} icon={IndianRupee} tone="danger" />
+      </div>
+
+      <DataTable
+        columns={columns}
+        rows={list}
+        loading={listLoading}
+        tabs={STATUS_TABS}
+        tab={status}
+        onTabChange={changeStatus}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search name, phone, GSTIN, city...',
+          onSubmit: () => {
             setPage(1);
             setQuery(searchTerm.trim());
-          }}
-          onSearchClear={() => {
+          },
+          onClear: () => {
             setPage(1);
             setQuery('');
-          }}
-          onView={(s) => navigate(viewPath('suppliers', s._id))}
-          onEdit={(s) => navigate(editPath('suppliers', s._id))}
-          onDelete={(s) => setDeleteTarget(s)}
-          onToggle={handleToggle}
-          toggleField="isActive"
-          emptyMessage="No suppliers yet. Click 'Add Supplier' to add your first one."
-          currentPage={page}
-          pageSize={pageSize}
-          totalRows={meta?.total || 0}
-          onPageChange={setPage}
-          onPageSizeChange={(size) => {
+          },
+        }}
+        rowActions={rowActions}
+        onRowClick={(s) => navigate(viewPath('suppliers', s._id))}
+        empty={{
+          icon: Truck,
+          title: 'No suppliers yet',
+          text: "Click 'Add Supplier' to add your first one.",
+          action: <Button startIcon={<Plus />} onClick={() => navigate(`${PATHS.suppliers}/create`)}>Add Supplier</Button>,
+        }}
+        pagination={{
+          page,
+          pageSize,
+          total: meta?.total || 0,
+          onPageChange: setPage,
+          onPageSizeChange: (size) => {
             setPageSize(size);
             setPage(1);
-          }}
-          actions={
-            <div className="flex items-center gap-2">
-              <Button onClick={() => navigate(`${PATHS.suppliers}/create`)}>Add Supplier</Button>
-            </div>
-          }
-        />
-      </Card>
+          },
+          pageSizeOptions: [10, 20, 50, 100],
+        }}
+      />
 
-      <DeleteModal
-        isOpen={!!deleteTarget}
-        isLoading={saving}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
+      <ConfirmDialog
+        open={!!deleteTarget}
         title="Delete supplier"
         message={`Delete "${deleteTarget?.name || ''}"? Suppliers with purchase history can't be deleted; mark them inactive instead.`}
+        confirmLabel="Delete"
+        icon={Trash2}
+        loading={saving}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
       />
       <PurchaseToaster />
     </div>

@@ -1,13 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
+import { Plus } from 'lucide-react';
+import { Alert, Badge, Button, ConfirmDialog, PageHeader, Select, StatusBadge, ToastStack } from '@/components/ui';
 import { encryptData } from '@/utility/crypto';
-import Button from '@/components/inputs/Button';
 import Table from '@/components/table/Table';
-import Card from '@/components/breadCrumbs/Card';
-import DeleteModal from '@/components/modal/DeleteModal';
 import { getRoles, changeRoleStatus, deleteRole } from '../services/staffSlice';
+
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
 
 /** Distinct module keys a role has any permission on. */
 const moduleSummary = (permissions = []) => [
@@ -93,13 +97,15 @@ export default function RoleList() {
     {
       label: 'Role',
       key: 'name',
+      render: (item) => <span className="font-semibold text-ink">{item.name}</span>,
+    },
+    {
+      label: 'Description',
+      key: 'description',
       render: (item) => (
-        <div className="flex flex-col max-w-[320px]">
-          <span className="font-semibold text-[var(--vs-text-primary)]">{item.name}</span>
-          {item.description && (
-            <span className="text-[11px] text-[var(--vs-text-secondary)] line-clamp-2">{item.description}</span>
-          )}
-        </div>
+        <span className="line-clamp-2 block max-w-[320px] whitespace-normal text-xs text-ink-subtle">
+          {item.description || '—'}
+        </span>
       ),
     },
     {
@@ -107,17 +113,15 @@ export default function RoleList() {
       key: 'permissions',
       render: (item) => {
         const mods = moduleSummary(item.permissions);
-        if (!mods.length) return <span className="text-xs text-[var(--vs-text-secondary)]">No access</span>;
+        if (!mods.length) return <span className="text-xs text-ink-subtle">No access</span>;
         const shown = mods.slice(0, 3);
         return (
-          <div className="flex flex-wrap gap-1 max-w-[260px]">
+          <div className="flex max-w-[280px] flex-wrap gap-1">
             {shown.map((m) => (
-              <span key={m} className="px-1.5 py-0.5 rounded text-[11px] bg-[var(--vs-bg-secondary)] border border-[var(--vs-border)] text-[var(--vs-text-primary)]">
-                {prettyModule(m)}
-              </span>
+              <Badge key={m} tone="neutral">{prettyModule(m)}</Badge>
             ))}
             {mods.length > shown.length && (
-              <span className="px-1.5 py-0.5 text-[11px] text-[var(--vs-text-secondary)]">+{mods.length - shown.length} more</span>
+              <span className="px-1.5 py-0.5 text-[11px] text-ink-subtle">+{mods.length - shown.length} more</span>
             )}
           </div>
         );
@@ -126,77 +130,61 @@ export default function RoleList() {
     {
       label: 'Staff',
       key: 'staffCount',
-      render: (item) => (
-        <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20">
-          {item.staffCount || 0} staff
-        </span>
-      ),
+      render: (item) => <Badge tone="primary">{item.staffCount || 0} staff</Badge>,
     },
     {
       label: 'Status',
       key: 'isActive',
-      render: (item) => (
-        <span className={`font-semibold text-xs ${item.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-          {item.isActive ? 'Active' : 'Inactive'}
-        </span>
-      ),
+      render: (item) => <StatusBadge status={item.isActive ? 'active' : 'inactive'} />,
     },
   ];
 
   return (
-    <div>
-      <Card
-        h1="Roles & Permissions"
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Roles & Permissions"
         description="Create roles like Cashier or Store Manager and choose what each can view, create, edit and delete."
-        bodyClassName="px-4 pb-4 pt-2"
-        rightNode={
-          <select
-            value={selectedStatus}
-            onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-            className="h-10 px-3 text-sm rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] outline-none cursor-pointer shadow-sm"
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        }
-      >
-        {roleError && !rolesLoading && typeof roleError === 'string' && (
-          <div className="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-sm text-red-600 dark:text-red-400">
-            {roleError}
-          </div>
-        )}
-        <Table
-          headers={headers}
-          data={roles}
-          loading={rolesLoading}
-          showSearch={true}
-          searchPlaceholder="Search roles..."
-          searchTerm={searchTerm}
-          onSearchTermChange={(val) => setSearchTerm(val)}
-          onSearchClick={() => { setCurrentPage(1); fetchRoles({ page: 1 }); }}
-          onSearchClear={() => { setSearchTerm(''); setCurrentPage(1); fetchRoles({ page: 1, search: '' }); }}
-          emptyMessage="No roles yet. Click 'Add Role' to create one, then assign it to your staff."
-          onEdit={handleEdit}
-          onDelete={(item) => setDeleteModal({ isOpen: true, role: item })}
-          onToggle={handleToggle}
-          toggleField="isActive"
-          currentPage={currentPage}
-          pageSize={pageSize}
-          totalRows={rolesMeta?.total || 0}
-          onPageChange={(page) => setCurrentPage(page)}
-          onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-          actions={
-            <div className="flex items-center gap-2">
-              <Button onClick={() => navigate('/staff/roles/create')}>Add Role</Button>
-            </div>
-          }
-        />
-      </Card>
+        actions={<Button startIcon={<Plus />} onClick={() => navigate('/staff/roles/create')}>Add Role</Button>}
+      />
 
-      <DeleteModal
-        isOpen={deleteModal.isOpen}
-        isLoading={saving}
+      {roleError && !rolesLoading && typeof roleError === 'string' && <Alert tone="danger">{roleError}</Alert>}
+
+      <Table
+        headers={headers}
+        data={roles}
+        loading={rolesLoading}
+        showSearch={true}
+        searchPlaceholder="Search roles..."
+        searchTerm={searchTerm}
+        onSearchTermChange={(val) => setSearchTerm(val)}
+        onSearchClick={() => { setCurrentPage(1); fetchRoles({ page: 1 }); }}
+        onSearchClear={() => { setSearchTerm(''); setCurrentPage(1); fetchRoles({ page: 1, search: '' }); }}
+        emptyMessage="No roles yet. Click 'Add Role' to create one, then assign it to your staff."
+        onEdit={handleEdit}
+        onDelete={(item) => setDeleteModal({ isOpen: true, role: item })}
+        onToggle={handleToggle}
+        toggleField="isActive"
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalRows={rolesMeta?.total || 0}
+        onPageChange={(page) => setCurrentPage(page)}
+        onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+        actions={
+          <Select
+            size="sm"
+            aria-label="Filter by status"
+            value={selectedStatus}
+            onChange={(v) => { setSelectedStatus(v || 'all'); setCurrentPage(1); }}
+            searchable={false}
+            options={STATUS_OPTIONS}
+            wrapperClassName="w-36"
+          />
+        }
+      />
+
+      <ConfirmDialog
+        open={deleteModal.isOpen}
+        loading={saving}
         onClose={() => setDeleteModal({ isOpen: false, role: null })}
         onConfirm={handleConfirmDelete}
         title="Delete Role"
@@ -205,15 +193,7 @@ export default function RoleList() {
           : `Delete the role "${deleteModal.role?.name || ''}"? This cannot be undone.`}
       />
 
-      <CToaster className="p-3" style={{ zIndex: 2000, position: 'fixed', bottom: '20px', right: '20px' }}>
-        {toasts.map((t) => (
-          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
-            <div className="d-flex">
-              <CToastBody className="font-semibold">{t.message}</CToastBody>
-            </div>
-          </CToast>
-        ))}
-      </CToaster>
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

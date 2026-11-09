@@ -1,8 +1,14 @@
 import { useEffect } from 'react';
-import { HelpCircle, Loader2 } from 'lucide-react';
-import Button from '@/components/inputs/Button';
+import { HelpCircle } from 'lucide-react';
+import { Button, Modal } from '@/components/ui';
 
-/** Simple confirm modal in the same style as DeleteModal. */
+// Old max-w-* prop → ui Modal width.
+const SIZE_FOR_WIDTH = { 'max-w-xs': 'sm', 'max-w-sm': 'sm', 'max-w-md': 'md', 'max-w-lg': 'md', 'max-w-xl': 'lg', 'max-w-2xl': 'lg' };
+
+/**
+ * Confirm modal with an icon and a free-form message (string or JSX), on the ui Modal.
+ * Props unchanged: isOpen, onClose, onConfirm, title, message, confirmText, loadingText, isLoading, icon (element), maxWidth.
+ */
 export default function ConfirmDialog({
   isOpen,
   onClose,
@@ -24,54 +30,37 @@ export default function ConfirmDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, isLoading, onClose]);
 
-  if (!isOpen) return null;
+  const close = () => {
+    if (!isLoading) onClose();
+  };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 modal-backdrop-enter print:hidden"
-      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isLoading) onClose();
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        className={`relative w-full ${maxWidth} rounded-2xl shadow-2xl overflow-hidden modal-content-enter`}
-        style={{ background: 'var(--vs-bg-primary)', border: '1px solid var(--vs-border)' }}
-      >
-        <div className="p-6 text-center flex flex-col items-center">
-          <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center mb-4 text-indigo-500">
-            {icon || <HelpCircle className="w-6 h-6" />}
-          </div>
-          <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--vs-text-primary)' }}>
-            {title}
-          </h2>
-          {message && (
-            <div className="text-sm" style={{ color: 'var(--vs-text-secondary)' }}>
-              {message}
-            </div>
-          )}
-        </div>
-        <div
-          className="flex items-center justify-center gap-3 px-6 py-4 bg-gray-50 dark:bg-white/5"
-          style={{ borderTop: '1px solid var(--vs-border)' }}
-        >
-          <Button type="button" variant="outline" onClick={onClose} disabled={isLoading} className="flex-1">
+    <Modal
+      open={!!isOpen}
+      onClose={close}
+      size={SIZE_FOR_WIDTH[maxWidth] ?? 'lg'}
+      hideClose
+      closeOnBackdrop={!isLoading}
+      className="print:hidden"
+      bodyClassName="pt-6"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isLoading} className="flex-1" data-autofocus>
             Cancel
           </Button>
-          <Button
-            type="button"
-            variant="primary"
-            onClick={onConfirm}
-            disabled={isLoading}
-            className="flex-1"
-            startIcon={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          >
+          <Button variant="primary" onClick={onConfirm} loading={isLoading} className="flex-1">
             {isLoading ? loadingText : confirmText}
           </Button>
-        </div>
+        </>
+      }
+    >
+      <div className="flex flex-col items-center text-center">
+        <span className="mb-4 grid size-12 place-items-center rounded-full bg-brand-soft text-brand-ink [&_svg]:size-6">
+          {icon || <HelpCircle className="w-6 h-6" />}
+        </span>
+        <h2 className="m-0 mb-2 !text-lg !font-extrabold text-ink">{title}</h2>
+        {message && <div className="w-full text-sm text-ink-muted">{message}</div>}
       </div>
-    </div>
+    </Modal>
   );
 }

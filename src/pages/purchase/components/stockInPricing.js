@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import apiClient from '@/utility/Http';
 import { num, round2, toInputDate } from './helpers';
+import { BLOCKING } from './barcodeCheck';
 
 /*
  * New-batch fields on stock-in lines (GRN, direct purchase bill, opening stock),
  * used only while the shop's dated pricing switch is on:
- *   batch no · expiry (batch-tracked products) · MRP (required) · SP + margin %.
+ *   expiry (batch-tracked products) · MRP (required) · SP + margin % · barcode (the batch no is automatic).
  * MRP and SP are per BASE unit (per pc), like the product MRP and the Price master.
  * SP is sent only when the user changed it; the server then makes it the price
  * from today (after the user confirms the change).
@@ -49,7 +50,6 @@ export const useStockInPricing = (productIds = []) => {
 
 /** Empty new-batch fields for a line of product `p` (a lookup row). */
 export const stockInFields = (p) => ({
-  batchNo: '',
   expiryDate: '',
   mrp: '',
   mrpTouched: false,
@@ -58,13 +58,16 @@ export const stockInFields = (p) => ({
   setAsDefault: false, // "Also make default price"
   trackBatch: !!p?.trackBatch,
   defaultMrp: num(p?.mrp),
+  // barcode: the product's; locked while it has stock under it (one barcode per product)
+  barcode: p?.barcode || '',
+  barcodeLocked: !!p?.hasLiveStock && !!p?.barcode,
+  barcodeCheck: null, // { code, status, tone, text } from barcodeCheck.runBarcodeCheck
 });
 
 /** New-batch fields from a saved line (draft being edited). */
 export const stockInFromSaved = (item) => {
   const p = item.productId && typeof item.productId === 'object' ? item.productId : null;
   return {
-    batchNo: item.batchNo || '',
     expiryDate: toInputDate(item.expiryDate),
     mrp: num(item.mrp) > 0 ? num(item.mrp) : '',
     mrpTouched: num(item.mrp) > 0,
@@ -73,8 +76,37 @@ export const stockInFromSaved = (item) => {
     setAsDefault: !!item.setAsDefault,
     trackBatch: !!p?.trackBatch,
     defaultMrp: num(p?.mrp),
+    barcode: item.barcode || '',
+    barcodeLocked: false,
+    barcodeCheck: null,
   };
 };
+
+/**
+ * Barcode problems of a stock-in document: { [line.key]: message }. A line's live check
+ * (in use / on hold / locked), one product with two codes, one code on two products.
+ */
+export const barcodeProblems = (lines) => {
+  const out = {};
+  const used = lines.filter((l) => l.productId);
+  const codeOf = (l) => String(l.barcode || '').trim();
+  used.forEach((l) => {
+    const c = codeOf(l);
+    if (c && l.barcodeCheck && l.barcodeCheck.code === c && BLOCKING.includes(l.barcodeCheck.status)) out[l.key] = `Barcode ${c}: ${l.barcodeCheck.text}`;
+  });
+  used.forEach((l) => {
+    const c = codeOf(l);
+    if (!c) return;
+    const sameProduct = used.find((o) => o.key !== l.key && o.productId === l.productId && codeOf(o) && codeOf(o) !== c);
+    if (sameProduct) out[l.key] = out[l.key] || `"${l.productName}" has two barcodes here — one product keeps one barcode`;
+    const otherProduct = used.find((o) => o.productId !== l.productId && codeOf(o) === c);
+    if (otherProduct) out[l.key] = out[l.key] || `Barcode ${c} is also on "${otherProduct.productName}"`;
+  });
+  return out;
+};
+
+/** First barcode problem (blocks Save & Receive / Save bill; drafts may still be saved). */
+export const firstBarcodeProblem = (lines) => Object.values(barcodeProblems(lines))[0] || '';
 
 /** MRP shown in the cell: typed, else the last batch MRP, else the product's default MRP. */
 export const shownMrp = (line, info) => {
@@ -146,9 +178,9 @@ export const stockInCheck = (line, info, costPerBase) => {
   return out;
 };
 
-/** Payload fields for one stock-in line (batch, expiry, MRP, changed SP). */
+/** Payload fields for one stock-in line (barcode, expiry, MRP, changed SP; the batch no is automatic). */
 export const stockInPayload = (line, info) => ({
-  batchNo: String(line.batchNo || '').trim(),
+  barcode: String(line.barcode || '').trim(),
   expiryDate: line.expiryDate || null,
   mrp: num(shownMrp(line, info)),
   // SP of this new batch; with the tick it also becomes the default price from today

@@ -1,23 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { ArrowLeft, Plus, Trash2, Save, Send, Store as StoreIcon, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Loader2, Trash2, Save, Send, Search, UserPlus, UserCheck } from 'lucide-react';
 import { decryptData } from '@/utility/crypto';
-import Button from '@/components/inputs/Button';
-import Card from '../../../components/breadCrumbs/Card';
-import Loader from '@/components/loader/Loader';
-import { Input } from '@/components/inputs/Input';
-import { Label } from '@/components/inputs/Label';
-import Select from '@/components/inputs/Select';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
-import { getCustomers } from '../../customer/services/customerSlice';
+import {
+  AddLineBar, Badge, Button, DocumentLayout, Field, FormGrid, Input, Label, LINE_TD, LINE_TH, LineItemsTable, LineRow,
+  Section, Segmented, Spinner, Switch, ToastStack, TotalsInput, TotalsPanel, TotalsRow, TotalsToggle, useShortcuts,
+} from '@/components/ui';
 import ProductSearchPicker, { BarcodeScanInput } from '../components/ProductSearchPicker';
-import { getProductForLineApi } from '../services/productLookupService';
+import { getProductForLineApi, lookupCustomersApi, createCustomerQuickApi } from '../services/productLookupService';
 import BatchPickerModal from '../components/BatchPickerModal';
 import LinePriceNote from '../components/LinePriceNote';
 import { NO_BATCH, datedFieldsFromSaved, useDatedSalesLines } from '../components/datedPricing';
 import { canChangePrice } from '@/utility/shopPermissions';
-import { getStores } from '@/pages/storeManagement/stores/services/storeSlice';
 import {
   createSalesInvoice,
   updateSalesInvoice,
@@ -25,6 +20,21 @@ import {
   clearCurrentSalesInvoice,
   resetSalesInvoiceStatus,
 } from './services/salesInvoiceSlice';
+
+const emptySnapshot = (phone = '') => ({
+  name: '',
+  phone,
+  email: '',
+  gstin: '',
+  stateCode: '',
+  billingAddress: { street: '', city: '', state: '', pincode: '', country: 'India' },
+  shippingAddress: { street: '', city: '', state: '', pincode: '', country: 'India' },
+});
+
+const GSTIN_RE = /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const digits10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
 
 export default function CreateSalesInvoice() {
   const { id: encryptedId } = useParams();
@@ -35,11 +45,9 @@ export default function CreateSalesInvoice() {
   const isEditMode = !!id;
 
   const { currentInvoice, loading: invoiceLoading, success, error } = useSelector((state) => state.salesInvoice);
-  const { customers } = useSelector((state) => state.customer);
-  const { stores } = useSelector((state) => state.store);
 
   // Products picked on this invoice (from the async lookup, or loaded for an edited draft),
-  // keyed by id. Holds storeStocks so stock per store can be shown without loading the catalogue.
+  // keyed by id. Holds currentStock so stock can be shown without loading the catalogue.
   const [productCache, setProductCache] = useState({});
   const products = Object.values(productCache);
   const cacheProduct = (product) => {
@@ -47,19 +55,13 @@ export default function CreateSalesInvoice() {
   };
 
   // Form State
-  const [selectedStoreId, setSelectedStoreId] = useState('');
-  // Store saved on an edited draft — used to warn when it has since been deactivated.
-  const [draftStoreId, setDraftStoreId] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [customerSnapshot, setCustomerSnapshot] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    gstin: '',
-    stateCode: '',
-    billingAddress: { street: '', city: '', state: '', pincode: '', country: 'India' },
-    shippingAddress: { street: '', city: '', state: '', pincode: '', country: 'India' },
-  });
+  const [customerSnapshot, setCustomerSnapshot] = useState(() => emptySnapshot());
+  // Mobile number first: 'ask' → 'found' (autofilled) | 'notFound' → 'new' (Add customer form)
+  const [mobile, setMobile] = useState('');
+  const [customerMode, setCustomerMode] = useState('ask');
+  const [mobileLoading, setMobileLoading] = useState(false);
+  const latestMobile = useRef('');
 
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState('');
@@ -105,14 +107,12 @@ export default function CreateSalesInvoice() {
   // on the shelf ask "Which MRP?".
   const authUser = useSelector((state) => state.auth.user);
   const mayChangePrice = canChangePrice(authUser);
-  const dated = useDatedSalesLines({ lineItems, setLineItems, date: invoiceDate, storeId: selectedStoreId, productCache });
+  const dated = useDatedSalesLines({ lineItems, setLineItems, date: invoiceDate, productCache });
   const viewLines = dated.viewLines;
   const lockRate = !mayChangePrice;
 
   // Load dependency data
   useEffect(() => {
-    dispatch(getCustomers({ page: 1, limit: 1000 }));
-    dispatch(getStores());
     dispatch(resetSalesInvoiceStatus());
 
     if (isEditMode) {
@@ -130,33 +130,7 @@ export default function CreateSalesInvoice() {
     .map((item) => item.productId)
     .filter(Boolean);
 
-  // Available stores: if product(s) chosen, only show stores where ALL chosen products have stock > 0
-  const availableStores = (stores || []).filter((store) => {
-    // Inactive stores can never be used for a sale.
-    if (store.isActive === false) return false;
-    if (selectedProductIds.length === 0) return true;
-    return selectedProductIds.every((pId) => {
-      const prod = products?.find((p) => p._id === pId);
-      // Product details still loading (edited draft) — don't hide stores yet.
-      if (!prod) return true;
-      if (!prod.storeStocks) return false;
-      const entry = prod.storeStocks.find(
-        (s) => (s.storeId?._id || s.storeId)?.toString() === store._id.toString()
-      );
-      return entry && Number(entry.stock) > 0;
-    });
-  });
-
-  const selectedStore = stores?.find((s) => s._id?.toString() === selectedStoreId?.toString());
-
-  // Draft saved against a store that is now inactive: warn the user (saving is blocked below).
-  const inactiveDraftStore = draftStoreId
-    ? (stores || []).find((s) => s._id?.toString() === draftStoreId.toString() && s.isActive === false) || null
-    : null;
-  const showInactiveDraftWarning = !!inactiveDraftStore
-    && (!selectedStoreId || selectedStoreId.toString() === draftStoreId.toString());
-
-  // Load product details (incl. stock per store) for lines of an edited invoice.
+  // Load product details (incl. stock) for lines of an edited invoice.
   const lineProductKey = selectedProductIds.join(',');
   useEffect(() => {
     const missing = [...new Set(lineProductKey.split(',').filter(Boolean))].filter((pid) => !productCache[pid]);
@@ -174,78 +148,22 @@ export default function CreateSalesInvoice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineProductKey]);
 
-  // Automatically deselect store if the chosen product(s) are not available in it
-  useEffect(() => {
-    if (selectedStoreId && selectedProductIds.length > 0) {
-      const isCurrentStoreValid = availableStores.some(
-        (s) => s._id.toString() === selectedStoreId.toString()
-      );
-      if (!isCurrentStoreValid) {
-        setSelectedStoreId('');
-      }
-    }
-  }, [selectedProductIds.join(','), stores]);
-
-  // Options for Store <Select />
-  const storeOptions = availableStores.map((s) => {
-    let stockDetail = '';
-    if (selectedProductIds.length === 1) {
-      const prod = products?.find((p) => p._id === selectedProductIds[0]);
-      const entry = prod?.storeStocks?.find(
-        (st) => (st.storeId?._id || st.storeId)?.toString() === s._id.toString()
-      );
-      if (entry) {
-        stockDetail = ` (Stock: ${entry.stock})`;
-      }
-    }
-    return {
-      value: s._id,
-      label: `${s.name}${s.code ? ` [${s.code}]` : ''}${stockDetail}${s.isDefault ? ' ⭐ Default' : ''}`,
-    };
-  });
-
-  // Helper to get stock in currently selected store
-  const getProductStoreStock = (productId) => {
+  // Stock of a line's product (single location: the product's stock).
+  const getProductStock = (productId) => {
     if (!productId || !products) return null;
     const prod = products.find((p) => p._id === productId);
     if (!prod) return null;
-
-    if (selectedStoreId && prod.storeStocks && prod.storeStocks.length > 0) {
-      const storeEntry = prod.storeStocks.find(
-        (s) => (s.storeId?._id || s.storeId)?.toString() === selectedStoreId.toString()
-      );
-      return {
-        available: storeEntry ? Number(storeEntry.stock || 0) : 0,
-        storeSpecific: true,
-        storeCode: selectedStore?.code || selectedStore?.name || '',
-        storeName: selectedStore?.name || '',
-        total: prod.currentStock || 0,
-      };
-    }
-    return {
-      available: prod.currentStock || 0,
-      storeSpecific: false,
-      storeCode: '',
-      storeName: '',
-      total: prod.currentStock || 0,
-    };
+    return { available: Number(prod.currentStock || 0), total: Number(prod.currentStock || 0) };
   };
 
   // Populate form if in edit mode
   useEffect(() => {
     if (isEditMode && currentInvoice) {
-      setSelectedStoreId(currentInvoice.storeId?._id || currentInvoice.storeId || '');
-      setDraftStoreId(currentInvoice.storeId?._id || currentInvoice.storeId || '');
       setSelectedCustomerId(currentInvoice.customerId?._id || '');
-      setCustomerSnapshot(currentInvoice.customerSnapshot || {
-        name: '',
-        phone: '',
-        email: '',
-        gstin: '',
-        stateCode: '',
-        billingAddress: { street: '', city: '', state: '', pincode: '', country: 'India' },
-        shippingAddress: { street: '', city: '', state: '', pincode: '', country: 'India' },
-      });
+      setCustomerSnapshot(currentInvoice.customerSnapshot || emptySnapshot());
+      setMobile(digits10(currentInvoice.customerSnapshot?.phone));
+      latestMobile.current = digits10(currentInvoice.customerSnapshot?.phone);
+      setCustomerMode('found');
       setInvoiceDate(currentInvoice.invoiceDate ? new Date(currentInvoice.invoiceDate).toISOString().split('T')[0] : '');
       setDueDate(currentInvoice.dueDate ? new Date(currentInvoice.dueDate).toISOString().split('T')[0] : '');
       setPlaceOfSupply(currentInvoice.placeOfSupply || '');
@@ -269,7 +187,7 @@ export default function CreateSalesInvoice() {
             isGstApplicable: item.isGstApplicable !== false,
             taxPercent: item.taxPercent || 0,
             cessPercent: item.cessPercent || 0,
-            ...datedFieldsFromSaved(item, currentInvoice.storeId?._id || currentInvoice.storeId),
+            ...datedFieldsFromSaved(item),
           }))
         );
       }
@@ -284,23 +202,9 @@ export default function CreateSalesInvoice() {
     }
   }, [success, dispatch, navigate]);
 
-  const handleCustomerChange = (customerId) => {
-    setSelectedCustomerId(customerId);
-    if (!customerId) {
-      setCustomerSnapshot({
-        name: '',
-        phone: '',
-        email: '',
-        gstin: '',
-        stateCode: '',
-        billingAddress: { street: '', city: '', state: '', pincode: '', country: 'India' },
-        shippingAddress: { street: '', city: '', state: '', pincode: '', country: 'India' },
-      });
-      setInvoiceType('B2C');
-      return;
-    }
-
-    const customer = customers.find((c) => c._id === customerId);
+  // Fills the customer details from a saved customer.
+  const applyCustomer = (customer) => {
+    setSelectedCustomerId(customer._id);
     if (customer) {
       const addresses = customer.addresses || [];
       const primaryAddr = addresses.find((a) => a.isDefault) || addresses[0] || customer.address || {};
@@ -331,6 +235,70 @@ export default function CreateSalesInvoice() {
         setPlaceOfSupply(primaryAddr.state);
       }
     }
+  };
+
+  // Mobile number typed: at 10 digits look it up in the customer list.
+  const findCustomer = async (phone) => {
+    if (phone.length !== 10) {
+      showToast('Enter a 10-digit mobile number.', 'danger');
+      return;
+    }
+    setMobileLoading(true);
+    try {
+      const rows = await lookupCustomersApi(phone);
+      if (latestMobile.current !== phone) return; // the number changed meanwhile
+      const match = rows.find((c) => digits10(c.phone) === phone);
+      if (match) {
+        applyCustomer(match);
+        setCustomerMode('found');
+      } else {
+        setSelectedCustomerId('');
+        setCustomerSnapshot(emptySnapshot(phone));
+        setInvoiceType('B2C');
+        setCustomerMode('notFound');
+      }
+    } catch {
+      showToast('Could not check the mobile number. Please try again.', 'danger');
+    } finally {
+      setMobileLoading(false);
+    }
+  };
+
+  const handleMobileChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setMobile(val);
+    latestMobile.current = val;
+    if (customerMode !== 'ask') {
+      // another number: start again
+      setSelectedCustomerId('');
+      setCustomerSnapshot(emptySnapshot(val));
+      setInvoiceType('B2C');
+      setCustomerMode('ask');
+    }
+    if (val.length === 10) findCustomer(val);
+  };
+
+  const startAddCustomer = () => {
+    setCustomerSnapshot(emptySnapshot(mobile));
+    setCustomerMode('new');
+  };
+
+  // New customer (Add customer): saved to the customer list before the invoice.
+  const saveNewCustomer = async () => {
+    const [firstName, ...rest] = customerSnapshot.name.trim().split(/\s+/);
+    const addr = customerSnapshot.billingAddress;
+    const gstin = customerSnapshot.gstin;
+    const created = await createCustomerQuickApi({
+      firstName,
+      lastName: rest.join(' '),
+      email: customerSnapshot.email.trim(),
+      phone: mobile,
+      ...(gstin ? { gstin, stateCode: gstin.slice(0, 2) } : {}),
+      addresses: [{ type: 'home', street: addr.street || '', city: addr.city || '', state: addr.state || '', pincode: addr.pincode || '', country: addr.country || 'India', isDefault: true }],
+    });
+    setSelectedCustomerId(created?._id || '');
+    setCustomerMode('found');
+    return created?._id || null;
   };
 
   const handlePincodeChange = async (e) => {
@@ -494,22 +462,20 @@ export default function CreateSalesInvoice() {
 
   const totals = calculateTotals();
 
-  const handleSaveInvoice = (status = 'draft') => {
+  const handleSaveInvoice = async (status = 'draft') => {
     setIsSubmitted(true);
+    if (customerMode === 'ask' || customerMode === 'notFound') {
+      showToast(customerMode === 'ask' ? 'Enter the customer\'s mobile number first.' : 'No customer with this number — click "Add customer".', 'danger');
+      return;
+    }
+    if (customerMode === 'new' && !EMAIL_RE.test(customerSnapshot.email.trim())) {
+      showToast('Enter a valid email for the new customer.', 'danger');
+      return;
+    }
     const hasInvalidCustomerFields = !customerSnapshot.name || !customerSnapshot.phone || !customerSnapshot.billingAddress.pincode;
     const invalidItem = viewLines.find((item) => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0);
     const gstin = customerSnapshot.gstin;
-    const invalidGstin = gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/.test(gstin);
-
-    if (!selectedStoreId) {
-      showToast('Dispatch Store / Warehouse is required. Please select a warehouse.', 'danger');
-      return;
-    }
-
-    if (selectedStore && selectedStore.isActive === false) {
-      showToast(`"${selectedStore.name}" is inactive. Please choose an active store.`, 'danger');
-      return;
-    }
+    const invalidGstin = gstin && !GSTIN_RE.test(gstin);
 
     if (invalidItem || hasInvalidCustomerFields || invalidGstin) {
       if (invalidItem) {
@@ -531,21 +497,30 @@ export default function CreateSalesInvoice() {
     if (status !== 'draft') {
       const outOfStockItem = lineItems.find((item) => {
         if (!item.productId) return false;
-        const stockInfo = getProductStoreStock(item.productId);
+        const stockInfo = getProductStock(item.productId);
         return stockInfo && stockInfo.available < Number(item.qty);
       });
       if (outOfStockItem) {
         showToast(
-          `Insufficient stock in selected store for "${outOfStockItem.productName}". Available: ${getProductStoreStock(outOfStockItem.productId)?.available || 0}, Required: ${outOfStockItem.qty}`,
+          `Insufficient stock for "${outOfStockItem.productName}". Available: ${getProductStock(outOfStockItem.productId)?.available || 0}, Required: ${outOfStockItem.qty}`,
           'danger'
         );
         return;
       }
     }
 
+    let customerId = selectedCustomerId || null;
+    if (customerMode === 'new') {
+      try {
+        customerId = await saveNewCustomer();
+      } catch (err) {
+        showToast(err?.response?.data?.message || 'Could not save the new customer.', 'danger');
+        return;
+      }
+    }
+
     const payload = {
-      storeId: selectedStoreId,
-      customerId: selectedCustomerId || null,
+      customerId,
       customerSnapshot,
       invoiceDate,
       dueDate: dueDate || null,
@@ -580,171 +555,226 @@ export default function CreateSalesInvoice() {
     }
   };
 
-  // Map to select options format
-  const customerOptions = [
-    { value: '', label: 'Walk-in Customer' },
-    ...customers.map((c) => ({
-      value: c._id,
-      label: `${c.firstName} ${c.lastName || ''} (${c.phone || 'No Phone'})`,
-    })),
-  ];
+  const showCustomerForm = customerMode === 'found' || customerMode === 'new';
+
+  useShortcuts({
+    F2: addLineItem,
+    'mod+s': () => !invoiceLoading && handleSaveInvoice('draft'),
+  });
+
+  const header = {
+    title: isEditMode ? 'Edit sales invoice' : 'New sales invoice',
+    docNo: isEditMode ? currentInvoice?.invoiceNumber || currentInvoice?.invoiceNo : undefined,
+  };
 
   if (isEditMode && invoiceLoading) {
     return (
-      <Card
-        h1="Sales Invoice"
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-6 flex flex-col gap-6"
+      <DocumentLayout
+        header={{ ...header, actions: <Button variant="secondary" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>Back</Button> }}
       >
-        <Loader className="mb-4" />
-      </Card>
+        <Section>
+          <div className="flex justify-center py-10"><Spinner label="Loading invoice…" /></div>
+        </Section>
+      </DocumentLayout>
     );
   }
 
-  return (
-    <div className="flex flex-col gap-6  mx-auto text-[var(--vs-text-primary)]">
-      <Card
-        h1={isEditMode ? 'Edit Sales Invoice' : 'Create Sales Invoice'}
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-6 flex flex-col gap-6"
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left / Main form elements */}
-          <div className="lg:col-span-2 flex flex-col gap-6">
+  const confirmButton = (className) => (
+    <Button onClick={() => handleSaveInvoice('unpaid')} loading={invoiceLoading} startIcon={<Send />} className={className}>
+      {invoiceLoading ? 'Saving...' : 'Save & Confirm'}
+    </Button>
+  );
 
-            {error && (
-              <div className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 p-4 rounded-xl border border-red-200 dark:border-red-500/20">
-                <div className="font-semibold text-sm">{error.message || 'Validation failed'}</div>
-                {error.errors && error.errors.length > 0 && (
-                  <ul className="list-disc pl-5 mt-1 text-sm">
-                    {error.errors.map((err, i) => <li key={i}>{err}</li>)}
-                  </ul>
-                )}
+  const stockBadges = (item) => {
+    if (!item.productId) return null;
+    const stockInfo = getProductStock(item.productId);
+    if (!stockInfo) return null;
+    const isInsufficient = Number(item.qty || 0) > stockInfo.available;
+    return (
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <Badge tone={stockInfo.available <= 0 ? 'danger' : 'success'}>
+          Remaining stock: {stockInfo.available} {item.unit || 'units'}
+        </Badge>
+        {isInsufficient && <Badge tone="danger" icon={AlertTriangle}>Insufficient stock</Badge>}
+      </div>
+    );
+  };
+
+  const isShort = (item) => {
+    const stockInfo = item.productId ? getProductStock(item.productId) : null;
+    return !!stockInfo && Number(item.qty || 0) > stockInfo.available;
+  };
+
+  const lineTotalOf = (item) => {
+    const taxable = Number(item.qty || 0) * Number(item.rate || 0) * (1 - Number(item.discountPercent || 0) / 100);
+    return taxable * (1 + Number(item.taxPercent || 0) / 100);
+  };
+
+  return (
+    <DocumentLayout
+      header={{
+        ...header,
+        actions: (
+          <>
+            <Button variant="ghost" onClick={() => navigate(-1)} className="hidden sm:inline-flex">
+              Cancel
+            </Button>
+            <Button variant="secondary" onClick={() => handleSaveInvoice('draft')} loading={invoiceLoading} startIcon={<Save />}>
+              {invoiceLoading ? 'Saving...' : 'Save Draft'}
+            </Button>
+            {confirmButton('hidden lg:inline-flex')}
+          </>
+        ),
+      }}
+      summary={
+        <TotalsPanel
+          title="Bill summary"
+          total={inr(totals.totalAmount)}
+          totalLabel="Grand total"
+          note={
+            <>
+              Terms &amp; notes, design and bank details on the invoice come from{' '}
+              <Link to="/sales/invoice-layout" className="font-semibold text-white underline-offset-2 hover:underline">Invoice Layout</Link>.
+              {' '}F2 adds a row · Ctrl S saves a draft.
+            </>
+          }
+        >
+          <TotalsRow label="Subtotal" value={inr(totals.subtotal)} />
+          <TotalsRow label="GST total" value={inr(totals.taxAmount)} />
+          <TotalsRow label="Overall discount (%)">
+            <TotalsInput
+              min="0"
+              max="100"
+              placeholder="%"
+              aria-label="Overall discount percent"
+              value={overallDiscountPercent}
+              onChange={(e) => setOverallDiscountPercent(Number(e.target.value))}
+            />
+          </TotalsRow>
+          {totals.overallDiscount > 0 && <TotalsRow label="Discount amount" value={`- ${inr(totals.overallDiscount)}`} tone="danger" />}
+          <TotalsToggle label="Round off total" checked={roundOff} onChange={setRoundOff} />
+        </TotalsPanel>
+      }
+      mobileBar={{ label: 'Grand total', value: inr(totals.totalAmount), action: confirmButton() }}
+    >
+      {error && (
+        <div role="alert" className="rounded-control bg-danger-soft px-4 py-3 text-danger">
+          <div className="text-sm font-semibold">{error.message || 'Validation failed'}</div>
+          {error.errors && error.errors.length > 0 && (
+            <ul className="mt-1 list-disc pl-5 text-sm">
+              {error.errors.map((err, i) => <li key={i}>{err}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Customer */}
+      <Section title="Customer" description="Find the customer by mobile number, or bill a new one.">
+        <div className="flex flex-col gap-4">
+          <FormGrid cols={2}>
+            <div className="flex min-w-0 flex-col">
+              <Label htmlFor="si-mobile" required>Customer mobile no.</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="si-mobile"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="10-digit mobile number"
+                  value={mobile}
+                  onChange={handleMobileChange}
+                  invalid={isSubmitted && mobile.length !== 10}
+                  endIcon={mobileLoading ? <Loader2 className="animate-spin text-brand" /> : undefined}
+                />
+                <Button variant="secondary" onClick={() => findCustomer(mobile)} disabled={mobileLoading} startIcon={<Search />} className="h-11">
+                  Find
+                </Button>
+              </div>
+              {customerMode === 'found' && selectedCustomerId && (
+                <Badge tone="success" icon={UserCheck} className="mt-2 w-fit">Customer found — details filled in.</Badge>
+              )}
+              {customerMode === 'new' && (
+                <Badge tone="primary" icon={UserPlus} className="mt-2 w-fit">New customer — saved to your customer list with the invoice.</Badge>
+              )}
+            </div>
+
+            {customerMode === 'notFound' && (
+              <div className="flex flex-col justify-end gap-2">
+                <div className="text-xs text-ink-muted">No customer with this mobile number.</div>
+                <Button onClick={startAddCustomer} startIcon={<UserPlus />} className="w-fit">
+                  Add customer
+                </Button>
               </div>
             )}
+          </FormGrid>
 
-            {/* Customer Details section */}
-            <Card title="Customer Information" >
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <Label>Select Customer (Or leave as Walk-in)</Label>
-                  <Select
-                    options={customerOptions}
-                    value={selectedCustomerId}
-                    onChange={handleCustomerChange}
-                    placeholder="Search/Select Customer..."
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Customer Name <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="text"
-                    value={customerSnapshot.name}
-                    onChange={(e) => setCustomerSnapshot({ ...customerSnapshot, name: e.target.value })}
-                    className={`${isSubmitted && !customerSnapshot.name ? '!border-red-500' : ''}`}
-                  />
-                  {isSubmitted && !customerSnapshot.name && <div className="text-red-500 text-xs mt-0.5">Customer Name is required</div>}
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Customer Phone <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="text"
-                    value={customerSnapshot.phone}
-                    onChange={(e) => setCustomerSnapshot({ ...customerSnapshot, phone: e.target.value })}
-                    className={`${isSubmitted && !customerSnapshot.phone ? '!border-red-500' : ''}`}
-                  />
-                  {isSubmitted && !customerSnapshot.phone && <div className="text-red-500 text-xs mt-0.5">Customer Phone is required</div>}
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Customer Email</Label>
-                  <Input
-                    type="email"
-                    value={customerSnapshot.email}
-                    onChange={(e) => setCustomerSnapshot({ ...customerSnapshot, email: e.target.value })}
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Customer GSTIN</Label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 27AAQCP3629R1ZF"
-                    value={customerSnapshot.gstin}
-                    onChange={(e) => {
-                      const val = e.target.value.toUpperCase();
-                      setCustomerSnapshot({ ...customerSnapshot, gstin: val });
-                      setInvoiceType(val ? 'B2B' : 'B2C');
-                    }}
-                    className={`${isSubmitted && customerSnapshot.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/.test(customerSnapshot.gstin) ? '!border-red-500' : ''}`}
-                  />
-                  {isSubmitted && customerSnapshot.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/.test(customerSnapshot.gstin) && (
-                    <div className="text-red-500 text-xs mt-0.5">Please enter a valid 15-character GSTIN.</div>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Billing Pin Code <span className="text-red-500">*</span></Label>
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      maxLength={6}
-                      value={customerSnapshot.billingAddress.pincode}
-                      onChange={handlePincodeChange}
-                      className={`${isSubmitted && !customerSnapshot.billingAddress.pincode ? '!border-red-500' : ''}`}
-                    />
-                    {pincodeLoading && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <span className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin inline-block"></span>
-                      </div>
-                    )}
-                  </div>
-                  {isSubmitted && !customerSnapshot.billingAddress.pincode && <div className="text-red-500 text-xs mt-0.5">Billing Pin Code is required</div>}
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>City</Label>
-                  <Input
-                    type="text"
-                    value={customerSnapshot.billingAddress.city || ''}
-                    onChange={(e) =>
-                      setCustomerSnapshot({
-                        ...customerSnapshot,
-                        billingAddress: { ...customerSnapshot.billingAddress, city: e.target.value },
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>State</Label>
-                  <Input
-                    type="text"
-                    value={customerSnapshot.billingAddress.state || ''}
-                    onChange={(e) =>
-                      setCustomerSnapshot({
-                        ...customerSnapshot,
-                        billingAddress: { ...customerSnapshot.billingAddress, state: e.target.value },
-                      })
-                    }
-                  />
-                </div>
-
-
-              </div>
-              <div className="">
-                <Label>Billing Address (Street)</Label>
+          {showCustomerForm && (
+            <FormGrid cols={3}>
+              <Field label="Customer name" required error={isSubmitted && !customerSnapshot.name ? 'Customer Name is required' : undefined}>
                 <Input
-                  type="text"
+                  value={customerSnapshot.name}
+                  onChange={(e) => setCustomerSnapshot({ ...customerSnapshot, name: e.target.value })}
+                />
+              </Field>
+              <Field
+                label="Customer email"
+                required={customerMode === 'new'}
+                error={isSubmitted && customerMode === 'new' && !EMAIL_RE.test(customerSnapshot.email.trim()) ? 'A valid email is required for a new customer' : undefined}
+              >
+                <Input
+                  type="email"
+                  value={customerSnapshot.email}
+                  onChange={(e) => setCustomerSnapshot({ ...customerSnapshot, email: e.target.value })}
+                />
+              </Field>
+              <Field
+                label="Customer GSTIN"
+                error={isSubmitted && customerSnapshot.gstin && !GSTIN_RE.test(customerSnapshot.gstin) ? 'Please enter a valid 15-character GSTIN.' : undefined}
+              >
+                <Input
+                  placeholder="e.g. 27AAQCP3629R1ZF"
+                  value={customerSnapshot.gstin}
+                  className="font-mono uppercase"
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    setCustomerSnapshot({ ...customerSnapshot, gstin: val });
+                    setInvoiceType(val ? 'B2B' : 'B2C');
+                  }}
+                />
+              </Field>
+              <Field label="Billing pin code" required error={isSubmitted && !customerSnapshot.billingAddress.pincode ? 'Billing Pin Code is required' : undefined}>
+                <Input
+                  maxLength={6}
+                  inputMode="numeric"
+                  value={customerSnapshot.billingAddress.pincode}
+                  onChange={handlePincodeChange}
+                  endIcon={pincodeLoading ? <Loader2 className="animate-spin text-brand" /> : undefined}
+                />
+              </Field>
+              <Field label="City">
+                <Input
+                  value={customerSnapshot.billingAddress.city || ''}
+                  onChange={(e) =>
+                    setCustomerSnapshot({
+                      ...customerSnapshot,
+                      billingAddress: { ...customerSnapshot.billingAddress, city: e.target.value },
+                    })
+                  }
+                />
+              </Field>
+              <Field label="State">
+                <Input
+                  value={customerSnapshot.billingAddress.state || ''}
+                  onChange={(e) =>
+                    setCustomerSnapshot({
+                      ...customerSnapshot,
+                      billingAddress: { ...customerSnapshot.billingAddress, state: e.target.value },
+                    })
+                  }
+                />
+              </Field>
+              <Field label="Billing address (street)" className="col-span-full">
+                <Input
                   placeholder="Street details..."
                   value={customerSnapshot.billingAddress.street}
                   onChange={(e) =>
@@ -754,505 +784,238 @@ export default function CreateSalesInvoice() {
                     })
                   }
                 />
-              </div>
-            </Card>
+              </Field>
+            </FormGrid>
+          )}
+        </div>
+      </Section>
 
-
-
-            {/* Terms & notes print from Sales → Invoice Layout */}
-            <div className="px-3 py-2.5 rounded-xl border border-dashed border-[var(--vs-border)] text-xs text-[var(--vs-text-secondary)]">
-              Terms &amp; Notes, design and bank details on the invoice come from{' '}
-              <Link to="/sales/invoice-layout" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">Invoice Layout</Link>.
-            </div>
-
+      {/* Invoice details */}
+      <Section title="Invoice details">
+        <FormGrid cols={3}>
+          <Field label="Invoice date" required>
+            <Input type="date" required value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+          </Field>
+          <Field label="Due date">
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </Field>
+          <Field label="Place of supply (state)">
+            <Input value={placeOfSupply} onChange={(e) => setPlaceOfSupply(e.target.value)} />
+          </Field>
+          <div className="flex min-w-0 flex-col">
+            <Label>Invoice type</Label>
+            <Segmented
+              aria-label="Invoice type"
+              value={invoiceType}
+              onChange={setInvoiceType}
+              options={[{ value: 'B2C', label: 'B2C (Retail)' }, { value: 'B2B', label: 'B2B (Business)' }]}
+              className="w-fit"
+            />
           </div>
+          <div className="flex min-w-0 flex-col">
+            <Label>Reverse charge</Label>
+            <div className="flex h-11 items-center">
+              <Switch checked={reverseCharge} onChange={setReverseCharge} label={reverseCharge ? 'Yes — buyer pays the GST' : 'No'} />
+            </div>
+          </div>
+        </FormGrid>
+      </Section>
 
-          {/* Right sidebar form elements */}
-          <div className="flex flex-col gap-6">
-            {/* Invoice Configuration section */}
-            <Card title="Details & Summary" >
-
-              <div className="flex flex-col gap-3.5">
-                {/* Dispatch Store */}
-                <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-400">
-                    <StoreIcon className="w-4 h-4" />
-                    <span>Dispatch Store / Warehouse <span className="text-red-500">*</span></span>
-                  </div>
-                  <Select
-                    options={storeOptions}
-                    value={selectedStoreId}
-                    onChange={(val) => setSelectedStoreId(val)}
-                    placeholder={
-                      selectedProductIds.length > 0
-                        ? "Select Warehouse with Stock *"
-                        : "Select Store / Warehouse *"
-                    }
-                    error={isSubmitted && !selectedStoreId}
+      {/* Line items */}
+      <Section title="Items" description={lockRate ? 'Rates come from the Price master.' : 'Rates are before GST.'} bodyClassName="px-3 sm:px-4">
+        <div className="flex flex-col gap-3">
+          {/* Desktop table */}
+          <LineItemsTable
+            className="hidden md:block"
+            minWidth={760}
+            head={
+            <tr>
+              <th className={`${LINE_TH} w-auto min-w-[260px]`}>Product <span className="text-danger">*</span></th>
+              <th className={`${LINE_TH} w-[10%] min-w-[90px] text-right`}>Qty <span className="text-danger">*</span></th>
+              <th className={`${LINE_TH} w-[14%] min-w-[110px] text-right`}>Rate (₹) <span className="text-danger">*</span></th>
+              <th className={`${LINE_TH} w-[11%] min-w-[90px] text-right`}>Disc (%)</th>
+              <th className={`${LINE_TH} w-[8%] min-w-[70px] text-right`}>GST</th>
+              <th className={`${LINE_TH} w-[14%] min-w-[110px] text-right`}>Amount (₹)</th>
+              <th className={`${LINE_TH} w-[5%] min-w-[44px]`}><span className="sr-only">Remove</span></th>
+            </tr>
+            }
+          >
+            {viewLines.map((item, idx) => (
+              <LineRow key={idx} tone={isShort(item) ? 'warning' : undefined}>
+                <td className={LINE_TD}>
+                  <ProductSearchPicker
+                    value={item.productId}
+                    selectedLabel={item.productName}
+                    onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
+                    error={isSubmitted && !item.productId}
                   />
-                  {isSubmitted && !selectedStoreId && (
-                    <div className="text-red-500 text-xs font-medium mt-0.5">
-                      Dispatch Store / Warehouse is required.
-                    </div>
-                  )}
-                  {showInactiveDraftWarning && (
-                    <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400 text-xs font-medium mt-0.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-lg px-2 py-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span>
-                        This draft was saved for &quot;{inactiveDraftStore.name}&quot;, which is now inactive.
-                        Please choose an active store before saving.
-                      </span>
-                    </div>
-                  )}
-                  {selectedProductIds.length > 0 && availableStores.length === 0 && (
-                    <div className="text-amber-600 dark:text-amber-400 text-xs mt-0.5 font-medium">
-                      ⚠️ No warehouse currently has all selected product(s) in stock.
-                    </div>
-                  )}
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                    Stock will be deducted from this store upon sale.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Invoice Date</Label>
+                  {isSubmitted && !item.productId && <div className="mt-1 text-xs text-danger">Product is required</div>}
+                  <LinePriceNote
+                    line={item}
+                    showBatch
+                    onChangeBatch={() => dated.changeBatch(idx)}
+                    onReason={(r) => dated.setReason(idx, r)}
+                    onReset={() => dated.resetPrice(idx)}
+                    submitted={isSubmitted}
+                  />
+                  {stockBadges(item)}
+                </td>
+                <td className={LINE_TD}>
                   <Input
-                    type="date"
-                    required
-                    value={invoiceDate}
-                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    size="sm"
+                    type="number"
+                    min="1"
+                    value={item.qty}
+                    onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))}
+                    invalid={isSubmitted && Number(item.qty) <= 0}
+                    className="text-right tabular-nums"
                   />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Due Date</Label>
+                  {isSubmitted && Number(item.qty) <= 0 && <div className="mt-1 text-right text-xs text-danger">Invalid Qty</div>}
+                </td>
+                <td className={LINE_TD}>
                   <Input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
+                    size="sm"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.rate}
+                    onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
+                    readOnly={lockRate}
+                    title={lockRate ? 'Price comes from the Price master' : undefined}
+                    invalid={isSubmitted && Number(item.rate) < 0}
+                    className="text-right tabular-nums"
                   />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Place of Supply (State)</Label>
+                  {isSubmitted && Number(item.rate) < 0 && <div className="mt-1 text-right text-xs text-danger">Invalid Rate</div>}
+                </td>
+                <td className={LINE_TD}>
                   <Input
-                    type="text"
-                    value={placeOfSupply}
-                    onChange={(e) => setPlaceOfSupply(e.target.value)}
+                    size="sm"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={item.discountPercent}
+                    onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
+                    readOnly={lockRate}
+                    className="text-right tabular-nums"
                   />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Invoice Type</Label>
-                  <select
-                    value={invoiceType}
-                    onChange={(e) => setInvoiceType(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm outline-none text-[var(--vs-text-primary)]"
+                </td>
+                <td className={`${LINE_TD} pt-5 text-right font-medium tabular-nums`}>
+                  {item.isGstApplicable ? `${item.taxPercent}%` : '—'}
+                </td>
+                <td className={`${LINE_TD} pt-5 text-right font-bold tabular-nums`}>
+                  {lineTotalOf(item).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+                <td className={`${LINE_TD} pt-3.5 text-center`}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove row ${idx + 1}`}
+                    onClick={() => removeLineItem(idx)}
+                    disabled={lineItems.length <= 1}
+                    className="hover:bg-danger-soft hover:text-danger"
                   >
-                    <option value="B2C">B2C (Retail)</option>
-                    <option value="B2B">B2B (Business)</option>
-                  </select>
+                    <Trash2 />
+                  </Button>
+                </td>
+              </LineRow>
+            ))}
+          </LineItemsTable>
+
+          {/* Phone: one card per line */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {viewLines.map((item, idx) => (
+              <div key={idx} className={`flex flex-col gap-3 rounded-control p-4 ${isShort(item) ? 'bg-highlight-soft' : 'bg-surface ring-1 ring-line'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-ink-subtle">Item #{idx + 1}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove item ${idx + 1}`}
+                    onClick={() => removeLineItem(idx)}
+                    disabled={lineItems.length <= 1}
+                    className="hover:bg-danger-soft hover:text-danger"
+                  >
+                    <Trash2 />
+                  </Button>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-gray-100 dark:border-white/5 pt-3 mt-1">
-                  <span className="text-sm font-semibold">Reverse Charge</span>
-                  <input
-                    type="checkbox"
-                    checked={reverseCharge}
-                    onChange={(e) => setReverseCharge(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 outline-none cursor-pointer"
+                <div className="flex flex-col">
+                  <Label required>Product</Label>
+                  <ProductSearchPicker
+                    value={item.productId}
+                    selectedLabel={item.productName}
+                    onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
+                    error={isSubmitted && !item.productId}
                   />
-                </div>
-
-                <div className="flex items-center justify-between border-t border-gray-100 dark:border-white/5 pt-3">
-                  <span className="text-sm font-semibold">Round Off Total</span>
-                  <input
-                    type="checkbox"
-                    checked={roundOff}
-                    onChange={(e) => setRoundOff(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 outline-none cursor-pointer"
+                  {isSubmitted && !item.productId && <div className="mt-1 text-xs text-danger">Product is required</div>}
+                  <LinePriceNote
+                    line={item}
+                    showBatch
+                    onChangeBatch={() => dated.changeBatch(idx)}
+                    onReason={(r) => dated.setReason(idx, r)}
+                    onReset={() => dated.resetPrice(idx)}
+                    submitted={isSubmitted}
                   />
+                  {stockBadges(item)}
                 </div>
-              </div>
 
-              {/* Price Calculation Box */}
-              <div className="border-t border-gray-200 dark:border-white/10 pt-4 flex flex-col gap-2.5 text-sm">
-                <div className="flex items-center justify-between text-[var(--vs-text-secondary)]">
-                  <span>Subtotal</span>
-                  <span className="font-mono">₹{totals.subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-[var(--vs-text-secondary)]">
-                  <span>GST Total</span>
-                  <span className="font-mono">₹{totals.taxAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-[var(--vs-text-secondary)]">
-                  <span>Overall Discount</span>
-                  <div className="flex items-center gap-1.5 text-xs font-mono">
-                    <input
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Qty" required error={isSubmitted && Number(item.qty) <= 0 ? 'Invalid Qty' : undefined}>
+                    <Input type="number" min="1" value={item.qty} onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))} />
+                  </Field>
+                  <Field label="Rate (₹)" required error={isSubmitted && Number(item.rate) < 0 ? 'Invalid Rate' : undefined}>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.rate}
+                      onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
+                      readOnly={lockRate}
+                      title={lockRate ? 'Price comes from the Price master' : undefined}
+                    />
+                  </Field>
+                  <Field label="Discount (%)">
+                    <Input
                       type="number"
                       min="0"
                       max="100"
-                      placeholder="%"
-                      value={overallDiscountPercent}
-                      onChange={(e) => setOverallDiscountPercent(Number(e.target.value))}
-                      className="w-12 rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 px-1 py-0.5 text-center text-xs outline-none text-[var(--vs-text-primary)]"
+                      value={item.discountPercent}
+                      onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
+                      readOnly={lockRate}
                     />
-                    <span>%</span>
+                  </Field>
+                  <div className="flex flex-col">
+                    <Label>GST</Label>
+                    <div className="flex h-11 items-center justify-center rounded-control bg-surface text-sm font-medium text-ink">
+                      {item.isGstApplicable ? `${item.taxPercent}%` : '—'}
+                    </div>
                   </div>
                 </div>
-                {totals.overallDiscount > 0 && (
-                  <div className="flex items-center justify-between text-[var(--vs-text-secondary)] text-xs">
-                    <span>Discount Amt</span>
-                    <span className="text-rose-500 font-mono">-₹{totals.overallDiscount.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between border-t border-gray-200 dark:border-white/10 pt-3 text-base font-bold text-[var(--vs-text-primary)]">
-                  <span>Grand Total</span>
-                  <span className="font-mono text-indigo-600 dark:text-indigo-400">₹{totals.totalAmount.toFixed(2)}</span>
-                </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-col gap-2 border-t border-gray-200 dark:border-white/10 pt-4">
-                <Button
-                  type="button"
-                  variant="primary"
-                  className="w-full flex items-center justify-center gap-2"
-                  onClick={() => handleSaveInvoice('unpaid')}
-                  disabled={invoiceLoading}
-                >
-                  {invoiceLoading ? (
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  {invoiceLoading ? 'Saving...' : 'Save & Confirm'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full flex items-center justify-center gap-2 border-dashed"
-                  onClick={() => handleSaveInvoice('draft')}
-                  disabled={invoiceLoading}
-                >
-                  {invoiceLoading ? (
-                    <span className="w-4 h-4 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  {invoiceLoading ? 'Saving...' : 'Save Draft'}
-                </Button>
+                <div className="flex items-center justify-between border-t border-line pt-2 text-sm font-semibold">
+                  <span className="text-ink-muted">Line total</span>
+                  <span className="tabular-nums text-ink">{inr(lineTotalOf(item))}</span>
+                </div>
               </div>
-            </Card>
+            ))}
           </div>
-        </div>
 
-        {/* Line items section */}
-        <Card
-          title="Line Items"
-          bodyClassName="p-2 flex flex-col gap-4"
-          rightNode={
-            <div className="flex flex-col sm:flex-row sm:items-start gap-2 w-full sm:w-auto">
-              <BarcodeScanInput storeId={selectedStoreId} onProduct={handleScannedProduct} />
-              <Button type="button" onClick={addLineItem} variant="primary" className="!h-8 px-2.5 text-xs">
-                <Plus className="w-3.5 h-3.5 mr-1" /> Add Row
-              </Button>
+          <AddLineBar onAdd={addLineItem} addLabel="Add row">
+            <BarcodeScanInput onProduct={handleScannedProduct} />
+          </AddLineBar>
+
+          {isSubmitted && lineItems.some((item) => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0) && (
+            <div role="alert" className="text-sm font-medium text-danger">
+              Please fill out all required line items with valid products, quantities, and rates.
             </div>
-          }
-        >
-
-          {/* Desktop Table View (Hidden on mobile) */}
-          <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-300 dark:border-white/20">
-            <table className="w-full text-sm border-collapse min-w-[700px]">
-              <thead className="bg-gray-50/50 dark:bg-slate-800/50">
-                <tr className="text-left text-xs font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
-                  <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-auto min-w-[250px]">Product <span className="text-red-500">*</span></th>
-                  <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[10%] text-center min-w-[80px]">Qty <span className="text-red-500">*</span></th>
-                  <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[15%] text-center min-w-[100px]">Rate (₹) <span className="text-red-500">*</span></th>
-                  <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[12%] text-center min-w-[100px]">Discount (%)</th>
-                  <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[15%] text-center min-w-[100px]">GST (%)</th>
-                  <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 text-center w-[15%] min-w-[100px]">Total (₹)</th>
-                  <th className="py-3 px-3 border-b border-gray-300 dark:border-white/20 w-[5%] text-center min-w-[40px]">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {viewLines.map((item, idx) => {
-                  const qty = Number(item.qty || 0);
-                  const rate = Number(item.rate || 0);
-                  const disc = Number(item.discountPercent || 0);
-                  const gst = Number(item.taxPercent || 0);
-                  const taxable = qty * rate * (1 - disc / 100);
-                  const lineTotal = taxable * (1 + gst / 100);
-
-                  const isLast = idx === lineItems.length - 1;
-                  const rowBorder = isLast ? "" : "border-b border-gray-300 dark:border-white/20";
-
-                  return (
-                    <tr key={idx} className={`${rowBorder} align-middle hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors`}>
-                      <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
-                        <ProductSearchPicker
-                          value={item.productId}
-                          selectedLabel={item.productName}
-                          storeId={selectedStoreId}
-                          onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
-                          error={isSubmitted && !item.productId}
-                        />
-                        {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-1">Product is required</div>}
-                        <LinePriceNote
-                          line={item}
-                          showBatch
-                          onChangeBatch={() => dated.changeBatch(idx)}
-                          onReason={(r) => dated.setReason(idx, r)}
-                          onReset={() => dated.resetPrice(idx)}
-                          submitted={isSubmitted}
-                        />
-                        {item.productId && (() => {
-                          const stockInfo = getProductStoreStock(item.productId);
-                          if (!stockInfo) return null;
-                          const isLow = stockInfo.available <= 0;
-                          const isInsufficient = Number(item.qty || 0) > stockInfo.available;
-
-                          if (!selectedStoreId) {
-                            return (
-                              <div className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/40">
-                                <span>⚠️ Select Warehouse in Details & Summary to view store stock (Total: {stockInfo.total})</span>
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[11px]">
-                              <span className={`px-2 py-0.5 rounded font-medium inline-flex items-center gap-1 border ${
-                                isLow 
-                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-900/40' 
-                                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40'
-                              }`}>
-                                <span className="font-semibold">[{stockInfo.storeCode || 'STORE'}]</span>
-                                <span>Remaining Stock: {stockInfo.available} {item.unit || 'units'}</span>
-                              </span>
-                              {isInsufficient && (
-                                <span className="text-rose-600 dark:text-rose-400 font-semibold text-[10px] bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/40">
-                                  ⚠️ Insufficient Stock
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.qty}
-                          onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))}
-                          className={`text-center !h-9 !rounded-lg ${isSubmitted && Number(item.qty) <= 0 ? '!border-red-500 focus:!border-red-500 focus:!ring-red-500/20' : ''}`}
-                        />
-                        {isSubmitted && Number(item.qty) <= 0 && <div className="text-red-500 text-xs mt-1 text-center">Invalid Qty</div>}
-                      </td>
-                      <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.rate}
-                          onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
-                          readOnly={lockRate}
-                          title={lockRate ? 'Price comes from the Price master' : undefined}
-                          className={`text-center !h-9 !rounded-lg ${isSubmitted && Number(item.rate) < 0 ? '!border-red-500 focus:!border-red-500 focus:!ring-red-500/20' : ''}`}
-                        />
-                        {isSubmitted && Number(item.rate) < 0 && <div className="text-red-500 text-xs mt-1 text-center">Invalid Rate</div>}
-                      </td>
-                      <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={item.discountPercent}
-                          onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
-                          readOnly={lockRate}
-                          className="text-center !h-9 !rounded-lg"
-                        />
-                      </td>
-                      <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-top text-center pt-4 font-medium text-[var(--vs-text-primary)]">
-                        {item.isGstApplicable ? `${item.taxPercent}%` : '-'}
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-medium align-top pt-4 border-r border-gray-300 dark:border-white/20 text-indigo-600 dark:text-indigo-400">
-                        ₹{lineTotal.toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-3 text-center align-top pt-3.5">
-                        <button
-                          type="button"
-                          onClick={() => removeLineItem(idx)}
-                          disabled={lineItems.length <= 1}
-                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 disabled:opacity-30 cursor-pointer transition-colors mx-auto flex items-center justify-center"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Cards View (Visible on mobile) */}
-          <div className="flex flex-col gap-4 md:hidden">
-            {viewLines.map((item, idx) => {
-              const qty = Number(item.qty || 0);
-              const rate = Number(item.rate || 0);
-              const disc = Number(item.discountPercent || 0);
-              const gst = Number(item.taxPercent || 0);
-              const taxable = qty * rate * (1 - disc / 100);
-              const lineTotal = taxable * (1 + gst / 100);
-
-              return (
-                <div
-                  key={idx}
-                  className="border border-gray-200 dark:border-white/10 rounded-2xl p-4 bg-gray-50/50 dark:bg-white/[0.01] relative flex flex-col gap-3"
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
-                      Item #{idx + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeLineItem(idx)}
-                      disabled={lineItems.length <= 1}
-                      className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded disabled:opacity-30 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <Label>Product <span className="text-red-500">*</span></Label>
-                    <ProductSearchPicker
-                      value={item.productId}
-                      selectedLabel={item.productName}
-                      storeId={selectedStoreId}
-                      onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
-                      error={isSubmitted && !item.productId}
-                    />
-                    {isSubmitted && !item.productId && <div className="text-red-500 text-xs mt-0.5">Product is required</div>}
-                    <LinePriceNote
-                      line={item}
-                      showBatch
-                      onChangeBatch={() => dated.changeBatch(idx)}
-                      onReason={(r) => dated.setReason(idx, r)}
-                      onReset={() => dated.resetPrice(idx)}
-                      submitted={isSubmitted}
-                    />
-                    {item.productId && (() => {
-                      const stockInfo = getProductStoreStock(item.productId);
-                      if (!stockInfo) return null;
-                      const isLow = stockInfo.available <= 0;
-                      const isInsufficient = Number(item.qty || 0) > stockInfo.available;
-
-                      if (!selectedStoreId) {
-                        return (
-                          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/40">
-                            <span>⚠️ Select Warehouse in Details & Summary to view store stock (Total: {stockInfo.total})</span>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[11px]">
-                          <span className={`px-2 py-0.5 rounded font-medium inline-flex items-center gap-1 border ${
-                            isLow 
-                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-900/40' 
-                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40'
-                          }`}>
-                            <span className="font-semibold">[{stockInfo.storeCode || 'STORE'}]</span>
-                            <span>Remaining Stock: {stockInfo.available} {item.unit || 'units'}</span>
-                          </span>
-                          {isInsufficient && (
-                            <span className="text-rose-600 dark:text-rose-400 font-semibold text-[10px] bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/40">
-                              ⚠️ Insufficient Stock
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col gap-1">
-                      <Label>Qty <span className="text-red-500">*</span></Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.qty}
-                        onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))}
-                        className={`${isSubmitted && Number(item.qty) <= 0 ? '!border-red-500' : ''}`}
-                      />
-                      {isSubmitted && Number(item.qty) <= 0 && <div className="text-red-500 text-xs mt-0.5">Invalid Qty</div>}
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label>Rate (₹) <span className="text-red-500">*</span></Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.rate}
-                        onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
-                          readOnly={lockRate}
-                          title={lockRate ? 'Price comes from the Price master' : undefined}
-                        className={`${isSubmitted && Number(item.rate) < 0 ? '!border-red-500' : ''}`}
-                      />
-                      {isSubmitted && Number(item.rate) < 0 && <div className="text-red-500 text-xs mt-0.5">Invalid Rate</div>}
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label>Discount (%)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={item.discountPercent}
-                        onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
-                          readOnly={lockRate}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label>GST (%)</Label>
-                      <div className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-slate-800/50 px-3 py-2.5 text-sm text-[var(--vs-text-primary)] text-center font-medium">
-                        {item.isGstApplicable ? `${item.taxPercent}%` : '-'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center border-t border-gray-150 dark:border-white/5 pt-2 mt-1 text-sm font-semibold">
-                    <span>Line Total:</span>
-                    <span>₹{lineTotal.toFixed(2)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-        {isSubmitted && lineItems.some(item => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0) && (
-          <div className="text-red-500 text-sm mt-2 font-medium">
-            Please fill out all required line items with valid products, quantities, and rates.
-          </div>
-        )}
-      </Card>
-      </Card>
+          )}
+        </div>
+      </Section>
 
       <BatchPickerModal picker={dated.picker} onPick={dated.pickBatch} onClose={dated.closePicker} />
 
-      {/* Toast Notifications */}
-      <CToaster className="p-3" style={{ zIndex: 99999, position: 'fixed', bottom: '20px', right: '20px' }}>
-        {toasts.map((t) => (
-          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2 shadow-lg">
-            <div className="d-flex">
-              <CToastBody className="flex items-center gap-2 font-semibold">
-                {t.message}
-              </CToastBody>
-            </div>
-          </CToast>
-        ))}
-      </CToaster>
-    </div>
+      {/* Toast notifications */}
+      <ToastStack toasts={toasts} />
+    </DocumentLayout>
   );
 }

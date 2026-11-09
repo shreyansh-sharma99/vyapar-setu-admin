@@ -3,10 +3,8 @@ import {
   getInventoryApi,
   adjustStockApi,
   getAuditReportApi,
-  getStoreWiseStockApi,
   getDamagedStockApi,
   damageStockApi,
-  getReorderReportApi,
   getStockValuationApi,
 } from './inventoryService';
 
@@ -24,17 +22,15 @@ export const getInventory = makeThunk('inventory/getInventory', getInventoryApi,
 export const adjustStock = makeThunk('inventory/adjustStock', adjustStockApi, 'Failed to adjust stock');
 export const getAuditReport = makeThunk('inventory/getAuditReport', getAuditReportApi, 'Failed to fetch audit report');
 
-export const getStoreWiseStock = makeThunk('inventory/getStoreWiseStock', getStoreWiseStockApi, 'Failed to load store-wise stock');
 export const getDamagedStock = makeThunk('inventory/getDamagedStock', getDamagedStockApi, 'Failed to load damaged stock');
 export const damageStock = makeThunk('inventory/damageStock', damageStockApi, 'Failed to update damaged stock');
-export const getReorderReport = makeThunk('inventory/getReorderReport', getReorderReportApi, 'Failed to load reorder report');
 export const getStockValuation = makeThunk('inventory/getStockValuation', getStockValuationApi, 'Failed to load stock valuation');
 
 const emptyPagination = { total: 0, page: 1, limit: 20, totalPages: 1 };
 
 /** Shape kept for every server-paginated report screen. */
 const emptyReport = () => ({
-  data: null, // raw `data` from the API (array, or object for store-wise)
+  data: null, // raw `data` from the API
   stats: null,
   totals: null,
   meta: null,
@@ -62,9 +58,7 @@ const initialState = {
 
   // Report screens
   reports: {
-    storeWise: emptyReport(),
     damaged: emptyReport(),
-    reorder: emptyReport(),
     valuation: emptyReport(),
   },
 
@@ -199,9 +193,7 @@ const inventorySlice = createSlice({
         state.error = action.payload;
       });
 
-    addReportCases(builder, getStoreWiseStock, 'storeWise');
     addReportCases(builder, getDamagedStock, 'damaged');
-    addReportCases(builder, getReorderReport, 'reorder');
     addReportCases(builder, getStockValuation, 'valuation');
   },
 });

@@ -33,11 +33,10 @@ export const decodeId = (value) => {
 
 export const productAuditPath = (productId) => `/products/audit/${encodeId(productId)}`;
 
-/** Adjust Stock page with product (+ store) preselected. */
-export const adjustStockPath = (productId, storeId) => {
+/** Adjust Stock page with the product preselected. */
+export const adjustStockPath = (productId) => {
   const params = new URLSearchParams();
   if (productId) params.set('productId', encryptData(String(productId)));
-  if (storeId) params.set('storeId', encryptData(String(storeId)));
   const qs = params.toString();
   return `/inventory/adjust${qs ? `?${qs}` : ''}`;
 };
@@ -135,19 +134,3 @@ export const downloadCsv = (fileNamePrefix, columns, rows) => {
   window.URL.revokeObjectURL(url);
 };
 
-/** Builds the "Store [CODE]" label used in store dropdowns. */
-export const storeLabel = (s) =>
-  s ? `${s.name || 'Store'}${s.code ? ` [${s.code}]` : ''}${s.isDefault ? ' (Default)' : ''}` : '';
-
-/**
- * Sellable qty of `product` in `store`, read from product.storeStocks
- * (legacy products without store rows keep all their stock in the default store).
- */
-export const getStoreQty = (product, store) => {
-  if (!product || !store) return null;
-  const rows = product.storeStocks || [];
-  const row = rows.find((s) => String(s.storeId?._id ?? s.storeId) === String(store._id));
-  if (row) return Number(row.stock || 0);
-  if (!rows.length && store.isDefault) return Number(product.currentStock || 0);
-  return 0;
-};

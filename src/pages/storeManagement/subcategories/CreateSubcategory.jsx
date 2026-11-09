@@ -2,14 +2,9 @@ import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { Label } from '@/components/inputs/Label';
-import { Input } from '@/components/inputs/Input';
-import Select from '@/components/inputs/Select';
-import Button from '@/components/inputs/Button';
-import Card from '@/components/breadCrumbs/Card';
+import { ArrowLeft } from 'lucide-react';
+import { Button, Card, Field, FormActions, FormGrid, Input, PageHeader, Section, Select, Spinner, Textarea } from '@/components/ui';
 import FileInput from '@/components/inputs/FileInput';
-import Loader from '@/components/loader/Loader';
 import { getCategories } from '../categories/services/categorySlice';
 import {
   createSubcategory,
@@ -86,30 +81,31 @@ export default function CreateSubcategory() {
   };
 
   return (
-    <div className="flex flex-col gap-6 mx-auto">
-      <Card
-        h1="Create Subcategory"
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-6"
-      >
-        {categoriesLoading ? (
-          <div className="flex flex-col items-center justify-center min-h-[300px] py-12">
-            <Loader className="mb-4" />
-            <p className="text-sm text-[var(--vs-text-secondary)] font-medium">Loading categories...</p>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Create Subcategory"
+        actions={
+          <Button variant="secondary" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>
+            Back
+          </Button>
+        }
+      />
+      {categoriesLoading ? (
+        <Card>
+          <div className="flex min-h-[300px] items-center justify-center">
+            <Spinner label="Loading categories..." />
           </div>
-        ) : (
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="categoryId">Category<span className="text-red-500">*</span></Label>
-                <Controller
-                  name="categoryId"
-                  control={control}
-                  rules={{ required: 'Category selection is required' }}
-                  render={({ field }) => (
+        </Card>
+      ) : (
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+          <Section title="Subcategory details" description="Pick the parent category and name it">
+            <FormGrid cols={2}>
+              <Controller
+                name="categoryId"
+                control={control}
+                rules={{ required: 'Category selection is required' }}
+                render={({ field }) => (
+                  <Field label="Category" required error={errors.categoryId?.message}>
                     <Select
                       id="categoryId"
                       options={categories.map((cat) => ({ value: cat._id, label: cat.name }))}
@@ -119,85 +115,62 @@ export default function CreateSubcategory() {
                       error={!!errors.categoryId}
                       loading={categoriesLoading}
                     />
-                  )}
-                />
-                {errors.categoryId && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.categoryId.message}</span>
+                  </Field>
                 )}
-              </div>
-
-              <div>
-                <Label htmlFor="name">Subcategory Name<span className="text-red-500">*</span></Label>
+              />
+              <Field label="Subcategory Name" required error={errors.name?.message}>
                 <Input
                   id="name"
                   type="text"
                   placeholder="Enter subcategory name"
-                  error={errors.name}
                   {...register('name', { required: 'Subcategory name is required' })}
                 />
-                {errors.name && (
-                  <span className="text-xs text-red-500 mt-1 block">{errors.name.message}</span>
-                )}
-              </div>
-            </div>
+              </Field>
+              <Field label="Description" className="col-span-full">
+                <Textarea
+                  id="description"
+                  placeholder="Enter subcategory description"
+                  rows={4}
+                  {...register('description')}
+                />
+              </Field>
+            </FormGrid>
+          </Section>
 
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <textarea
-                id="description"
-                placeholder="Enter subcategory description"
-                rows="4"
-                className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/25 transition-all duration-200 outline-none focus:border-indigo-500/60 focus:bg-indigo-500/[0.04] dark:focus:bg-indigo-500/[0.08] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
-                {...register('description')}
-              />
-            </div>
-
-            <div>
-              <Label>Subcategory Image</Label>
-              <FileInput
-                fileName={selectedFile?.name}
-                imagePreview={imagePreview}
-                onChange={handleFileChange}
-                onUploadSuccess={handleUploadSuccess}
-                onRemove={() => {
-                  setSelectedFile(null);
-                  setFileError(null);
-                  setImagePreview(null);
-                  setUploadedImageUrl(null);
-                }}
-              />
-              {fileError && (
-                <span className="text-xs text-red-500 mt-1 block">{fileError}</span>
-              )}
-            </div>
-
-            {error && (
-              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-xs text-red-600 dark:text-red-400">
-                {error}
-              </div>
+          <Section title="Subcategory Image" description="Optional">
+            <FileInput
+              fileName={selectedFile?.name}
+              imagePreview={imagePreview}
+              onChange={handleFileChange}
+              onUploadSuccess={handleUploadSuccess}
+              onRemove={() => {
+                setSelectedFile(null);
+                setFileError(null);
+                setImagePreview(null);
+                setUploadedImageUrl(null);
+              }}
+            />
+            {fileError && (
+              <p role="alert" className="m-0 mt-1.5 text-xs font-medium text-danger">{fileError}</p>
             )}
+          </Section>
 
-            <div className="mt-4 flex justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/subcategories')}
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={loading}
-                startIcon={loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              >
-                Create Subcategory
-              </Button>
+          {error && (
+            <div role="alert" className="rounded-control bg-danger-soft px-4 py-3 text-sm text-danger">
+              {error}
             </div>
-          </form>
-        )}
-      </Card>
+          )}
+
+          <FormActions>
+            <Button variant="secondary" onClick={() => navigate('/subcategories')} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={loading}>
+              Create Subcategory
+            </Button>
+          </FormActions>
+        </form>
+      )}
     </div>
   );
 }

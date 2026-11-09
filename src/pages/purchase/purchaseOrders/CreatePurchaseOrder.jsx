@@ -1,26 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Loader2, Save, Send } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import { Input } from '@/components/inputs/Input';
+import { useNavigate, useParams } from 'react-router-dom';
+import { PackageCheck, Save } from 'lucide-react';
+import { Button, DocumentLayout, FormGrid, Input, Section, Textarea, TotalsPanel, useShortcuts } from '@/components/ui';
 import PurchaseToaster from '../components/PurchaseToaster';
-import PurchaseOrderLineEditor from '../components/PurchaseOrderLineEditor';
+import PurchaseLineEditor from '../components/PurchaseLineEditor';
 import SupplierPicker from '../components/SupplierPicker';
 import { TotalsEditor } from '../components/Totals';
-import { Field, FormError, NativeSelect, PageLoading, PageShell, Section, StatusBadge, TextArea } from '../components/ui';
-import useStores from '../components/useStores';
+import { Field, FormError, PageLoading, StatusBadge } from '../components/ui';
 import useSupplierInfo from '../components/useSupplierInfo';
-import { getProductApi } from '../components/lookupService';
-import { useStockInPricing } from '../components/stockInPricing';
+import PriceChangeConfirm from '../components/PriceChangeConfirm';
+import { firstBarcodeProblem, priceChangesOf, stockInCheck, stockInFromSaved, stockInPayload, useStockInPricing } from '../components/stockInPricing';
 import { notify, notifyError } from '../components/toast';
 import {
-  applyProduct,
+  addDaysISO,
   computeTotals,
   decId,
   docPricing,
   emptyLine,
   errMsg,
+  formatINR,
   inferOverallDiscount,
   lineFromDoc,
   linesToPayload,
@@ -32,36 +31,33 @@ import {
   validateLines,
   viewPath,
 } from '../components/helpers';
-import { createPurchaseOrder, fetchPurchaseOrder, setPurchaseOrderStatus, updatePurchaseOrder } from './services/purchaseOrderSlice';
+import { createPurchaseOrder, fetchPurchaseOrder, updatePurchaseOrder } from './services/purchaseOrderSlice';
 
-/** Lines sent by the Reorder Report: [{ productId, productName, qty, rate }] */
-const linesFromPrefill = (prefill) => {
-  const items = (prefill?.items || []).filter((i) => i?.productId);
-  if (!items.length) return [emptyLine()];
-  return items.map((i) => ({
-    ...emptyLine(),
-    productId: i.productId,
-    productName: i.productName || 'Product',
-    qty: num(i.qty) || 1,
-    rate: num(i.rate),
-    needsMeta: true,
-  }));
-};
+/** Draft, or an old "sent" order with nothing received yet — both can still be edited and received. */
+const isOpenDraft = (po) => po.status === 'draft' || (po.status === 'sent' && !po.purchaseBillId && (po.items || []).every((i) => !(num(i.receivedQty) > 0)));
 
-function PurchaseOrderForm({ doc, prefill }) {
+/**
+ * Purchase form.
+ * - Save as Draft: nothing moves.
+ * - Save & Receive: the goods go into stock (batch, MRP, SP, expiry from the lines) and a
+ *   purchase bill linked to this order is recorded (supplier balance goes up).
+ */
+function PurchaseOrderForm({ doc }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const saving = useSelector((state) => state.purchaseOrder.saving);
-  const { options: storeOptions, defaultId: defaultStoreId, loading: storesLoading } = useStores();
   const isEdit = !!doc;
 
-  const [supplier, setSupplier] = useState(() =>
-    doc ? { value: refId(doc.supplierId), label: supplierName(doc) } : prefill?.supplierId ? { value: prefill.supplierId, label: '' } : null
-  );
-  const [storeId, setStoreId] = useState(() => (doc ? refId(doc.storeId) : prefill?.storeId || ''));
+  const [supplier, setSupplier] = useState(() => (doc ? { value: refId(doc.supplierId), label: supplierName(doc) } : null));
   const [poDate, setPoDate] = useState(() => (doc ? toInputDate(doc.poDate) : todayISO()));
   const [expectedDate, setExpectedDate] = useState(() => (doc ? toInputDate(doc.expectedDate) : ''));
-  const [lines, setLines] = useState(() => (doc ? doc.items.map(lineFromDoc) : linesFromPrefill(prefill)));
+  const [supplierInvoiceNo, setSupplierInvoiceNo] = useState(() => doc?.supplierInvoiceNo || '');
+  const [supplierInvoiceDate, setSupplierInvoiceDate] = useState(() => (doc ? toInputDate(doc.supplierInvoiceDate) : ''));
+  const [dueManual, setDueManual] = useState(() => (doc ? toInputDate(doc.dueDate) : ''));
+  const [dueTouched, setDueTouched] = useState(() => !!doc?.dueDate);
+  const [lines, setLines] = useState(() => (doc ? doc.items.map((i) => ({ ...lineFromDoc(i), ...stockInFromSaved(i) })) : [emptyLine()]));
+  // a barcode in use / on hold elsewhere blocks Save & Receive (a draft may still be saved)
+  const barcodeBlock = firstBarcodeProblem(lines);
   const [overallDiscountPercent, setOverallDiscountPercent] = useState(() => (doc ? inferOverallDiscount(doc) : 0));
   const [otherCharges, setOtherCharges] = useState(() => (doc ? num(doc.otherCharges) : 0));
   const [roundOff, setRoundOff] = useState(() => (doc ? num(doc.roundOff) !== 0 : true));
@@ -69,94 +65,87 @@ function PurchaseOrderForm({ doc, prefill }) {
   const [terms, setTerms] = useState(() => doc?.terms || '');
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState('');
+  const [pendingChanges, setPendingChanges] = useState([]);
 
   const { info: supplierInfo, loading: supplierLoading } = useSupplierInfo(supplier?.value);
-  const effectiveStoreId = storeId || defaultStoreId;
+  const creditDays = supplierInfo ? num(supplierInfo.paymentTermsDays) : null;
+  const invoiceDay = supplierInvoiceDate || poDate;
+  const dueDate = dueTouched ? dueManual : creditDays !== null ? addDaysISO(invoiceDay, creditDays) : '';
 
-  // Lines prefilled from the Reorder Report only carry id / name / qty / rate:
-  // load each product once for its unit, pack units, GST and HSN.
-  useEffect(() => {
-    const ids = [...new Set(lines.filter((l) => l.needsMeta).map((l) => l.productId))];
-    if (!ids.length) return undefined;
-    let alive = true;
-    Promise.all(ids.map((pid) => getProductApi(pid).catch(() => null))).then((products) => {
-      if (!alive) return;
-      const byId = new Map(products.filter(Boolean).map((p) => [String(p._id), p]));
-      setLines((prev) =>
-        prev.map((l) => {
-          if (!l.needsMeta) return l;
-          const p = byId.get(String(l.productId));
-          if (!p) return { ...l, needsMeta: false };
-          const filled = applyProduct(l, p, { keepQtyRate: true });
-          return { ...filled, needsMeta: false, rate: num(l.rate) || num(p.lastPurchasePrice) || num(p.costPrice) };
-        })
-      );
-    });
-    return () => {
-      alive = false;
-    };
-    // Runs once for the prefilled lines.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // GST of every line from the GST master (Master Settings → GST Rates) — the server saves the same.
-  const gstInfo = useStockInPricing(lines.map((l) => l.productId));
+  // The goods come in with this order: SP, MRP (required to receive), batch, expiry, low-stock
+  // alert per line; GST from the GST master (the server uses the same).
+  const pricing = useStockInPricing(lines.map((l) => l.productId));
+  const infoOf = (l) => pricing.prices[String(l.productId)];
+  const baseCost = (l) => (num(l.rate) * (1 - num(l.discountPercent) / 100)) / (l.units.find((u) => u.unit === l.unit)?.factor || 1);
   const gstLines = useMemo(
     () =>
       lines.map((l) => {
-        const info = gstInfo.prices[String(l.productId)];
+        const info = pricing.prices[String(l.productId)];
         return info && info.gstRate !== undefined ? { ...l, taxPercent: num(info.gstRate) } : l;
       }),
-    [lines, gstInfo.prices]
+    [lines, pricing.prices]
   );
   const totals = useMemo(
     () => computeTotals(gstLines, { overallDiscountPercent, otherCharges, roundOff, isInterState: doc ? !!doc.isInterState : undefined }),
     [gstLines, overallDiscountPercent, otherCharges, roundOff, doc]
   );
 
-  const save = async (markSent) => {
+  const save = (action) => {
     setSubmitted(true);
     let problem;
     if (!supplier?.value) problem = 'Select a supplier.';
-    else if (!effectiveStoreId) problem = 'Select the store the goods should be delivered to.';
-    else if (expectedDate && poDate && expectedDate < poDate) problem = 'Expected delivery date cannot be before the order date.';
+    else if (expectedDate && poDate && expectedDate < poDate) problem = 'Expected delivery date cannot be before the purchase date.';
+    else if (dueDate && invoiceDay && dueDate < invoiceDay) problem = 'Due date cannot be before the invoice date.';
     else problem = validateLines(lines);
-    if (!problem) {
-      const noCost = lines.find((l) => l.productId && !(Number(l.rate) > 0));
-      if (noCost) problem = `Enter the cost price for "${noCost.productName}".`;
-    }
+    if (!problem) problem = lines.filter((l) => l.productId && !(num(l.rate) > 0)).map((l) => `Enter the cost price for "${l.productName}".`)[0] || '';
+    // Receiving brings in new batches: MRP needed, SP checked.
+    if (!problem && action === 'receive') problem = lines.filter((l) => l.productId).map((l) => stockInCheck(l, infoOf(l), baseCost(l)).error).find(Boolean) || '';
+    if (!problem && action === 'receive') problem = firstBarcodeProblem(lines);
     setFormError(problem);
     if (problem) {
       notifyError(problem);
       return;
     }
+    // Changed SP: confirm "₹A → ₹B from today" before the goods are put into stock.
+    const changes = action === 'receive' ? priceChangesOf(lines, pricing.prices) : [];
+    if (changes.length) {
+      setPendingChanges(changes);
+      return;
+    }
+    persist(action);
+  };
 
+  const persist = async (action) => {
+    setPendingChanges([]);
+    const used = lines.filter((l) => l.productId);
+    // GST % is not sent — the server takes it from the GST master
+    const items = linesToPayload(used).map((item, i) => {
+      const l = used[i];
+      const out = { ...item, ...stockInPayload(l, infoOf(l)) };
+      if (l.lowStockAlert !== '' && l.lowStockAlert !== null && l.lowStockAlert !== undefined) out.lowStockAlert = num(l.lowStockAlert);
+      delete out.taxPercent;
+      return out;
+    });
     const payload = {
       supplierId: supplier.value,
-      storeId: effectiveStoreId,
       poDate,
       expectedDate: expectedDate || null,
-      // no line discount on a PO (the column was removed)
-      items: linesToPayload(gstLines, { planned: true }).map((i) => ({ ...i, discountPercent: 0 })),
+      supplierInvoiceNo: supplierInvoiceNo.trim(),
+      supplierInvoiceDate: supplierInvoiceDate || null,
+      dueDate: dueDate || null,
+      items,
       ...docPricing({ overallDiscountPercent, otherCharges, roundOff }),
       notes,
       terms,
+      action,
     };
 
     try {
-      let saved;
-      if (isEdit) {
-        const res = await dispatch(updatePurchaseOrder({ id: doc._id, payload })).unwrap();
-        saved = res?.data;
-        if (markSent && doc.status === 'draft') {
-          await dispatch(setPurchaseOrderStatus({ id: doc._id, status: 'sent' })).unwrap();
-        }
-        notify(markSent && doc.status === 'draft' ? 'Purchase order updated and marked as sent' : res?.message || 'Purchase order updated');
-      } else {
-        const res = await dispatch(createPurchaseOrder({ ...payload, status: markSent ? 'sent' : 'draft' })).unwrap();
-        saved = res?.data;
-        notify(markSent ? `Purchase order ${saved?.poNumber || ''} saved and marked as sent` : `Draft ${saved?.poNumber || ''} saved`);
-      }
+      const res = isEdit
+        ? await dispatch(updatePurchaseOrder({ id: doc._id, payload })).unwrap()
+        : await dispatch(createPurchaseOrder(payload)).unwrap();
+      const saved = res?.data;
+      notify(res?.message || (action === 'receive' ? 'Purchase received' : 'Draft saved'));
       navigate(viewPath('orders', saved?._id || doc._id), { replace: true });
     } catch (e) {
       const msg = errMsg(e);
@@ -165,53 +154,46 @@ function PurchaseOrderForm({ doc, prefill }) {
     }
   };
 
-  const title = isEdit ? `Edit purchase order - ${doc.poNumber}` : 'New purchase order';
+  const addLine = () => setLines((ls) => [...ls, emptyLine()]);
+  useShortcuts({ F2: addLine, 'mod+s': () => !saving && save('draft') });
+
+  const receiveButton = (className) => (
+    <Button
+      onClick={() => save('receive')}
+      disabled={!!barcodeBlock}
+      loading={saving}
+      title={barcodeBlock || undefined}
+      startIcon={<PackageCheck />}
+      className={className}
+    >
+      Save &amp; Receive
+    </Button>
+  );
 
   return (
-    <PageShell title={title}>
-      {isEdit && (
-        <div className="flex items-center gap-2 text-sm">
-          <StatusBadge status={doc.status} size="lg" />
-          {doc.status === 'sent' && <span className="text-[var(--vs-text-secondary)]">This order was already sent. Let the supplier know about your changes.</span>}
-        </div>
-      )}
-      {prefill?.items?.length > 0 && !isEdit && (
-        <div className="rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 px-4 py-3 text-sm text-indigo-700 dark:text-indigo-300">
-          {prefill.items.length} item(s) added from the reorder report. Check quantities and rates before saving.
-        </div>
-      )}
-      <FormError message={formError} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Section title="Order details" className="lg:col-span-2" bodyClassName="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Supplier" required className="md:col-span-2" error={submitted && !supplier?.value ? 'Select a supplier' : ''}>
-            <SupplierPicker
-              value={supplier}
-              onChange={(opt) => setSupplier(opt ? { value: opt.value, label: opt.label } : null)}
-              info={supplierInfo}
-              infoLoading={supplierLoading}
-              error={submitted && !supplier?.value}
-            />
-          </Field>
-          <Field label="Deliver to store" required hint="Goods received against this order go into this store.">
-            <NativeSelect
-              value={effectiveStoreId}
-              onChange={setStoreId}
-              error={submitted && !effectiveStoreId}
-              options={[{ value: '', label: storesLoading ? 'Loading stores...' : 'Select store' }, ...storeOptions]}
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Order date" required>
-              <Input type="date" value={poDate} onChange={(e) => setPoDate(e.target.value)} />
-            </Field>
-            <Field label="Expected delivery">
-              <Input type="date" value={expectedDate} min={poDate} onChange={(e) => setExpectedDate(e.target.value)} />
-            </Field>
-          </div>
-        </Section>
-
-        <Section title="Summary" bodyClassName="p-4 flex flex-col gap-4">
+    <DocumentLayout
+      header={{
+        title: isEdit ? 'Edit purchase' : 'New purchase',
+        docNo: isEdit ? doc.poNumber : undefined,
+        actions: (
+          <>
+            {isEdit && <StatusBadge status={doc.status} size="lg" />}
+            <Button variant="ghost" onClick={() => navigate(-1)} className="hidden sm:inline-flex">
+              Cancel
+            </Button>
+            <Button variant="secondary" onClick={() => save('draft')} disabled={saving} startIcon={<Save />}>
+              Save as Draft
+            </Button>
+            {receiveButton('hidden lg:inline-flex')}
+          </>
+        ),
+      }}
+      summary={
+        <TotalsPanel
+          title="Order summary"
+          total={formatINR(totals.totalAmount)}
+          note="Save & Receive puts the goods into stock and records the supplier's bill. A draft moves no stock. F2 adds an item · Ctrl S saves a draft."
+        >
           <TotalsEditor
             totals={totals}
             overallDiscountPercent={overallDiscountPercent}
@@ -220,64 +202,109 @@ function PurchaseOrderForm({ doc, prefill }) {
             onOtherChargesChange={setOtherCharges}
             roundOff={roundOff}
             onRoundOffChange={setRoundOff}
+            showTotal={false}
           />
-          <div className="flex flex-col gap-2 border-t border-[var(--vs-border)] pt-4">
-            {(!isEdit || doc.status === 'draft') && (
-              <Button onClick={() => save(true)} disabled={saving} className="w-full" startIcon={saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}>
-                Save &amp; mark sent
-              </Button>
-            )}
-            <Button
-              variant={!isEdit || doc.status === 'draft' ? 'outline' : 'primary'}
-              onClick={() => save(false)}
-              disabled={saving}
-              className="w-full"
-              startIcon={saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            >
-              {isEdit && doc.status !== 'draft' ? 'Save changes' : 'Save draft'}
-            </Button>
-          </div>
-        </Section>
-      </div>
+        </TotalsPanel>
+      }
+      mobileBar={{ label: 'Total', value: formatINR(totals.totalAmount), action: receiveButton() }}
+    >
+      <FormError message={formError} />
 
-      <Section title="Items" bodyClassName="p-3 sm:p-4">
-        <PurchaseOrderLineEditor lines={lines} onChange={setLines} storeId={effectiveStoreId} submitted={submitted} />
+      <Section title="Supplier" description="Who you're buying from and when you need it.">
+        <div className="flex flex-col gap-4">
+          <Field label="Supplier" required error={submitted && !supplier?.value ? 'Select a supplier' : ''}>
+            <SupplierPicker
+              value={supplier}
+              onChange={(opt) => setSupplier(opt ? { value: opt.value, label: opt.label } : null)}
+              info={supplierInfo}
+              infoLoading={supplierLoading}
+              error={submitted && !supplier?.value}
+            />
+          </Field>
+          <FormGrid cols={3}>
+            <Field label="Purchase date" required>
+              <Input type="date" value={poDate} onChange={(e) => setPoDate(e.target.value)} />
+            </Field>
+            <Field label="Expected delivery">
+              <Input type="date" value={expectedDate} min={poDate} onChange={(e) => setExpectedDate(e.target.value)} />
+            </Field>
+            <Field
+              label="Pay by"
+              hint={
+                dueTouched
+                  ? creditDays !== null
+                    ? <Button variant="link" size="xs" className="font-semibold" onClick={() => setDueTouched(false)}>Use supplier&apos;s {creditDays}-day credit again</Button>
+                    : null
+                  : creditDays !== null
+                    ? `Invoice date + ${creditDays} days credit from this supplier`
+                    : 'Set automatically from the supplier’s credit days'
+              }
+            >
+              <Input
+                type="date"
+                value={dueDate}
+                min={invoiceDay}
+                onChange={(e) => {
+                  setDueTouched(true);
+                  setDueManual(e.target.value);
+                }}
+              />
+            </Field>
+            <Field label="Supplier invoice no." hint="From the supplier's bill. Helps catch the same bill entered twice.">
+              <Input value={supplierInvoiceNo} maxLength={50} onChange={(e) => setSupplierInvoiceNo(e.target.value)} placeholder="e.g. INV/2026/0451" />
+            </Field>
+            <Field label="Supplier invoice date">
+              <Input type="date" value={supplierInvoiceDate} onChange={(e) => setSupplierInvoiceDate(e.target.value)} />
+            </Field>
+          </FormGrid>
+        </div>
       </Section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Section title="Notes for supplier">
-          <TextArea value={notes} onChange={setNotes} rows={3} placeholder="Delivery instructions, contact person..." />
-        </Section>
-        <Section title="Terms & conditions">
-          <TextArea value={terms} onChange={setTerms} rows={3} placeholder="Payment terms, packing, warranty..." />
-        </Section>
-      </div>
+      <Section title="Items" description="Cost price is per unit before GST; GST comes from the product." bodyClassName="px-3 sm:px-4">
+        <PurchaseLineEditor
+          lines={lines}
+          onChange={setLines}
+          submitted={submitted}
+          options={{ gstRates: pricing.prices, stockIn: { prices: pricing.prices, canUpdatePrices: pricing.canUpdatePrices }, addShortcut: 'F2' }}
+        />
+      </Section>
+
+      <Section title="Notes & terms" description="Printed on the purchase.">
+        <FormGrid cols={2}>
+          <Field label="Notes for supplier">
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Delivery instructions, contact person..." />
+          </Field>
+          <Field label="Terms & conditions">
+            <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows={3} placeholder="Payment terms, packing, warranty..." />
+          </Field>
+        </FormGrid>
+      </Section>
+
+      <PriceChangeConfirm changes={pendingChanges} onClose={() => setPendingChanges([])} onConfirm={() => persist('receive')} isLoading={saving} />
       <PurchaseToaster />
-    </PageShell>
+    </DocumentLayout>
   );
 }
 
 /**
- * purchase/orders/create   (optional location.state.prefill = { supplierId?, storeId?, items: [{ productId, productName, qty, rate }] })
- * purchase/orders/edit/:id
+ * purchase/orders/create
+ * purchase/orders/edit/:id   (drafts; old "sent" orders with nothing received)
  */
 export default function CreatePurchaseOrder() {
   const { id: encryptedId } = useParams();
   const id = decId(encryptedId);
-  const location = useLocation();
   const dispatch = useDispatch();
   const { current, currentError } = useSelector((state) => state.purchaseOrder);
-  const [prefill] = useState(() => location.state?.prefill || null);
 
   useEffect(() => {
     if (id) dispatch(fetchPurchaseOrder(id));
   }, [dispatch, id]);
 
-  if (!encryptedId) return <PurchaseOrderForm key="new" doc={null} prefill={prefill} />;
-  if (!id) return <PageLoading title="Edit purchase order" error="This link is not valid." />;
-  if (!current || current._id !== id) return <PageLoading title="Edit purchase order" error={currentError} />;
-  if (!['draft', 'sent'].includes(current.status)) {
-    return <PageLoading title={`Purchase order ${current.poNumber}`} error={`A ${current.status.replace('_', ' ')} purchase order can't be edited.`} />;
+  if (!encryptedId) return <PurchaseOrderForm key="new" doc={null} />;
+  if (!id) return <PageLoading title="Edit purchase" error="This link is not valid." />;
+  if (!current || current._id !== id) return <PageLoading title="Edit purchase" error={currentError} />;
+  if (!isOpenDraft(current)) {
+    return <PageLoading title={`Purchase ${current.poNumber}`} error={`A ${current.status.replace('_', ' ')} purchase can't be edited.`} />;
   }
-  return <PurchaseOrderForm key={current._id} doc={current} prefill={null} />;
+  return <PurchaseOrderForm key={current._id} doc={current} />;
 }

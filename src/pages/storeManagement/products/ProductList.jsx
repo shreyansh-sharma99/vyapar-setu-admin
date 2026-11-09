@@ -3,8 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Search, Barcode, QrCode, FileSpreadsheet, Printer, ScanBarcode, FilterX, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { formatDateWithTiming } from '@/utility/dateTiming';
-import Button from '@/components/inputs/Button';
-import Select from '@/components/inputs/Select';
+import { Badge, Button, Card, Field, Input, PageHeader, Select, StatusBadge } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import Table from '@/components/table/Table';
 import {
   getProducts,
@@ -16,12 +16,14 @@ import {
 } from './services/productSlice';
 import { getCategoriesApi } from '../categories/services/categoryService';
 import { getBrandsApi } from '../brands/services/brandService';
-import Card from '../../../components/breadCrumbs/Card';
 import DeleteModal from '@/components/modal/DeleteModal';
 import BarcodeScannerModal from '@/components/modal/BarcodeScannerModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import ToastStack from './components/ToastStack';
 import { encodeId, formatINR, formatQty, getStockState, toNumberOr, useToasts } from './utils/productUtils';
+
+const STOCK_TEXT = { in: 'text-success', low: 'text-warning', out: 'text-danger' };
+const Dash = () => <span className="text-ink-subtle">—</span>;
 
 const DEFAULT_SORT = { sort: 'createdAt', order: 'desc' };
 const SORTABLE_FIELDS = ['name', 'sku', 'createdAt', 'updatedAt', 'basePrice', 'discountedPrice', 'finalPrice', 'mrp', 'costPrice', 'currentStock', 'status'];
@@ -196,9 +198,9 @@ export default function ProductList() {
         const first = item.images?.[0];
         const imageUrl = typeof first === 'string' ? first : first?.path || first?.url;
         return imageUrl ? (
-          <img src={imageUrl} alt={item.name} className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-white/10" />
+          <img src={imageUrl} alt={item.name} className="size-9 rounded-lg border border-line object-cover" />
         ) : (
-          <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] text-gray-400">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-fill text-center text-[10px] leading-tight text-ink-subtle">
             No Image
           </div>
         );
@@ -209,26 +211,22 @@ export default function ProductList() {
       key: 'name',
       width: '20%',
       sortable: true,
-      cellClassName: 'font-semibold text-[var(--vs-text-primary)]',
+      cellClassName: 'font-semibold text-ink',
       value: 'checked',
-      render: (item) => (
-        <div className="flex flex-col">
-          <span>{item.name}</span>
-        </div>
-      ),
+      render: (item) => <span>{item.name}</span>,
     },
     {
       label: 'SKU',
       key: 'sku',
       sortable: true,
       value: 'checked',
-      render: (item) => (item.sku ? <span className="font-mono text-xs">{item.sku}</span> : <span className="text-gray-400">—</span>),
+      render: (item) => (item.sku ? <span className="font-mono text-xs">{item.sku}</span> : <Dash />),
     },
     {
       label: 'Barcode',
       key: 'barcode',
       value: 'unchecked',
-      render: (item) => (item.barcode ? <span className="font-mono text-xs">{item.barcode}</span> : <span className="text-gray-400">—</span>),
+      render: (item) => (item.barcode ? <span className="font-mono text-xs">{item.barcode}</span> : <Dash />),
     },
     {
       label: 'Category',
@@ -253,7 +251,7 @@ export default function ProductList() {
       key: 'basePrice',
       sortable: true,
       value: 'checked',
-      render: (item) => <span className="font-semibold">{formatINR(item.basePrice)}</span>,
+      render: (item) => <span className="font-semibold tabular-nums">{formatINR(item.basePrice)}</span>,
     },
     {
       label: 'Discount Price',
@@ -262,9 +260,9 @@ export default function ProductList() {
       value: 'checked',
       render: (item) =>
         toNumberOr(item.discountedPrice, 0) > 0 ? (
-          <span className="font-semibold text-indigo-600 dark:text-indigo-400">{formatINR(item.discountedPrice)}</span>
+          <span className="font-semibold tabular-nums text-brand-ink">{formatINR(item.discountedPrice)}</span>
         ) : (
-          <span className="text-gray-400">—</span>
+          <Dash />
         ),
     },
     {
@@ -272,7 +270,7 @@ export default function ProductList() {
       key: 'mrp',
       sortable: true,
       value: 'checked',
-      render: (item) => (toNumberOr(item.mrp, 0) > 0 ? <span>{formatINR(item.mrp)}</span> : <span className="text-gray-400">—</span>),
+      render: (item) => (toNumberOr(item.mrp, 0) > 0 ? <span className="tabular-nums">{formatINR(item.mrp)}</span> : <Dash />),
     },
     {
       label: 'Stock',
@@ -282,42 +280,47 @@ export default function ProductList() {
       render: (item) => {
         const stock = toNumberOr(item.currentStock, 0);
         const state = getStockState(stock, item.lowStockAlertThreshold);
-        const damaged = toNumberOr(item.damagedStock, 0);
         return (
-          <div className="flex flex-col items-start gap-0.5 text-xs">
-            <span
-              className={`font-semibold ${state === 'in'
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : state === 'low'
-                  ? 'text-amber-600 dark:text-amber-400'
-                  : 'text-rose-600 dark:text-rose-400'}`}
-            >
-              {formatQty(stock)} {item.unit || ''}
-            </span>
-            {state === 'low' && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
-                Low stock
-              </span>
-            )}
-            {state === 'out' && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
-                Out of stock
-              </span>
-            )}
-            {damaged > 0 && <span className="text-[10px] text-[var(--vs-text-secondary)]">{formatQty(damaged)} damaged</span>}
-            {toNumberOr(item.openBatches, 0) > 0 && (
-              <button
-                type="button"
-                onClick={() => navigate(`/products/view/${encodeId(item._id)}#batches`)}
-                title="See the batches and their prices"
-                className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 hover:underline cursor-pointer"
-              >
-                {item.openBatches} batch{item.openBatches === 1 ? '' : 'es'}
-              </button>
-            )}
-          </div>
+          <span className={cn('font-semibold tabular-nums', STOCK_TEXT[state] || STOCK_TEXT.out)}>
+            {formatQty(stock)} {item.unit || ''}
+          </span>
         );
       },
+    },
+    {
+      label: 'Stock status',
+      key: 'stockState',
+      value: 'checked',
+      render: (item) => {
+        const state = getStockState(toNumberOr(item.currentStock, 0), item.lowStockAlertThreshold);
+        if (state === 'low') return <Badge tone="warning">Low stock</Badge>;
+        if (state === 'out') return <Badge tone="danger">Out of stock</Badge>;
+        return <Badge tone="success">In stock</Badge>;
+      },
+    },
+    {
+      label: 'Damaged',
+      key: 'damagedStock',
+      value: 'checked',
+      render: (item) => (toNumberOr(item.damagedStock, 0) > 0
+        ? <span className="font-semibold tabular-nums text-danger">{formatQty(item.damagedStock)}</span>
+        : <Dash />),
+    },
+    {
+      label: 'Batches',
+      key: 'openBatches',
+      value: 'checked',
+      render: (item) => (toNumberOr(item.openBatches, 0) > 0 ? (
+        <Button
+          variant="soft"
+          size="xs"
+          className="h-6 rounded-chip px-2"
+          onClick={() => navigate(`/products/view/${encodeId(item._id)}#batches`)}
+          title="See the batches and their prices"
+        >
+          {item.openBatches} batch{item.openBatches === 1 ? '' : 'es'}
+        </Button>
+      ) : <Dash />),
     },
     {
       label: 'Status',
@@ -326,15 +329,7 @@ export default function ProductList() {
       value: 'checked',
       render: (item) => {
         const isActive = item.status === 'active';
-        return (
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isActive
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
-              : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400'}`}
-          >
-            {isActive ? 'Active' : 'Inactive'}
-          </span>
-        );
+        return <StatusBadge status={isActive ? 'active' : 'inactive'} label={isActive ? 'Active' : 'Inactive'} />;
       },
     },
     {
@@ -359,166 +354,146 @@ export default function ProductList() {
   ], []);
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card h1="Products" bodyClassName="p-4">
-        {/* Top bar: barcode finder + actions */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-4">
-          <form onSubmit={handleBarcodeSearch} className="flex items-center gap-2 max-w-md w-full">
-            <div className="relative flex-1">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                <Barcode className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                placeholder="Scan or enter barcode / SKU..."
-                value={barcodeSearch}
-                onChange={(e) => setBarcodeSearch(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 pl-9 pr-3.5 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/25 transition-all duration-200 outline-none focus:border-indigo-500/60"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsBarcodeModalOpen(true)}
-              className="!h-9 shrink-0 px-3"
-              title="Scan Barcode"
-            >
-              <QrCode className="w-4 h-4" />
-            </Button>
-            <Button type="submit" variant="outline" className="!h-9 shrink-0">
-              <Search className="w-3.5 h-3.5 mr-1" />
-              Find
-            </Button>
-          </form>
-
-          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            <Button
-              variant="outline"
-              className="!h-10"
-              startIcon={<FileSpreadsheet className="w-3.5 h-3.5" />}
-              onClick={() => navigate('/products/import-export')}
-            >
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Products"
+        actions={
+          <>
+            <Button variant="secondary" startIcon={<FileSpreadsheet />} onClick={() => navigate('/products/import-export')}>
               Import / Export
             </Button>
-            <Button
-              variant="outline"
-              className="!h-10"
-              startIcon={<Printer className="w-3.5 h-3.5" />}
-              onClick={() => navigate('/products/labels')}
-            >
+            <Button variant="secondary" startIcon={<Printer />} onClick={() => navigate('/products/labels')}>
               Print Labels
             </Button>
-            <Button
-              variant="outline"
-              className="!h-10"
-              startIcon={<ScanBarcode className="w-3.5 h-3.5" />}
-              onClick={() => setBarcodeConfirmOpen(true)}
-            >
+            <Button variant="secondary" startIcon={<ScanBarcode />} onClick={() => setBarcodeConfirmOpen(true)}>
               Generate Barcodes
             </Button>
-          </div>
-        </div>
+            <Button startIcon={<Plus />} onClick={() => navigate('/products/create')}>
+              Add New Product
+            </Button>
+          </>
+        }
+      />
 
-        {/* Filters — hidden until the Filters button is clicked; slides open/closed */}
-        <div
-          className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-in-out ${showFilters ? 'grid-rows-[1fr] opacity-100 mb-4' : 'grid-rows-[0fr] opacity-0 mb-0'}`}
-          aria-hidden={!showFilters}
-          inert={!showFilters}
-        >
-        <div className={showFilters ? 'overflow-visible' : 'overflow-hidden'}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] gap-3 items-end p-3 rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-secondary)]/40">
-          <div className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold tracking-widest text-indigo-600 dark:text-indigo-400 uppercase">Category</span>
-            <Select
-              options={[{ value: '', label: 'All categories' }, ...filterOptions.categories.map((c) => ({ value: c._id, label: c.name }))]}
-              value={params.categoryId}
-              onChange={(v) => setFilter('categoryId', v)}
-              placeholder="All categories"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold tracking-widest text-indigo-600 dark:text-indigo-400 uppercase">Brand</span>
-            <Select
-              options={[{ value: '', label: 'All brands' }, ...filterOptions.brands.map((b) => ({ value: b._id, label: b.name }))]}
-              value={params.brandId}
-              onChange={(v) => setFilter('brandId', v)}
-              placeholder="All brands"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold tracking-widest text-indigo-600 dark:text-indigo-400 uppercase">Status</span>
-            <Select options={STATUS_OPTIONS} value={params.status} onChange={(v) => setFilter('status', v)} placeholder="All statuses" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold tracking-widest text-indigo-600 dark:text-indigo-400 uppercase">Stock</span>
-            <Select
-              options={STOCK_OPTIONS}
-              value={params.stockStatus}
-              onChange={(v) => setFilter('stockStatus', v)}
-              placeholder="All stock levels"
-            />
-          </div>
+      {/* Barcode finder */}
+      <Card padding="sm">
+        <form onSubmit={handleBarcodeSearch} className="flex w-full max-w-xl items-center gap-2">
+          <Input
+            startIcon={<Barcode />}
+            placeholder="Scan or enter barcode / SKU..."
+            aria-label="Barcode or SKU"
+            value={barcodeSearch}
+            onChange={(e) => setBarcodeSearch(e.target.value)}
+          />
           <Button
-            variant="outline"
-            className="!h-11"
-            disabled={!hasFilters}
-            startIcon={<FilterX className="w-3.5 h-3.5" />}
-            onClick={() => setParams((prev) => ({ ...prev, ...EMPTY_FILTERS, page: 1 }))}
+            variant="secondary"
+            size="icon"
+            onClick={() => setIsBarcodeModalOpen(true)}
+            title="Scan Barcode"
+            aria-label="Scan Barcode"
           >
-            Clear
+            <QrCode />
           </Button>
-        </div>
-        </div>
-        </div>
-
-        <Table
-          actions={
-            <>
-              <Button className="!h-10" startIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => navigate('/products/create')}>
-                Add New Product
-              </Button>
-              <Button
-                variant="outline"
-                className="!h-10"
-                aria-expanded={showFilters}
-                startIcon={<SlidersHorizontal className="w-3.5 h-3.5" />}
-                onClick={() => setShowFilters((v) => !v)}
-              >
-                Filters
-                {activeFilterCount > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-indigo-600 text-white text-[11px] font-bold">
-                    {activeFilterCount}
-                  </span>
-                )}
-                <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform duration-300 ${showFilters ? 'rotate-180' : ''}`} />
-              </Button>
-            </>
-          }
-          headers={headers}
-          data={products}
-          loading={loading}
-          searchPlaceholder="Search by name, SKU, barcode or HSN..."
-          emptyMessage={hasFilters || params.search ? 'No products match your filters.' : "No products found. Click 'Add New Product' to create one."}
-          onEdit={handleEditClick}
-          onDelete={handleDeleteClick}
-          onToggle={handleStatusToggle}
-          toggleField="status"
-          onView={handleViewClick}
-          onAudit={handleAuditClick}
-          pageSizeOptions={[10, 25, 50, 100]}
-          currentPage={pagination?.page || params.page || 1}
-          pageSize={pagination?.limit || params.limit || 10}
-          totalRows={pagination?.total || pagination?.totalItems || products.length}
-          onPageChange={(page) => setParams((prev) => ({ ...prev, page }))}
-          onPageSizeChange={(limit) => setParams((prev) => ({ ...prev, limit: Math.min(100, limit), page: 1 }))}
-          sortConfig={sortUi}
-          onSortChange={handleSortChange}
-          searchTerm={searchTerm}
-          onSearchTermChange={setSearchTerm}
-          onSearchClick={handleSearchClick}
-          onSearchClear={handleSearchClear}
-        />
+          <Button type="submit" variant="secondary" startIcon={<Search />} className="shrink-0">
+            Find
+          </Button>
+        </form>
       </Card>
+
+      {/* Filters — hidden until the Filters button is clicked; slides open/closed */}
+      <div
+        className={cn(
+          'grid transition-[grid-template-rows,opacity,margin] duration-300 ease-in-out',
+          showFilters ? 'grid-rows-[1fr] opacity-100' : '-mt-5 grid-rows-[0fr] opacity-0'
+        )}
+        aria-hidden={!showFilters}
+        inert={!showFilters}
+      >
+        <div className={showFilters ? 'overflow-visible' : 'overflow-hidden'}>
+          <Card padding="sm" className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+            <Field label="Category">
+              <Select
+                options={[{ value: '', label: 'All categories' }, ...filterOptions.categories.map((c) => ({ value: c._id, label: c.name }))]}
+                value={params.categoryId}
+                onChange={(v) => setFilter('categoryId', v)}
+                placeholder="All categories"
+              />
+            </Field>
+            <Field label="Brand">
+              <Select
+                options={[{ value: '', label: 'All brands' }, ...filterOptions.brands.map((b) => ({ value: b._id, label: b.name }))]}
+                value={params.brandId}
+                onChange={(v) => setFilter('brandId', v)}
+                placeholder="All brands"
+              />
+            </Field>
+            <Field label="Status">
+              <Select options={STATUS_OPTIONS} value={params.status} onChange={(v) => setFilter('status', v)} placeholder="All statuses" searchable={false} />
+            </Field>
+            <Field label="Stock">
+              <Select
+                options={STOCK_OPTIONS}
+                value={params.stockStatus}
+                onChange={(v) => setFilter('stockStatus', v)}
+                placeholder="All stock levels"
+                searchable={false}
+              />
+            </Field>
+            <Button
+              variant="secondary"
+              className="h-11"
+              disabled={!hasFilters}
+              startIcon={<FilterX />}
+              onClick={() => setParams((prev) => ({ ...prev, ...EMPTY_FILTERS, page: 1 }))}
+            >
+              Clear
+            </Button>
+          </Card>
+        </div>
+      </div>
+
+      <Table
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-expanded={showFilters}
+            startIcon={<SlidersHorizontal />}
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-[11px] font-bold text-white">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown className={cn('transition-transform duration-300', showFilters && 'rotate-180')} />
+          </Button>
+        }
+        headers={headers}
+        data={products}
+        loading={loading}
+        searchPlaceholder="Search by name, SKU, barcode or HSN..."
+        emptyMessage={hasFilters || params.search ? 'No products match your filters.' : "No products found. Click 'Add New Product' to create one."}
+        onEdit={handleEditClick}
+        onDelete={handleDeleteClick}
+        onToggle={handleStatusToggle}
+        toggleField="status"
+        onView={handleViewClick}
+        onAudit={handleAuditClick}
+        pageSizeOptions={[10, 25, 50, 100]}
+        currentPage={pagination?.page || params.page || 1}
+        pageSize={pagination?.limit || params.limit || 10}
+        totalRows={pagination?.total || pagination?.totalItems || products.length}
+        onPageChange={(page) => setParams((prev) => ({ ...prev, page }))}
+        onPageSizeChange={(limit) => setParams((prev) => ({ ...prev, limit: Math.min(100, limit), page: 1 }))}
+        sortConfig={sortUi}
+        onSortChange={handleSortChange}
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        onSearchClick={handleSearchClick}
+        onSearchClear={handleSearchClear}
+      />
 
       <DeleteModal
         isOpen={deleteModal.isOpen}

@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { ArrowLeft, Save, Send, Calendar } from 'lucide-react';
+import { ArrowLeft, Save, Send } from 'lucide-react';
 import { decryptData } from '@/utility/crypto';
-import Button from '@/components/inputs/Button';
-import Card from '../../../components/breadCrumbs/Card';
-import Loader from '@/components/loader/Loader';
-import { Input } from '@/components/inputs/Input';
-import { Label } from '@/components/inputs/Label';
-import Select from '@/components/inputs/Select';
+import {
+  Button, Checkbox, DocumentLayout, Field, FormGrid, Input, Label, LINE_TD, LINE_TH, LineItemsTable, LineRow,
+  PartyCard, Section, Select, Spinner, Textarea, TotalsPanel, TotalsRow, TotalsToggle, useShortcuts,
+} from '@/components/ui';
 import { getSalesInvoices } from '../salesInvoices/services/salesInvoiceSlice';
 import { getSalesInvoiceByIdApi } from '../salesInvoices/services/salesInvoiceService';
 import {
@@ -18,6 +16,20 @@ import {
   clearCurrentCreditNote,
   resetCreditNoteStatus,
 } from './services/creditNoteSlice';
+
+const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Same per-line maths the table always showed (display only). */
+function lineMath(item) {
+  const qty = Number(item.qty || 0);
+  const rate = Number(item.rate || 0);
+  const disc = Number(item.discountPercent || 0);
+  const gst = Number(item.taxPercent || 0);
+  const taxable = qty * rate * (1 - disc / 100);
+  const lineTotal = taxable * (1 + gst / 100);
+  const hasQtyError = item.included && (qty <= 0 || qty > item.maxQty);
+  return { rate, disc, gst, lineTotal, hasQtyError };
+}
 
 export default function CreateCreditNote() {
   const { id: encryptedId } = useParams();
@@ -232,317 +244,244 @@ export default function CreateCreditNote() {
     })),
   ];
 
+  useShortcuts({
+    'mod+s': () => !creditLoading && selectedInvoiceId && handleSave('draft'),
+  });
+
+  const header = {
+    title: isEditMode ? 'Edit Credit Note' : 'Create Credit Note',
+    docNo: isEditMode ? currentCreditNote?.creditNoteNumber : undefined,
+  };
+
   if ((isEditMode && creditLoading) || invoiceLoading) {
     return (
-      <Card h1="Credit Note" buttonName="Back" navigation="-1" buttonVariant="danger" buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />} bodyClassName="p-6">
-        <Loader />
-      </Card>
+      <DocumentLayout
+        header={{ ...header, title: 'Credit Note', actions: <Button variant="secondary" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>Back</Button> }}
+      >
+        <Section>
+          <div className="flex justify-center py-10"><Spinner /></div>
+        </Section>
+      </DocumentLayout>
     );
   }
 
+  const issueButton = (className) => (
+    <Button
+      onClick={() => handleSave('issued')}
+      loading={creditLoading}
+      disabled={!selectedInvoiceId}
+      startIcon={<Send />}
+      className={className}
+    >
+      {creditLoading ? 'Saving...' : 'Save & Issue'}
+    </Button>
+  );
+
+  const customer = selectedInvoice?.customerSnapshot;
+  const customerLine = (label, value) => (
+    <div className="min-w-0">
+      <span className="font-medium text-ink-muted">{label}:</span> <span className="text-ink">{value}</span>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col gap-6 mx-auto text-[var(--vs-text-primary)]">
-      <Card
-        h1={isEditMode ? 'Edit Credit Note' : 'Create Credit Note'}
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-6 flex flex-col gap-6"
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <DocumentLayout
+      header={{
+        ...header,
+        actions: (
+          <>
+            <Button variant="ghost" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>
+              Back
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleSave('draft')}
+              loading={creditLoading}
+              disabled={!selectedInvoiceId}
+              startIcon={<Save />}
+            >
+              {creditLoading ? 'Saving...' : 'Save Draft'}
+            </Button>
+            {issueButton('hidden lg:inline-flex')}
+          </>
+        ),
+      }}
+      summary={
+        <TotalsPanel title="Credit Note Summary" total={inr(totals.totalAmount)} totalLabel="Total Credit Value" note="Ctrl S saves a draft.">
+          <TotalsRow label="Subtotal" value={inr(totals.subtotal)} />
+          <TotalsRow label="GST Total" value={inr(totals.taxAmount)} />
+          <TotalsToggle label="Round Off Amount" checked={roundOff} onChange={setRoundOff} />
+        </TotalsPanel>
+      }
+      mobileBar={{ label: 'Total Credit Value', value: inr(totals.totalAmount), action: issueButton() }}
+    >
+      {error && (
+        <div role="alert" className="rounded-control bg-danger-soft px-4 py-3 text-danger">
+          <div className="text-sm font-semibold">{typeof error === 'string' ? error : error.message || 'Validation failed'}</div>
+          {error.errors && error.errors.length > 0 && (
+            <ul className="mt-1 list-disc pl-5 text-sm">
+              {error.errors.map((err, i) => <li key={i}>{err}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
-          {/* ── Left / Main Form ── */}
-          <div className="lg:col-span-2 flex flex-col gap-6">
+      {/* Source invoice + customer */}
+      <Section title="Sales Invoice Information">
+        <div className="flex flex-col gap-4">
+          <FormGrid cols={2}>
+            <Field
+              label="Source Sales Invoice"
+              required
+              error={isSubmitted && !selectedInvoiceId ? 'Invoice selection is required' : undefined}
+            >
+              <Select
+                options={invoiceOptions}
+                value={selectedInvoiceId}
+                onChange={handleInvoiceChange}
+                disabled={isEditMode}
+                placeholder="Search/Select Invoice..."
+                invalid={isSubmitted && !selectedInvoiceId}
+              />
+            </Field>
+            <Field label="Credit Note Date">
+              <Input type="date" value={creditNoteDate} onChange={(e) => setCreditNoteDate(e.target.value)} />
+            </Field>
+          </FormGrid>
 
-            {/* Error Banner */}
-            {error && (
-              <div className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 p-4 rounded-xl border border-red-200 dark:border-red-500/20">
-                <div className="font-semibold text-sm">{typeof error === 'string' ? error : error.message || 'Validation failed'}</div>
-                {error.errors && error.errors.length > 0 && (
-                  <ul className="list-disc pl-5 mt-1 text-sm">
-                    {error.errors.map((err, i) => <li key={i}>{err}</li>)}
-                  </ul>
+          {selectedInvoice && (
+            <PartyCard name={customer?.name || 'Walk-in'} sub="Customer Details (from Invoice)">
+              <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 pt-1 text-sm md:grid-cols-2">
+                {customerLine('Phone', customer?.phone || '—')}
+                {customerLine('Email', customer?.email || '—')}
+                {customerLine('GSTIN', customer?.gstin || '—')}
+                {customerLine(
+                  'Billing Address',
+                  [
+                    customer?.billingAddress?.street,
+                    customer?.billingAddress?.city,
+                    customer?.billingAddress?.state,
+                    customer?.billingAddress?.pincode,
+                  ].filter(Boolean).join(', ') || '—'
                 )}
               </div>
-            )}
-
-            {/* Invoice Select & Customer Info */}
-            <Card title="Sales Invoice Information" bodyClassName="px-4 py-3 flex flex-col gap-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <Label>Source Sales Invoice <span className="text-red-500">*</span></Label>
-                  <Select
-                    options={invoiceOptions}
-                    value={selectedInvoiceId}
-                    onChange={handleInvoiceChange}
-                    disabled={isEditMode}
-                    placeholder="Search/Select Invoice..."
-                    className={isSubmitted && !selectedInvoiceId ? '!border-red-500' : ''}
-                  />
-                  {isSubmitted && !selectedInvoiceId && <div className="text-red-500 text-xs mt-0.5">Invoice selection is required</div>}
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <Label>Credit Note Date</Label>
-                  <Input type="date" value={creditNoteDate} onChange={(e) => setCreditNoteDate(e.target.value)} />
-                </div>
-              </div>
-
-              {selectedInvoice && (
-                <div className="mt-4 p-4 rounded-xl border border-dashed border-gray-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.01] flex flex-col gap-2.5 text-sm">
-                  <h4 className="font-bold text-xs uppercase tracking-wider !text-blue-600 dark:text-blue-400">Customer Details (from Invoice)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5">
-                    <div><span className="text-[var(--vs-text-secondary)] font-medium">Name:</span> {selectedInvoice.customerSnapshot?.name || 'Walk-in'}</div>
-                    <div><span className="text-[var(--vs-text-secondary)] font-medium">Phone:</span> {selectedInvoice.customerSnapshot?.phone || '—'}</div>
-                    <div><span className="text-[var(--vs-text-secondary)] font-medium">Email:</span> {selectedInvoice.customerSnapshot?.email || '—'}</div>
-                    <div><span className="text-[var(--vs-text-secondary)] font-medium">GSTIN:</span> {selectedInvoice.customerSnapshot?.gstin || '—'}</div>
-                  </div>
-                  <div>
-                    <span className="text-[var(--vs-text-secondary)] font-medium">Billing Address:</span>{' '}
-                    {[
-                      selectedInvoice.customerSnapshot?.billingAddress?.street,
-                      selectedInvoice.customerSnapshot?.billingAddress?.city,
-                      selectedInvoice.customerSnapshot?.billingAddress?.state,
-                      selectedInvoice.customerSnapshot?.billingAddress?.pincode
-                    ].filter(Boolean).join(', ') || '—'}
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            {/* Notes */}
-            <Card title="Notes" bodyClassName="px-4 py-3 flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <Label>Credit Note Notes</Label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Reason for credit note, adjustments made, etc..."
-                  className="w-full h-24 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none resize-none text-[var(--vs-text-primary)] focus:border-indigo-500/60"
-                />
-              </div>
-            </Card>
-
-          </div>
-
-          {/* ── Right Summary Sidebar ── */}
-          <div className="flex flex-col gap-6">
-            <Card title="Credit Note Summary" bodyClassName="p-5 flex flex-col gap-4">
-              <div className="flex items-center justify-between border-b border-gray-100 dark:border-white/5 pb-3">
-                <span className="text-sm font-semibold">Round Off Amount</span>
-                <input
-                  type="checkbox"
-                  checked={roundOff}
-                  onChange={(e) => setRoundOff(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 outline-none cursor-pointer"
-                />
-              </div>
-
-              {/* Price Calculation */}
-              <div className="flex flex-col gap-2.5 text-sm">
-                <div className="flex items-center justify-between text-[var(--vs-text-secondary)]">
-                  <span>Subtotal</span>
-                  <span className="font-mono">₹{totals.subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-[var(--vs-text-secondary)]">
-                  <span>GST Total</span>
-                  <span className="font-mono">₹{totals.taxAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between border-t border-gray-200 dark:border-white/10 pt-3 text-base font-bold text-[var(--vs-text-primary)]">
-                  <span>Total Credit Value</span>
-                  <span className="font-mono text-indigo-600 dark:text-indigo-400">₹{totals.totalAmount.toFixed(2)}</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col gap-2 border-t border-gray-200 dark:border-white/10 pt-4">
-                <Button
-                  type="button"
-                  variant="primary"
-                  className="w-full flex items-center justify-center gap-2"
-                  onClick={() => handleSave('issued')}
-                  disabled={creditLoading || !selectedInvoiceId}
-                >
-                  {creditLoading ? (
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  {creditLoading ? 'Saving...' : 'Save & Issue'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full flex items-center justify-center gap-2 border-dashed"
-                  onClick={() => handleSave('draft')}
-                  disabled={creditLoading || !selectedInvoiceId}
-                >
-                  {creditLoading ? (
-                    <span className="w-4 h-4 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  {creditLoading ? 'Saving...' : 'Save Draft'}
-                </Button>
-              </div>
-            </Card>
-          </div>
-
+            </PartyCard>
+          )}
         </div>
+      </Section>
 
-        {/* ── Line Items (Prepopulated from Sales Invoice) ── */}
-        {selectedInvoiceId && (
-          <Card
-            title="Creditable Line Items"
-            bodyClassName="p-2 flex flex-col gap-4 mt-6"
-          >
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-300 dark:border-white/20">
-              <table className="w-full text-sm border-collapse min-w-[700px]">
-                <thead className="bg-gray-50/50 dark:bg-slate-800/50">
-                  <tr className="text-left text-xs font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
-                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[5%] text-center">Credit</th>
-                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[35%]">Product</th>
-                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[10%] text-center">Invoiced Qty</th>
-                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[15%] text-center">Rate (₹)</th>
-                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[10%] text-center">Discount (%)</th>
-                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[10%] text-center">GST (%)</th>
-                    <th className="py-3 px-3 border-r border-b border-gray-300 dark:border-white/20 w-[12%] text-center">Credit Qty</th>
-                    <th className="py-3 px-3 border-b border-gray-300 dark:border-white/20 text-center">Total (₹)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lineItems.map((item, idx) => {
-                    const qty = Number(item.qty || 0);
-                    const rate = Number(item.rate || 0);
-                    const disc = Number(item.discountPercent || 0);
-                    const gst = Number(item.taxPercent || 0);
-                    const taxable = qty * rate * (1 - disc / 100);
-                    const lineTotal = taxable * (1 + gst / 100);
-
-                    const isLast = idx === lineItems.length - 1;
-                    const rowBorder = isLast ? '' : 'border-b border-gray-300 dark:border-white/20';
-
-                    const hasQtyError = item.included && (qty <= 0 || qty > item.maxQty);
-
-                    return (
-                      <tr key={idx} className={`${rowBorder} align-middle hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors ${!item.included ? 'opacity-50' : ''}`}>
-                        <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 text-center align-middle">
-                          <input
-                            type="checkbox"
-                            checked={item.included}
-                            onChange={(e) => handleLineItemChange(idx, 'included', e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 cursor-pointer"
-                          />
-                        </td>
-                        <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-middle">
-                          <span className="font-semibold text-[var(--vs-text-primary)]">{item.productName}</span>
-                          {item.hsnCode && <span className="block text-[10px] text-[var(--vs-text-secondary)] font-mono">HSN: {item.hsnCode}</span>}
-                        </td>
-                        <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 text-center font-mono align-middle">
-                          {item.maxQty}
-                        </td>
-                        <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 text-center font-mono align-middle">
-                          ₹{rate.toFixed(2)}
-                        </td>
-                        <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 text-center font-mono align-middle">
-                          {disc}%
-                        </td>
-                        <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 text-center font-mono align-middle">
-                          {gst}%
-                        </td>
-                        <td className="py-2.5 px-3 border-r border-gray-300 dark:border-white/20 align-middle">
-                          <Input
-                            type="number"
-                            min="1"
-                            max={item.maxQty}
-                            value={item.qty}
-                            disabled={!item.included}
-                            onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))}
-                            className={`text-center !h-9 !rounded-lg ${hasQtyError ? '!border-red-500 focus:!border-red-500' : ''}`}
-                          />
-                          {hasQtyError && (
-                            <div className="text-red-500 text-[10px] mt-1 text-center font-semibold">
-                              Qty must be 1 to {item.maxQty}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-medium align-middle text-indigo-600 dark:text-indigo-400 font-mono">
-                          ₹{item.included ? lineTotal.toFixed(2) : '0.00'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile View */}
-            <div className="flex flex-col gap-4 md:hidden">
+      {/* Line items (prepopulated from the sales invoice) */}
+      {selectedInvoiceId && (
+        <Section title="Creditable Line Items" bodyClassName="px-3 sm:px-4">
+          <div className="flex flex-col gap-3">
+            {/* Desktop table */}
+            <LineItemsTable
+              className="hidden md:block"
+              minWidth={760}
+              head={
+                <tr>
+                  <th className={`${LINE_TH} w-[7%] text-center`}>Credit</th>
+                  <th className={`${LINE_TH} w-auto min-w-[200px]`}>Product</th>
+                  <th className={`${LINE_TH} w-[10%] text-right`}>Invoiced Qty</th>
+                  <th className={`${LINE_TH} w-[12%] text-right`}>Rate (₹)</th>
+                  <th className={`${LINE_TH} w-[10%] text-right`}>Discount (%)</th>
+                  <th className={`${LINE_TH} w-[9%] text-right`}>GST (%)</th>
+                  <th className={`${LINE_TH} w-[12%] min-w-[100px] text-right`}>Credit Qty</th>
+                  <th className={`${LINE_TH} w-[12%] text-right`}>Total (₹)</th>
+                </tr>
+              }
+            >
               {lineItems.map((item, idx) => {
-                const qty = Number(item.qty || 0);
-                const rate = Number(item.rate || 0);
-                const disc = Number(item.discountPercent || 0);
-                const gst = Number(item.taxPercent || 0);
-                const taxable = qty * rate * (1 - disc / 100);
-                const lineTotal = taxable * (1 + gst / 100);
+                const { rate, disc, gst, lineTotal, hasQtyError } = lineMath(item);
+                return (
+                  <LineRow key={idx} tone={hasQtyError ? 'warning' : undefined} className={item.included ? undefined : 'opacity-50'}>
+                    <td className={`${LINE_TD} pt-5 text-center`}>
+                      <Checkbox
+                        checked={item.included}
+                        onChange={(checked) => handleLineItemChange(idx, 'included', checked)}
+                        aria-label={`Credit ${item.productName}`}
+                      />
+                    </td>
+                    <td className={`${LINE_TD} pt-4`}>
+                      <span className="font-semibold text-ink">{item.productName}</span>
+                      {item.hsnCode && <span className="block text-[11px] tabular-nums text-ink-subtle">HSN: {item.hsnCode}</span>}
+                    </td>
+                    <td className={`${LINE_TD} pt-5 text-right tabular-nums`}>{item.maxQty}</td>
+                    <td className={`${LINE_TD} pt-5 text-right tabular-nums`}>₹{rate.toFixed(2)}</td>
+                    <td className={`${LINE_TD} pt-5 text-right tabular-nums`}>{disc}%</td>
+                    <td className={`${LINE_TD} pt-5 text-right tabular-nums`}>{gst}%</td>
+                    <td className={LINE_TD}>
+                      <Input
+                        size="sm"
+                        type="number"
+                        min="1"
+                        max={item.maxQty}
+                        value={item.qty}
+                        disabled={!item.included}
+                        onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))}
+                        invalid={hasQtyError}
+                        className="text-right tabular-nums"
+                      />
+                      {hasQtyError && (
+                        <div className="mt-1 text-right text-xs font-semibold text-danger">Qty must be 1 to {item.maxQty}</div>
+                      )}
+                    </td>
+                    <td className={`${LINE_TD} pt-5 text-right font-bold tabular-nums`}>
+                      ₹{item.included ? lineTotal.toFixed(2) : '0.00'}
+                    </td>
+                  </LineRow>
+                );
+              })}
+            </LineItemsTable>
 
-                const hasQtyError = item.included && (qty <= 0 || qty > item.maxQty);
-
+            {/* Phone: one card per line */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {lineItems.map((item, idx) => {
+                const { rate, disc, gst, lineTotal, hasQtyError } = lineMath(item);
                 return (
                   <div
                     key={idx}
-                    className={`border border-gray-200 dark:border-white/10 rounded-2xl p-4 bg-gray-50/50 dark:bg-white/[0.01] flex flex-col gap-3 transition-opacity ${!item.included ? 'opacity-60' : ''}`}
+                    className={`flex flex-col gap-3 rounded-control p-4 transition-opacity ${hasQtyError ? 'bg-highlight-soft' : 'bg-surface ring-1 ring-line'} ${item.included ? '' : 'opacity-60'}`}
                   >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={item.included}
-                          onChange={(e) => handleLineItemChange(idx, 'included', e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-indigo-600 cursor-pointer"
-                        />
-                        <span className="text-sm font-bold text-[var(--vs-text-primary)]">{item.productName}</span>
-                      </div>
-                      <span className="text-xs font-semibold text-[var(--vs-text-secondary)]">Max: {item.maxQty}</span>
+                    <div className="flex items-center justify-between gap-3">
+                      <Checkbox
+                        checked={item.included}
+                        onChange={(checked) => handleLineItemChange(idx, 'included', checked)}
+                        label={item.productName}
+                      />
+                      <span className="shrink-0 text-xs font-semibold text-ink-muted">Max: {item.maxQty}</span>
                     </div>
 
                     {item.included && (
                       <div className="flex flex-col gap-3">
                         <div className="grid grid-cols-3 gap-2">
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col">
                             <Label>Rate (₹)</Label>
-                            <div className="text-sm font-semibold font-mono mt-1">₹{rate.toFixed(2)}</div>
+                            <div className="text-sm font-semibold tabular-nums text-ink">₹{rate.toFixed(2)}</div>
                           </div>
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col">
                             <Label>Disc (%)</Label>
-                            <div className="text-sm font-semibold font-mono mt-1">{disc}%</div>
+                            <div className="text-sm font-semibold tabular-nums text-ink">{disc}%</div>
                           </div>
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col">
                             <Label>GST (%)</Label>
-                            <div className="text-sm font-semibold font-mono mt-1">{gst}%</div>
+                            <div className="text-sm font-semibold tabular-nums text-ink">{gst}%</div>
                           </div>
                         </div>
 
-                        <div className="flex flex-col gap-1">
-                          <Label>Credit Qty</Label>
+                        <Field label="Credit Qty" error={hasQtyError ? `Max ${item.maxQty} allowed` : undefined}>
                           <Input
                             type="number"
                             min="1"
                             max={item.maxQty}
                             value={item.qty}
                             onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))}
-                            className={`${hasQtyError ? '!border-red-500' : ''}`}
                           />
-                          {hasQtyError && (
-                            <div className="text-red-500 text-[10px] mt-0.5">Max {item.maxQty} allowed</div>
-                          )}
-                        </div>
+                        </Field>
 
-                        <div className="flex justify-between items-center border-t border-gray-150 dark:border-white/5 pt-2 mt-1 text-sm font-semibold">
-                          <span>Line Total:</span>
-                          <span className="font-mono text-indigo-600 dark:text-indigo-400">₹{lineTotal.toFixed(2)}</span>
+                        <div className="flex items-center justify-between border-t border-line pt-2 text-sm font-semibold">
+                          <span className="text-ink-muted">Line Total:</span>
+                          <span className="tabular-nums text-ink">₹{lineTotal.toFixed(2)}</span>
                         </div>
                       </div>
                     )}
@@ -552,13 +491,25 @@ export default function CreateCreditNote() {
             </div>
 
             {isSubmitted && lineItems.filter((i) => i.included).length === 0 && (
-              <div className="text-red-500 text-sm mt-2 font-medium">
+              <div role="alert" className="text-sm font-medium text-danger">
                 Please select at least one item to credit.
               </div>
             )}
-          </Card>
-        )}
-      </Card>
-    </div>
+          </div>
+        </Section>
+      )}
+
+      {/* Notes */}
+      <Section title="Notes">
+        <Field label="Credit Note Notes">
+          <Textarea
+            rows={4}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Reason for credit note, adjustments made, etc..."
+          />
+        </Field>
+      </Section>
+    </DocumentLayout>
   );
 }

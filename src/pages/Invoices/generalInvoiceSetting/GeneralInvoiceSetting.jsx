@@ -1,13 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Save, CheckCircle, AlertCircle } from 'lucide-react';
-import Card from '@/components/breadCrumbs/Card';
-import Tabs from '@/components/inputs/Tabs';
-import { Input } from '@/components/inputs/Input';
-import { Label } from '@/components/inputs/Label';
-import Button from '@/components/inputs/Button';
-import Switch from '@/components/inputs/Switch';
-import Loader from '@/components/loader/Loader';
+import { Save } from 'lucide-react';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  DetailList,
+  Field,
+  FormActions,
+  FormGrid,
+  Input,
+  PageHeader,
+  Section,
+  Segmented,
+  Select,
+  SettingRow,
+  SkeletonRows,
+  Switch,
+  Textarea,
+} from '@/components/ui';
 import {
   fetchGeneralInvoiceSettings,
   updateGeneralInvoiceSettings,
@@ -16,9 +28,6 @@ import {
 
 const DOC_TYPES = [
   { key: 'salesInvoice', label: 'Sales Invoice' },
-  { key: 'quotation', label: 'Quotation / Estimate' },
-  { key: 'proformaInvoice', label: 'Proforma Invoice' },
-  { key: 'deliveryChallan', label: 'Delivery Challan' },
   { key: 'salesReturn', label: 'Sales Return' },
   { key: 'creditNote', label: 'Credit Note' },
   { key: 'paymentReceipt', label: 'Payment Receipt' },
@@ -62,9 +71,6 @@ const INITIAL_FORM_STATE = {
   },
   numberingConfig: {
     salesInvoice: { prefix: 'INV-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
-    quotation: { prefix: 'QT-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
-    proformaInvoice: { prefix: 'PI-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
-    deliveryChallan: { prefix: 'DC-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
     salesReturn: { prefix: 'SR-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
     creditNote: { prefix: 'CN-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
     paymentReceipt: { prefix: 'PR-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
@@ -112,33 +118,14 @@ export default function GeneralInvoiceSetting() {
           branch: settings.bankDetails?.branch || '',
         },
         numberingConfig: {
+          // Series no longer shown here (quotation, proforma, challan…) are sent back as the server returned them.
+          ...(settings.numberingConfig || {}),
           salesInvoice: {
             prefix: settings.numberingConfig?.salesInvoice?.prefix ?? settings.prefix ?? 'INV-',
             suffix: settings.numberingConfig?.salesInvoice?.suffix ?? settings.suffix ?? '',
             financialYearFormat: settings.numberingConfig?.salesInvoice?.financialYearFormat ?? settings.financialYearFormat ?? 'YYYY-YY',
             seriesStartsFrom: settings.numberingConfig?.salesInvoice?.seriesStartsFrom ?? settings.seriesStartsFrom ?? 1,
             resetPerYear: settings.numberingConfig?.salesInvoice?.resetPerYear ?? true,
-          },
-          quotation: {
-            prefix: settings.numberingConfig?.quotation?.prefix ?? 'QT-',
-            suffix: settings.numberingConfig?.quotation?.suffix ?? '',
-            financialYearFormat: settings.numberingConfig?.quotation?.financialYearFormat ?? settings.financialYearFormat ?? 'YYYY-YY',
-            seriesStartsFrom: settings.numberingConfig?.quotation?.seriesStartsFrom ?? 1,
-            resetPerYear: settings.numberingConfig?.quotation?.resetPerYear ?? true,
-          },
-          proformaInvoice: {
-            prefix: settings.numberingConfig?.proformaInvoice?.prefix ?? 'PI-',
-            suffix: settings.numberingConfig?.proformaInvoice?.suffix ?? '',
-            financialYearFormat: settings.numberingConfig?.proformaInvoice?.financialYearFormat ?? settings.financialYearFormat ?? 'YYYY-YY',
-            seriesStartsFrom: settings.numberingConfig?.proformaInvoice?.seriesStartsFrom ?? 1,
-            resetPerYear: settings.numberingConfig?.proformaInvoice?.resetPerYear ?? true,
-          },
-          deliveryChallan: {
-            prefix: settings.numberingConfig?.deliveryChallan?.prefix ?? 'DC-',
-            suffix: settings.numberingConfig?.deliveryChallan?.suffix ?? '',
-            financialYearFormat: settings.numberingConfig?.deliveryChallan?.financialYearFormat ?? settings.financialYearFormat ?? 'YYYY-YY',
-            seriesStartsFrom: settings.numberingConfig?.deliveryChallan?.seriesStartsFrom ?? 1,
-            resetPerYear: settings.numberingConfig?.deliveryChallan?.resetPerYear ?? true,
           },
           salesReturn: {
             prefix: settings.numberingConfig?.salesReturn?.prefix ?? 'SR-',
@@ -228,11 +215,29 @@ export default function GeneralInvoiceSetting() {
     dispatch(updateGeneralInvoiceSettings(payload));
   };
 
+  const CURRENCY_OPTIONS = [
+    { value: 'INR', label: 'INR (₹)' },
+    { value: 'USD', label: 'USD ($)' },
+    { value: 'EUR', label: 'EUR (€)' },
+    { value: 'GBP', label: 'GBP (£)' },
+    { value: 'AED', label: 'AED (د.إ)' },
+  ];
+
+  const header = (
+    <PageHeader
+      title="General Invoice Settings"
+      description="Default numbering, terms and bank details used on your sales documents."
+    />
+  );
+
   if (loading && !settings) {
     return (
-      <Card >
-        <Loader />
-      </Card>
+      <div className="flex flex-col gap-5">
+        {header}
+        <Card>
+          <SkeletonRows rows={6} cols={3} />
+        </Card>
+      </div>
     );
   }
 
@@ -242,372 +247,317 @@ export default function GeneralInvoiceSetting() {
     ...(settings?.sequences ? [{ label: 'Current Sequences Tracker', value: 'sequences' }] : []),
   ];
 
+  const docConfig = formData.numberingConfig[selectedDocType];
+
   return (
-    <Card title="General Invoice Settings">
-      <div className="space-y-6">
-        {/* Success Notification */}
-        {localSuccessMsg && (
-          <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300 shadow-sm animate-in fade-in">
-            <CheckCircle className="h-5 w-5 shrink-0 text-green-600" />
-            <span>{localSuccessMsg}</span>
-          </div>
-        )}
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {header}
 
-        {/* Error Notification */}
-        {(error || saveError) && (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 shadow-sm">
-            <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
-            <span>{error || saveError}</span>
-          </div>
-        )}
+      {/* Success Notification */}
+      {localSuccessMsg && <Alert tone="success">{localSuccessMsg}</Alert>}
 
-        {/* Tabs Component */}
-        <Tabs
-          tabs={tabItems}
-          activeTab={activeTab}
+      {/* Error Notification */}
+      {(error || saveError) && <Alert tone="danger">{error || saveError}</Alert>}
+
+      {/* Tabs */}
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <Segmented
+          aria-label="Settings sections"
+          options={tabItems}
+          value={activeTab}
           onChange={(val) => setActiveTab(val)}
         />
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* TAB 1: General Defaults */}
-          {activeTab === 'general' && (
-            <div className="space-y-6">
-              {/* Global Default Rules Card */}
-              <Card title="Global Default Rules">
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="prefix">Default Prefix</Label>
-                    <Input
-                      id="prefix"
-                      name="prefix"
-                      value={formData.prefix}
-                      onChange={handleGeneralChange}
-                      placeholder="e.g. INV-"
-                    />
-                    <p className="text-xs text-[var(--vs-text-secondary)]">Prefix applied across invoices</p>
-                  </div>
+      {/* TAB 1: General Defaults */}
+      {activeTab === 'general' && (
+        <>
+          <Section title="Global Default Rules" description="Used when a document type has no rule of its own">
+            <FormGrid cols={3}>
+              <Field label="Default Prefix" hint="Prefix applied across invoices">
+                <Input
+                  id="prefix"
+                  name="prefix"
+                  value={formData.prefix}
+                  onChange={handleGeneralChange}
+                  placeholder="e.g. INV-"
+                  className="font-mono"
+                />
+              </Field>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="suffix">Default Suffix</Label>
-                    <Input
-                      id="suffix"
-                      name="suffix"
-                      value={formData.suffix}
-                      onChange={handleGeneralChange}
-                      placeholder="e.g. -2324"
-                    />
-                    <p className="text-xs text-[var(--vs-text-secondary)]">Optional trailing text suffix</p>
-                  </div>
+              <Field label="Default Suffix" hint="Optional trailing text suffix">
+                <Input
+                  id="suffix"
+                  name="suffix"
+                  value={formData.suffix}
+                  onChange={handleGeneralChange}
+                  placeholder="e.g. -2324"
+                  className="font-mono"
+                />
+              </Field>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="financialYearFormat">Financial Year Format</Label>
-                    <select
-                      id="financialYearFormat"
-                      name="financialYearFormat"
-                      value={formData.financialYearFormat}
-                      onChange={handleGeneralChange}
-                      className="flex h-10 w-full rounded-md border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] px-3 py-2 text-sm text-[var(--vs-text-primary)] focus:outline-none focus:ring-2 focus:ring-[#0f6ebd]"
-                    >
-                      {FINANCIAL_YEAR_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <Field label="Financial Year Format">
+                <Select
+                  id="financialYearFormat"
+                  options={FINANCIAL_YEAR_OPTIONS}
+                  value={formData.financialYearFormat}
+                  onChange={(val) => handleGeneralChange({ target: { name: 'financialYearFormat', value: val } })}
+                  searchable={false}
+                />
+              </Field>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="seriesStartsFrom">Series Starts From</Label>
-                    <Input
-                      id="seriesStartsFrom"
-                      name="seriesStartsFrom"
-                      type="number"
-                      value={formData.seriesStartsFrom}
-                      onChange={handleGeneralChange}
-                      placeholder="1"
-                      min="1"
-                    />
-                  </div>
+              <Field label="Series Starts From">
+                <Input
+                  id="seriesStartsFrom"
+                  name="seriesStartsFrom"
+                  type="number"
+                  value={formData.seriesStartsFrom}
+                  onChange={handleGeneralChange}
+                  placeholder="1"
+                  min="1"
+                  className="tabular-nums"
+                />
+              </Field>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="currency">Default Currency</Label>
-                    <select
-                      id="currency"
-                      name="currency"
-                      value={formData.currency}
-                      onChange={handleGeneralChange}
-                      className="flex h-10 w-full rounded-md border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] px-3 py-2 text-sm text-[var(--vs-text-primary)] focus:outline-none focus:ring-2 focus:ring-[#0f6ebd]"
-                    >
-                      <option value="INR">INR (₹)</option>
-                      <option value="USD">USD ($)</option>
-                      <option value="EUR">EUR (€)</option>
-                      <option value="GBP">GBP (£)</option>
-                      <option value="AED">AED (د.إ)</option>
-                    </select>
-                  </div>
+              <Field label="Default Currency">
+                <Select
+                  id="currency"
+                  options={CURRENCY_OPTIONS}
+                  value={formData.currency}
+                  onChange={(val) => handleGeneralChange({ target: { name: 'currency', value: val } })}
+                  searchable={false}
+                />
+              </Field>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="dueDays">Default Payment Due Days</Label>
-                    <Input
-                      id="dueDays"
-                      name="dueDays"
-                      type="number"
-                      value={formData.dueDays}
-                      onChange={handleGeneralChange}
-                      placeholder="15"
-                      min="0"
-                    />
-                  </div>
-                </div>
-              </Card>
+              <Field label="Default Payment Due Days">
+                <Input
+                  id="dueDays"
+                  name="dueDays"
+                  type="number"
+                  value={formData.dueDays}
+                  onChange={handleGeneralChange}
+                  placeholder="15"
+                  min="0"
+                  className="tabular-nums"
+                />
+              </Field>
+            </FormGrid>
+          </Section>
 
-              {/* Default Terms & Notes Card */}
-              <Card title="Default Terms & Notes">
-                <div className="space-y-5">
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="defaultTerms">Default Terms & Conditions</Label>
-                      <textarea
-                        id="defaultTerms"
-                        name="defaultTerms"
-                        rows="4"
-                        value={formData.defaultTerms}
-                        onChange={handleGeneralChange}
-                        placeholder="e.g. Payment due within 15 days."
-                        className="flex w-full rounded-md border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] p-3 text-sm text-[var(--vs-text-primary)] focus:outline-none focus:ring-2 focus:ring-[#0f6ebd]"
-                      />
-                    </div>
+          <Section title="Default Terms & Notes" description="Pre-filled on every new invoice">
+            <FormGrid cols={2}>
+              <Field label="Default Terms & Conditions">
+                <Textarea
+                  id="defaultTerms"
+                  name="defaultTerms"
+                  rows={4}
+                  value={formData.defaultTerms}
+                  onChange={handleGeneralChange}
+                  placeholder="e.g. Payment due within 15 days."
+                />
+              </Field>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="defaultNotes">Default Customer Notes</Label>
-                      <textarea
-                        id="defaultNotes"
-                        name="defaultNotes"
-                        rows="4"
-                        value={formData.defaultNotes}
-                        onChange={handleGeneralChange}
-                        placeholder="e.g. Thank you for your business."
-                        className="flex w-full rounded-md border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] p-3 text-sm text-[var(--vs-text-primary)] focus:outline-none focus:ring-2 focus:ring-[#0f6ebd]"
-                      />
-                    </div>
-                  </div>
+              <Field label="Default Customer Notes">
+                <Textarea
+                  id="defaultNotes"
+                  name="defaultNotes"
+                  rows={4}
+                  value={formData.defaultNotes}
+                  onChange={handleGeneralChange}
+                  placeholder="e.g. Thank you for your business."
+                />
+              </Field>
+            </FormGrid>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-[var(--vs-border)]">
-                    <div>
-                      <Label className="font-semibold text-sm">Show Authorized Signatory</Label>
-                      <p className="text-xs text-[var(--vs-text-secondary)]">Display digital signature line on invoices</p>
-                    </div>
-                    <Switch
-                      checked={formData.showAuthorizedSignatory}
-                      onChange={(val) =>
-                        setFormData((prev) => ({ ...prev, showAuthorizedSignatory: val }))
-                      }
-                    />
-                  </div>
-                </div>
-              </Card>
+            <div className="mt-5 border-t border-line pt-4">
+              <SettingRow title="Show Authorized Signatory" description="Display digital signature line on invoices">
+                <Switch
+                  checked={formData.showAuthorizedSignatory}
+                  onChange={(val) =>
+                    setFormData((prev) => ({ ...prev, showAuthorizedSignatory: val }))
+                  }
+                />
+              </SettingRow>
+            </div>
+          </Section>
 
-              {/* Bank Account Details Card */}
-              <Card title="Bank Account Details">
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="accountName">Account Holder Name</Label>
-                    <Input
-                      id="accountName"
-                      name="accountName"
-                      value={formData.bankDetails.accountName}
-                      onChange={handleBankChange}
-                      placeholder="e.g. Company Name"
-                    />
-                  </div>
+          <Section title="Bank Account Details" description="Printed in the payment block of your invoices">
+            <FormGrid cols={3}>
+              <Field label="Account Holder Name">
+                <Input
+                  id="accountName"
+                  name="accountName"
+                  value={formData.bankDetails.accountName}
+                  onChange={handleBankChange}
+                  placeholder="e.g. Company Name"
+                />
+              </Field>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="accountNumber">Account Number</Label>
-                    <Input
-                      id="accountNumber"
-                      name="accountNumber"
-                      value={formData.bankDetails.accountNumber}
-                      onChange={handleBankChange}
-                      placeholder="e.g. 123456789"
-                    />
-                  </div>
+              <Field label="Account Number">
+                <Input
+                  id="accountNumber"
+                  name="accountNumber"
+                  value={formData.bankDetails.accountNumber}
+                  onChange={handleBankChange}
+                  placeholder="e.g. 123456789"
+                  className="font-mono"
+                />
+              </Field>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="bankName">Bank Name</Label>
-                    <Input
-                      id="bankName"
-                      name="bankName"
-                      value={formData.bankDetails.bankName}
-                      onChange={handleBankChange}
-                      placeholder="e.g. HDFC Bank"
-                    />
-                  </div>
+              <Field label="Bank Name">
+                <Input
+                  id="bankName"
+                  name="bankName"
+                  value={formData.bankDetails.bankName}
+                  onChange={handleBankChange}
+                  placeholder="e.g. HDFC Bank"
+                />
+              </Field>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ifsc">IFSC Code</Label>
-                    <Input
-                      id="ifsc"
-                      name="ifsc"
-                      value={formData.bankDetails.ifsc}
-                      onChange={handleBankChange}
-                      placeholder="e.g. HDFC0001"
-                    />
-                  </div>
+              <Field label="IFSC Code">
+                <Input
+                  id="ifsc"
+                  name="ifsc"
+                  value={formData.bankDetails.ifsc}
+                  onChange={handleBankChange}
+                  placeholder="e.g. HDFC0001"
+                  className="font-mono"
+                />
+              </Field>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="branch">Branch Name</Label>
-                    <Input
-                      id="branch"
-                      name="branch"
-                      value={formData.bankDetails.branch}
-                      onChange={handleBankChange}
-                      placeholder="e.g. Main Branch"
-                    />
-                  </div>
-                </div>
-              </Card>
+              <Field label="Branch Name">
+                <Input
+                  id="branch"
+                  name="branch"
+                  value={formData.bankDetails.branch}
+                  onChange={handleBankChange}
+                  placeholder="e.g. Main Branch"
+                />
+              </Field>
+            </FormGrid>
+          </Section>
+        </>
+      )}
+
+      {/* TAB 2: Per-Document Numbering Config */}
+      {activeTab === 'numbering' && (
+        <Section
+          title="Per-Document Type Numbering Rules"
+          description="Each document type keeps its own prefix and counter"
+          bodyClassName="flex flex-col gap-5"
+        >
+          {/* Document Selector */}
+          <div className="-mx-1 overflow-x-auto px-1 pb-1">
+            <Segmented
+              size="sm"
+              aria-label="Document type"
+              options={DOC_TYPES.map((dt) => ({ value: dt.key, label: dt.label }))}
+              value={selectedDocType}
+              onChange={(val) => setSelectedDocType(val)}
+            />
+          </div>
+
+          {/* Config for active Document Type */}
+          {selectedDocType && (
+            <div className="flex flex-col gap-4 rounded-card border border-line p-4 sm:p-5">
+              <h3 className="m-0 !text-sm !font-bold text-ink">
+                {`${DOC_TYPES.find((d) => d.key === selectedDocType)?.label} Configuration`}
+              </h3>
+
+              <FormGrid cols={4}>
+                <Field label="Prefix">
+                  <Input
+                    id={`${selectedDocType}-prefix`}
+                    value={docConfig?.prefix ?? ''}
+                    onChange={(e) => handleDocTypeChange(selectedDocType, 'prefix', e.target.value)}
+                    placeholder="e.g. INV-"
+                    className="font-mono"
+                  />
+                </Field>
+
+                <Field label="Suffix">
+                  <Input
+                    id={`${selectedDocType}-suffix`}
+                    value={docConfig?.suffix ?? ''}
+                    onChange={(e) => handleDocTypeChange(selectedDocType, 'suffix', e.target.value)}
+                    placeholder="e.g. -2026"
+                    className="font-mono"
+                  />
+                </Field>
+
+                <Field label="Financial Year Format">
+                  <Select
+                    id={`${selectedDocType}-fyFormat`}
+                    options={FINANCIAL_YEAR_OPTIONS}
+                    value={docConfig?.financialYearFormat ?? 'YYYY-YY'}
+                    onChange={(val) => handleDocTypeChange(selectedDocType, 'financialYearFormat', val)}
+                    searchable={false}
+                  />
+                </Field>
+
+                <Field label="Series Starts From">
+                  <Input
+                    id={`${selectedDocType}-series`}
+                    type="number"
+                    value={docConfig?.seriesStartsFrom ?? 1}
+                    onChange={(e) => handleDocTypeChange(selectedDocType, 'seriesStartsFrom', Number(e.target.value))}
+                    placeholder="1"
+                    min="1"
+                    className="tabular-nums"
+                  />
+                </Field>
+              </FormGrid>
+
+              <div className="border-t border-line pt-4">
+                <SettingRow
+                  title="Reset Counter Each Financial Year"
+                  description={`When enabled, document numbering sequence resets back to ${docConfig?.seriesStartsFrom ?? 1} at the beginning of a new financial year.`}
+                >
+                  <Switch
+                    checked={docConfig?.resetPerYear ?? true}
+                    onChange={(val) => handleDocTypeChange(selectedDocType, 'resetPerYear', val)}
+                  />
+                </SettingRow>
+              </div>
             </div>
           )}
+        </Section>
+      )}
 
-          {/* TAB 2: Per-Document Numbering Config */}
-          {activeTab === 'numbering' && (
-            <Card title="Per-Document Type Numbering Rules" >
-              <div className="space-y-6">
-                {/* Document Selector Pills */}
-                <div className="flex flex-wrap gap-2">
-                  {DOC_TYPES.map((dt) => {
-                    const isSelected = selectedDocType === dt.key;
-                    return (
-                      <button
-                        key={dt.key}
-                        type="button"
-                        onClick={() => setSelectedDocType(dt.key)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${isSelected
-                          ? 'bg-[#0f6ebd] text-white shadow-sm'
-                          : 'bg-[var(--vs-btn-hover)] text-[var(--vs-text-secondary)] hover:text-[var(--vs-text-primary)]'
-                          }`}
-                      >
-                        {dt.label}
-                      </button>
-                    );
-                  })}
+      {/* TAB 3: Sequences Tracker */}
+      {activeTab === 'sequences' && settings?.sequences && (
+        <Section title="Current Sequences Counter Status" description="Last number used, per financial year">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(settings.sequences).map(([docKey, fyObject]) => (
+              <div key={docKey} className="flex flex-col gap-3 rounded-card bg-fill-2 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold capitalize text-ink">
+                    {docKey.replace(/([A-Z])/g, ' $1')}
+                  </span>
+                  <Badge tone="primary" className="font-mono">{docKey}</Badge>
                 </div>
-
-                {/* Config Box for active Document Type */}
-                {selectedDocType && (
-                  <Card title={`${DOC_TYPES.find((d) => d.key === selectedDocType)?.label} Configuration`}>
-                    <div className="space-y-5">
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor={`${selectedDocType}-prefix`}>Prefix</Label>
-                          <Input
-                            id={`${selectedDocType}-prefix`}
-                            value={formData.numberingConfig[selectedDocType]?.prefix ?? ''}
-                            onChange={(e) => handleDocTypeChange(selectedDocType, 'prefix', e.target.value)}
-                            placeholder="e.g. INV-"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor={`${selectedDocType}-suffix`}>Suffix</Label>
-                          <Input
-                            id={`${selectedDocType}-suffix`}
-                            value={formData.numberingConfig[selectedDocType]?.suffix ?? ''}
-                            onChange={(e) => handleDocTypeChange(selectedDocType, 'suffix', e.target.value)}
-                            placeholder="e.g. -2026"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor={`${selectedDocType}-fyFormat`}>Financial Year Format</Label>
-                          <select
-                            id={`${selectedDocType}-fyFormat`}
-                            value={formData.numberingConfig[selectedDocType]?.financialYearFormat ?? 'YYYY-YY'}
-                            onChange={(e) => handleDocTypeChange(selectedDocType, 'financialYearFormat', e.target.value)}
-                            className="flex h-10 w-full rounded-md border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] px-3 py-2 text-sm text-[var(--vs-text-primary)] focus:outline-none focus:ring-2 focus:ring-[#0f6ebd]"
-                          >
-                            {FINANCIAL_YEAR_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor={`${selectedDocType}-series`}>Series Starts From</Label>
-                          <Input
-                            id={`${selectedDocType}-series`}
-                            type="number"
-                            value={formData.numberingConfig[selectedDocType]?.seriesStartsFrom ?? 1}
-                            onChange={(e) => handleDocTypeChange(selectedDocType, 'seriesStartsFrom', Number(e.target.value))}
-                            placeholder="1"
-                            min="1"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-[var(--vs-border)] pt-4">
-                        <div>
-                          <Label className="font-semibold text-sm">Reset Counter Each Financial Year</Label>
-                          <p className="text-xs text-[var(--vs-text-secondary)]">
-                            When enabled, document numbering sequence resets back to {formData.numberingConfig[selectedDocType]?.seriesStartsFrom ?? 1} at the beginning of a new financial year.
-                          </p>
-                        </div>
-                        <Switch
-                          checked={formData.numberingConfig[selectedDocType]?.resetPerYear ?? true}
-                          onChange={(val) => handleDocTypeChange(selectedDocType, 'resetPerYear', val)}
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                )}
+                <DetailList
+                  cols={1}
+                  className="gap-y-3"
+                  items={Object.entries(fyObject || {}).map(([fy, currentSeq]) => ({
+                    key: fy,
+                    label: `Financial Year (${fy})`,
+                    value: `#${currentSeq}`,
+                    mono: true,
+                  }))}
+                />
               </div>
-            </Card>
-          )}
-
-          {/* TAB 3: Sequences Tracker */}
-          {activeTab === 'sequences' && settings?.sequences && (
-            <Card title="Current Sequences Counter Status">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {Object.entries(settings.sequences).map(([docKey, fyObject]) => (
-                  <div key={docKey} className="rounded-lg border border-[var(--vs-border)] bg-[var(--vs-bg-secondary)] p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-[var(--vs-text-primary)] capitalize">
-                        {docKey.replace(/([A-Z])/g, ' $1')}
-                      </span>
-                      <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-                        {docKey}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5 pt-1">
-                      {Object.entries(fyObject || {}).map(([fy, currentSeq]) => (
-                        <div key={fy} className="flex items-center justify-between text-xs border-b border-dashed border-[var(--vs-border)] py-1 last:border-0">
-                          <span className="text-[var(--vs-text-secondary)]">Financial Year ({fy}):</span>
-                          <span className="font-mono font-bold text-[var(--vs-text-primary)]">#{currentSeq}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Submit Actions Footer */}
-          <div className="flex items-center justify-end">
-            <Button
-              type="submit"
-              disabled={saving}
-              className="flex items-center gap-2 px-6 py-2.5 font-semibold"
-            >
-              <Save className="h-4 w-4" />
-              {saving ? 'Updating Settings...' : 'Save General Settings'}
-            </Button>
+            ))}
           </div>
-        </form>
-      </div>
-    </Card>
+        </Section>
+      )}
+
+      {/* Submit Actions Footer */}
+      <FormActions>
+        <Button type="submit" disabled={saving} loading={saving} startIcon={<Save className="size-4" />}>
+          {saving ? 'Updating Settings...' : 'Save General Settings'}
+        </Button>
+      </FormActions>
+    </form>
   );
 }

@@ -1,5 +1,22 @@
 import { Check, Minus } from 'lucide-react';
+import { LINE_TD, LINE_TH, LineItemsTable, LineRow, SkeletonRows } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import { MATRIX_LEVELS, LEVEL_LABELS, levelsFor, moduleHasLevel, moduleExtras } from './rolePermissions';
+
+const TH_CENTER = cn(LINE_TH, 'w-20 text-center');
+const TD_CENTER = cn(LINE_TD, 'py-2.5 text-center align-middle');
+
+const Yes = ({ label }) => (
+  <span className="inline-grid size-6 place-items-center rounded-full bg-success-soft text-success" role="img" aria-label={label}>
+    <Check className="size-3.5 stroke-[3]" />
+  </span>
+);
+
+const No = ({ label }) => (
+  <span className="inline-grid size-6 place-items-center text-ink-subtle" role="img" aria-label={label}>
+    <Minus className="size-3.5" />
+  </span>
+);
 
 /**
  * Read-only grid of what a role allows: one row per module, View / Create / Edit / Delete ticks.
@@ -15,57 +32,54 @@ export default function RolePermissionsView({ permissions = [], modules = [] }) 
   })));
 
   if (modules.length === 0) {
-    return <p className="text-sm text-[var(--vs-text-secondary)] m-0">Loading permissions…</p>;
+    return <SkeletonRows rows={4} cols={5} />;
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="overflow-x-auto rounded-xl border border-[var(--vs-border)]">
-        <table className="w-full text-sm border-collapse min-w-[420px]">
-          <thead className="bg-[var(--vs-bg-secondary)]">
-            <tr className="text-left text-[11px] font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
-              <th className="py-2 px-3 border-b border-[var(--vs-border)]">Module</th>
-              {MATRIX_LEVELS.map((l) => (
-                <th key={l} className="py-2 px-3 border-b border-[var(--vs-border)] text-center w-20">{LEVEL_LABELS[l]}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map(({ module: m, granted }) => (
-              <tr
-                key={m.key}
-                className={`border-b last:border-b-0 border-[var(--vs-border)] ${granted.size ? '' : 'opacity-50'}`}
-              >
-                <td className="py-1.5 px-3 text-[var(--vs-text-primary)] font-medium">{m.label || m.key}</td>
-                {MATRIX_LEVELS.map((l) => (
-                  <td key={l} className="py-1.5 px-3 text-center">
-                    {!moduleHasLevel(m, l) ? (
-                      <span className="text-[var(--vs-text-secondary)]">—</span>
-                    ) : granted.has(l) ? (
-                      <Check className="w-4 h-4 inline-block text-emerald-600 dark:text-emerald-400" aria-label={`${LEVEL_LABELS[l]}: yes`} />
-                    ) : (
-                      <Minus className="w-4 h-4 inline-block text-[var(--vs-text-secondary)] opacity-60" aria-label={`${LEVEL_LABELS[l]}: no`} />
-                    )}
-                  </td>
-                ))}
-              </tr>
+    <div className="flex flex-col gap-3">
+      <LineItemsTable
+        minWidth={420}
+        head={
+          <tr>
+            <th className={LINE_TH}>Module</th>
+            {MATRIX_LEVELS.map((l) => (
+              <th key={l} className={TH_CENTER}>{LEVEL_LABELS[l]}</th>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </tr>
+        }
+      >
+        {sorted.map(({ module: m, granted }) => (
+          <LineRow key={m.key} className={granted.size ? '' : 'opacity-50'}>
+            <td className={cn(LINE_TD, 'py-2.5 align-middle font-medium')}>{m.label || m.key}</td>
+            {MATRIX_LEVELS.map((l) => (
+              <td key={l} className={TD_CENTER}>
+                {!moduleHasLevel(m, l) ? (
+                  <span className="text-ink-subtle" title="Not available for this module">—</span>
+                ) : granted.has(l) ? (
+                  <Yes label={`${LEVEL_LABELS[l]}: yes`} />
+                ) : (
+                  <No label={`${LEVEL_LABELS[l]}: no`} />
+                )}
+              </td>
+            ))}
+          </LineRow>
+        ))}
+      </LineItemsTable>
       {extras.length > 0 && (
-        <ul className="list-none m-0 p-0 flex flex-col gap-1">
-          {extras.map((x) => (
-            <li key={x.key} className={`flex items-center gap-2 text-sm ${x.on ? 'text-[var(--vs-text-primary)]' : 'opacity-50 text-[var(--vs-text-secondary)]'}`}>
-              {x.on ? (
-                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-label="yes" />
-              ) : (
-                <Minus className="w-4 h-4 opacity-60" aria-label="no" />
-              )}
-              {x.label}
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-2">
+          <p className="m-0 text-xs font-semibold text-ink-subtle">Extra permissions</p>
+          <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+            {extras.map((x) => (
+              <li
+                key={x.key}
+                className={cn('flex items-center gap-2.5 rounded-control border border-line px-3 py-2 text-sm', x.on ? 'text-ink' : 'text-ink-subtle opacity-60')}
+              >
+                {x.on ? <Yes label="yes" /> : <No label="no" />}
+                {x.label}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

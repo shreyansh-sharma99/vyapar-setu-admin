@@ -1,33 +1,20 @@
 import { useMemo, useState } from 'react';
-import { AutoComplete, DatePicker, Input as AntInput } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { AlertCircle, ArrowLeft, BadgePercent, Eye, History, Loader2, RefreshCw } from 'lucide-react';
-import Card from '@/components/breadCrumbs/Card';
-import Button from '@/components/inputs/Button';
-import Tabs from '@/components/inputs/Tabs';
-import { Label } from '@/components/inputs/Label';
-import ConfirmDialog from '@/pages/storeManagement/products/components/ConfirmDialog';
-import ToastStack from '@/pages/storeManagement/products/components/ToastStack';
+import { ArrowLeft, BadgePercent, Eye, History, Loader2, RefreshCw } from 'lucide-react';
+import {
+  Alert, Button, DatePicker, Field, FormGrid, Input, Label, Modal, PageHeader, Section, Segmented, Select, ToastStack,
+} from '@/components/ui';
 import { getApiErrorMessage, useToasts } from '@/pages/storeManagement/products/utils/productUtils';
 import { applyBulkTaxApi, previewBulkTaxApi } from './services/gstRateService';
-import AntdThemed from './components/AntdThemed';
 import ChangeHistory from './components/ChangeHistory';
 import GstPreviewTable from './components/GstPreviewTable';
 import ProductPicker from './components/ProductPicker';
-import { FieldError, FieldHint } from './components/formBits';
-import { GST_SLABS, formatDay, formatGst, parsePercent, toNumber } from './components/gstUtils';
+import { PreviewChips } from './components/formBits';
+import { formatDay, formatGst, parsePercent, toNumber } from './components/gstUtils';
+import useGstRates from './components/useGstRates';
 
-const GST_OPTIONS = GST_SLABS.map((s) => ({ value: String(s), label: `${s}%` }));
 const tomorrow = () => dayjs().add(1, 'day').startOf('day');
-
-const TabLabel = ({ icon: Icon, children }) => (
-  <span className="inline-flex items-center gap-1.5">
-    <Icon className="w-4 h-4" />
-    {children}
-  </span>
-);
-
-const Chip = ({ tone, children }) => <span className={`px-2.5 py-1 rounded-full font-semibold ${tone}`}>{children}</span>;
 
 /**
  * Master Settings → GST Rates. Two tabs so the page stays short:
@@ -35,6 +22,7 @@ const Chip = ({ tone, children }) => <span className={`px-2.5 py-1 rounded-full 
  *  - GST history: one product's past and upcoming rates
  */
 export default function GstRates() {
+  const navigate = useNavigate();
   const { toasts, showToast } = useToasts();
   const [tab, setTab] = useState('change');
 
@@ -42,6 +30,8 @@ export default function GstRates() {
   const [products, setProducts] = useState([]);
   const [effectiveFrom, setEffectiveFrom] = useState(tomorrow);
   const [gstText, setGstText] = useState('');
+  // the platform's GST rates (Admin Owner → Settings → GST Rates)
+  const { options: gstOptions, loading: gstLoading } = useGstRates();
   const [note, setNote] = useState('');
   const [attempted, setAttempted] = useState(false);
 
@@ -149,198 +139,190 @@ export default function GstRates() {
   };
 
   return (
-    <AntdThemed>
-      <Card
-        h1="GST Rates"
-        buttonName="Back"
-        navigation="-1"
-        buttonVariant="danger"
-        buttonIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-        bodyClassName="p-4 sm:p-5 flex flex-col gap-4"
-      >
-        <Tabs
-          tabs={[
-            { value: 'change', label: <TabLabel icon={BadgePercent}>Change GST</TabLabel> },
-            { value: 'history', label: <TabLabel icon={History}>GST history</TabLabel> },
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="GST Rates"
+        description="Change the GST of one or many products from a date. Bills dated before the change keep the old rate."
+        actions={
+          <Button variant="secondary" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>
+            Back
+          </Button>
+        }
+      />
+
+      <div className="overflow-x-auto">
+        <Segmented
+          aria-label="GST rates view"
+          options={[
+            { value: 'change', label: 'Change GST', icon: BadgePercent },
+            { value: 'history', label: 'GST history', icon: History },
           ]}
-          activeTab={tab}
+          value={tab}
           onChange={setTab}
         />
+      </div>
 
-        {/* both tabs stay mounted so switching keeps what was typed */}
-        <div className={tab === 'change' ? 'flex flex-col gap-4' : 'hidden'}>
-          <div>
-            <Label htmlFor="gst-products">
-              Products <span className="text-rose-500">*</span>
-            </Label>
-            <ProductPicker
-              id="gst-products"
-              multiple
-              value={products}
-              onChange={setProducts}
-              invalid={!!shownError('products')}
-              placeholder="Search by name, SKU or barcode — pick one or many"
-            />
-            <FieldError>{shownError('products')}</FieldError>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[200px_200px_minmax(0,1fr)_auto] gap-3 items-start">
-            <div>
-              <Label htmlFor="gst-effective-from">
-                Applicable from <span className="text-rose-500">*</span>
-              </Label>
-              <DatePicker
-                id="gst-effective-from"
-                size="large"
-                value={effectiveFrom}
-                onChange={setEffectiveFrom}
-                format="DD MMM YYYY"
-                allowClear={false}
-                inputReadOnly
-                status={shownError('effectiveFrom') ? 'error' : undefined}
-                className="w-full"
+      {/* both tabs stay mounted so switching keeps what was typed */}
+      <div className={tab === 'change' ? 'flex flex-col gap-5' : 'hidden'}>
+        <Section title="Change GST" description="Pick the products, the date and the new slab, then preview.">
+          <div className="flex flex-col gap-4">
+            <Field label="Products" required error={shownError('products')}>
+              <ProductPicker
+                id="gst-products"
+                multiple
+                value={products}
+                onChange={setProducts}
+                invalid={!!shownError('products')}
+                placeholder="Search by name, SKU or barcode — pick one or many"
               />
-              <FieldError>{shownError('effectiveFrom')}</FieldError>
-              {!shownError('effectiveFrom') && startsTodayOrEarlier && <FieldHint>Applies right away.</FieldHint>}
-            </div>
+            </Field>
 
-            <div>
-              <Label htmlFor="gst-rate">
-                New GST % <span className="text-rose-500">*</span>
-              </Label>
-              <AutoComplete
-                id="gst-rate"
-                size="large"
-                value={gstText}
-                onChange={(v) => setGstText(v ?? '')}
-                options={GST_OPTIONS}
-                placeholder="Slab or e.g. 12"
-                allowClear
-                status={shownError('gst', gstText !== '') ? 'error' : undefined}
-                className="w-full"
-              />
-              <FieldError>{shownError('gst', gstText !== '')}</FieldError>
-            </div>
-
-            <div>
-              <Label htmlFor="gst-note">Note</Label>
-              <AntInput
-                id="gst-note"
-                size="large"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                maxLength={300}
-                placeholder="e.g. GST council notification, 22 Sep 2026"
-              />
-            </div>
-
-            <div className="flex flex-col">
-              <span className="hidden lg:block text-sm mb-1.5 invisible" aria-hidden="true">
-                Preview
-              </span>
-              <Button
-                onClick={runPreview}
-                disabled={previewing || applying}
-                startIcon={
-                  previewing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : preview && !previewIsFresh ? (
-                    <RefreshCw className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )
-                }
+            <FormGrid cols={4} className="items-start lg:grid-cols-[200px_200px_minmax(0,1fr)_auto]">
+              <Field
+                label="Applicable from"
+                required
+                error={shownError('effectiveFrom')}
+                hint={startsTodayOrEarlier ? 'Applies right away.' : undefined}
               >
-                {previewing ? 'Loading...' : preview && !previewIsFresh ? 'Preview again' : 'Preview'}
-              </Button>
-            </div>
-          </div>
+                <DatePicker
+                  id="gst-effective-from"
+                  value={effectiveFrom}
+                  onChange={setEffectiveFrom}
+                  allowClear={false}
+                  inputReadOnly
+                  invalid={!!shownError('effectiveFrom')}
+                />
+              </Field>
 
-          {preview && !previewIsFresh && (
-            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">You changed the details — preview again before applying.</span>
-          )}
+              <Field label="New GST %" required error={shownError('gst', gstText !== '')}>
+                <Select
+                  id="gst-rate"
+                  value={gstText === '' ? undefined : gstText}
+                  onChange={(v) => setGstText(v ?? '')}
+                  options={gstOptions}
+                  placeholder={gstLoading ? 'Loading GST rates…' : 'Choose a GST rate'}
+                  searchable={false}
+                  clearable
+                  invalid={!!shownError('gst', gstText !== '')}
+                />
+              </Field>
 
-          {previewError && (
-            <div className="p-3 rounded-xl border border-rose-200 dark:border-rose-800/40 bg-rose-50 dark:bg-rose-950/30 text-xs text-rose-600 dark:text-rose-400 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
-              <span>{previewError}</span>
-            </div>
-          )}
+              <Field label="Note">
+                <Input
+                  id="gst-note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  maxLength={300}
+                  placeholder="e.g. GST council notification, 22 Sep 2026"
+                />
+              </Field>
 
-          {data && (
-            <div className={`flex flex-col gap-3 border-t border-[var(--vs-border)] pt-4 ${previewIsFresh ? '' : 'opacity-60'}`}>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-sm font-bold text-[var(--vs-text-primary)]">Preview</span>
-                  {applyDay && <span className="text-[var(--vs-text-secondary)] mr-1">bills from {applyDay}</span>}
-                  <Chip tone="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">New rate: {willChange}</Chip>
-                  <Chip tone="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">GST changes: {changedCount}</Chip>
-                  <Chip tone="bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-400">Skipped: {toNumber(data.skipped)}</Chip>
-                  {blockedRows.length > 0 && <Chip tone="bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">Above MRP: {blockedRows.length}</Chip>}
-                  {lowProfitRows.length > 0 && <Chip tone="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">Profit 0: {lowProfitRows.length}</Chip>}
-                </div>
-                <Button size="sm" onClick={() => setConfirmOpen(true)} disabled={!canApply} startIcon={<BadgePercent className="w-3.5 h-3.5" />}>
-                  Apply to {willChange} product{willChange === 1 ? '' : 's'}
+              <div className="flex flex-col">
+                <Label aria-hidden="true" className="invisible hidden lg:block">
+                  Preview
+                </Label>
+                <Button
+                  variant={previewIsFresh ? 'secondary' : 'primary'}
+                  onClick={runPreview}
+                  disabled={previewing || applying}
+                  className="h-11"
+                  startIcon={previewing ? <Loader2 className="animate-spin" /> : preview && !previewIsFresh ? <RefreshCw /> : <Eye />}
+                >
+                  {previewing ? 'Loading...' : preview && !previewIsFresh ? 'Preview again' : 'Preview'}
                 </Button>
               </div>
+            </FormGrid>
+
+            {preview && !previewIsFresh && <Alert tone="warning">You changed the details — preview again before applying.</Alert>}
+            {previewError && <Alert tone="danger">{previewError}</Alert>}
+          </div>
+        </Section>
+
+        {data && (
+          <Section
+            title="Preview"
+            description={applyDay ? `Bills from ${applyDay}` : undefined}
+            className={previewIsFresh ? '' : 'opacity-60'}
+            actions={
+              <Button size="sm" onClick={() => setConfirmOpen(true)} disabled={!canApply} startIcon={<BadgePercent />}>
+                Apply to {willChange} product{willChange === 1 ? '' : 's'}
+              </Button>
+            }
+          >
+            <div className="flex flex-col gap-3">
+              <PreviewChips
+                chips={[
+                  { label: `New rate: ${willChange}`, tone: 'green' },
+                  { label: `GST changes: ${changedCount}`, tone: 'amber' },
+                  { label: `Skipped: ${toNumber(data.skipped)}`, tone: 'gray' },
+                  ...(blockedRows.length > 0 ? [{ label: `Above MRP: ${blockedRows.length}`, tone: 'red' }] : []),
+                  ...(lowProfitRows.length > 0 ? [{ label: `Profit 0: ${lowProfitRows.length}`, tone: 'amber' }] : []),
+                ]}
+              />
               {blockedRows.length > 0 && (
-                <div className="p-3 rounded-xl border border-rose-200 dark:border-rose-800/40 bg-rose-50 dark:bg-rose-950/30 text-xs text-rose-700 dark:text-rose-400 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
-                  <span>
-                    With GST {gst.value}% the price becomes more than the MRP for {blockedRows.length} product{blockedRows.length === 1 ? '' : 's'} (
-                    {blockedRows.slice(0, 3).map((r) => r.name).join(', ')}
-                    {blockedRows.length > 3 ? '…' : ''}). Change their selling price / MRP first, or remove them — nothing was saved.
-                  </span>
-                </div>
+                <Alert tone="danger">
+                  With GST {gst.value}% the price becomes more than the MRP for {blockedRows.length} product{blockedRows.length === 1 ? '' : 's'} (
+                  {blockedRows.slice(0, 3).map((r) => r.name).join(', ')}
+                  {blockedRows.length > 3 ? '…' : ''}). Change their selling price / MRP first, or remove them — nothing was saved.
+                </Alert>
               )}
-              <div className="max-h-[45vh] overflow-y-auto rounded-xl">
+              <div className="max-h-[45vh] overflow-y-auto">
                 <GstPreviewTable rows={rows} productsById={productsById} />
               </div>
             </div>
-          )}
-        </div>
+          </Section>
+        )}
+      </div>
 
-        <div className={tab === 'history' ? 'flex flex-col gap-4' : 'hidden'}>
-          <ChangeHistory kind="gst" notify={showToast} reloadKey={historyReloadKey} />
-        </div>
-      </Card>
+      <div className={tab === 'history' ? 'flex flex-col gap-4' : 'hidden'}>
+        <ChangeHistory kind="gst" notify={showToast} reloadKey={historyReloadKey} />
+      </div>
 
-      <ConfirmDialog
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={runApply}
-        isLoading={applying}
+      <Modal
+        open={confirmOpen}
+        onClose={() => {
+          if (!applying) setConfirmOpen(false);
+        }}
+        closeOnBackdrop={!applying}
         title="Apply new GST?"
-        message={
-          payload ? (
-            <div className="flex flex-col gap-2 text-left">
-              <p className="m-0">
-                {willChange} product{willChange === 1 ? '' : 's'} will get GST {formatGst(payload.gstRate, 0)} from {formatDay(payload.effectiveFrom)}. Bills already saved
-                are not changed.
-              </p>
-              {lowProfitRows.length > 0 && (
-                <div className="rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/30 p-2.5 text-xs text-amber-800 dark:text-amber-300">
-                  <p className="m-0 font-bold">Profit becomes ₹0 for {lowProfitRows.length} product{lowProfitRows.length === 1 ? '' : 's'}:</p>
-                  <ul className="m-0 mt-1 pl-4 list-disc max-h-40 overflow-y-auto">
-                    {lowProfitRows.map((r) => (
-                      <li key={r.productId}>
-                        {r.name}: SP ₹{r.sellingPriceIncl} = cost ₹{r.costIncl} incl. GST (MRP ₹{r.mrp ?? '—'}) — {r.warning}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="m-0 mt-1">Apply anyway?</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            ''
-          )
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={applying}>
+              Cancel
+            </Button>
+            <Button onClick={runApply} loading={applying}>
+              {applying ? 'Applying...' : lowProfitRows.length > 0 ? 'Yes, apply' : 'Apply'}
+            </Button>
+          </>
         }
-        confirmText={lowProfitRows.length > 0 ? 'Yes, apply' : 'Apply'}
-        loadingText="Applying..."
-      />
+      >
+        {payload && (
+          <div className="flex flex-col gap-3 text-sm">
+            <p className="m-0 text-ink-muted">
+              <span className="font-semibold text-ink">
+                {willChange} product{willChange === 1 ? '' : 's'}
+              </span>{' '}
+              will get GST <span className="font-semibold tabular-nums text-ink">{formatGst(payload.gstRate, 0)}</span> from{' '}
+              <span className="font-semibold text-ink">{formatDay(payload.effectiveFrom)}</span>. Bills already saved are not changed.
+            </p>
+            {lowProfitRows.length > 0 && (
+              <Alert tone="warning" title={`Profit becomes ₹0 for ${lowProfitRows.length} product${lowProfitRows.length === 1 ? '' : 's'}:`}>
+                <ul className="m-0 mt-1 max-h-40 list-disc overflow-y-auto pl-4 tabular-nums">
+                  {lowProfitRows.map((r) => (
+                    <li key={r.productId}>
+                      {r.name}: SP ₹{r.sellingPriceIncl} = cost ₹{r.costIncl} incl. GST (MRP ₹{r.mrp ?? '—'}) — {r.warning}
+                    </li>
+                  ))}
+                </ul>
+                <p className="m-0 mt-1 font-semibold">Apply anyway?</p>
+              </Alert>
+            )}
+          </div>
+        )}
+      </Modal>
 
       <ToastStack toasts={toasts} />
-    </AntdThemed>
+    </div>
   );
 }

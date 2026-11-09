@@ -5,7 +5,7 @@ import { encryptData, decryptData } from '@/utility/crypto';
 /**
  * Login and GET /auth/profile return a flat user object:
  *   owner: { _id, name, email, businessName, userType: 'owner', ... }
- *   staff: { _id, name, email, userType: 'staff', roleName, permissions[], storeIds[], businessName, adminId }
+ *   staff: { _id, name, email, userType: 'staff', roleName, permissions[], businessName, adminId }
  * Make sure the access fields are always present with the right types.
  */
 export const normalizeUser = (raw) => {
@@ -19,17 +19,16 @@ export const normalizeUser = (raw) => {
     designationId: raw.designationId ? String(raw.designationId?._id || raw.designationId) : null,
     designation: typeof raw.designation === 'string' ? raw.designation : (raw.designation?.name || ''),
     permissions: Array.isArray(raw.permissions) ? raw.permissions : [],
-    storeIds: Array.isArray(raw.storeIds) ? raw.storeIds.map((s) => String(s?._id || s)) : [],
   };
 };
 
 const persistUser = (user) => {
-  localStorage.setItem('vyaparsetu', encryptData(JSON.stringify(user)));
+  localStorage.setItem('ecnbiz', encryptData(JSON.stringify(user)));
   if (user?.userType) localStorage.setItem('userType', user.userType);
 };
 
 const getInitialAuth = () => {
-  const vsetu = localStorage.getItem('vyaparsetu');
+  const vsetu = localStorage.getItem('ecnbiz');
   let user = null;
   let isAuthenticated = false;
 
@@ -168,7 +167,7 @@ const authSlice = createSlice({
           if (refreshToken) {
             localStorage.setItem('_v_rt', encryptData(refreshToken));
           }
-          // Saves userType, roleName, permissions and storeIds with the rest of the user.
+          // Saves userType, roleName and permissions with the rest of the user.
           persistUser(loggedInUser);
         }
       })

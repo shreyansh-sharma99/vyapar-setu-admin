@@ -1,16 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { CheckCircle2, Loader2, Save } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import { Input } from '@/components/inputs/Input';
+import { CheckCircle2, Save } from 'lucide-react';
+import { Button, DocumentLayout, FormGrid, Input, Section, Select, Textarea, TotalsInput, TotalsPanel, TotalsRow, useShortcuts } from '@/components/ui';
 import PurchaseToaster from '../components/PurchaseToaster';
 import PurchaseLineEditor from '../components/PurchaseLineEditor';
 import SupplierPicker from '../components/SupplierPicker';
 import { TotalsEditor } from '../components/Totals';
-import { Field, FormError, NativeSelect, PageLoading, PageShell, Section, StatusBadge, TextArea } from '../components/ui';
+import { Field, FormError, PageLoading, StatusBadge } from '../components/ui';
 import useApi from '../components/useApi';
-import useStores from '../components/useStores';
 import useSupplierInfo from '../components/useSupplierInfo';
 import { notify, notifyError } from '../components/toast';
 import {
@@ -42,13 +40,11 @@ function PurchaseReturnForm({ doc, init }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const saving = useSelector((state) => state.purchaseReturn.saving);
-  const { options: storeOptions, defaultId: defaultStoreId, loading: storesLoading } = useStores();
   const isEdit = !!doc;
 
   const [supplier, setSupplier] = useState(() =>
     doc ? { value: refId(doc.supplierId), label: supplierName(doc) } : init?.supplierId ? { value: init.supplierId, label: '' } : null
   );
-  const [storeId, setStoreId] = useState(() => (doc ? refId(doc.storeId) : init?.storeId || ''));
   const [billId, setBillId] = useState(() => (doc ? refId(doc.purchaseBillId) : init?.purchaseBillId || ''));
   const [billInfo, setBillInfo] = useState(() => (doc?.purchaseBillId && typeof doc.purchaseBillId === 'object' ? doc.purchaseBillId : null));
   const [billLoading, setBillLoading] = useState(() => !doc && !!init?.purchaseBillId);
@@ -63,10 +59,14 @@ function PurchaseReturnForm({ doc, init }) {
     doc && doc.agreedAmount !== null && doc.agreedAmount !== undefined && Math.abs(num(doc.agreedAmount) - num(doc.totalAmount)) > 0.009 ? String(doc.agreedAmount) : ''
   );
   const [submitted, setSubmitted] = useState(false);
+  // one click = one return: a key made once for this form (the server returns the same
+  // return for a repeat), and the buttons lock from the first click
+  const [requestKey] = useState(() => (window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`));
+  const busyRef = useRef(false);
+  const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
 
   const { info: supplierInfo, loading: supplierLoading } = useSupplierInfo(supplier?.value);
-  const effectiveStoreId = storeId || defaultStoreId;
 
   const { data: billsRes } = useApi(supplier?.value ? `bills:${supplier.value}` : null, () =>
     getPurchaseBillsApi({ supplierId: supplier.value, status: 'unpaid,partially_paid,paid', page: 1, limit: 100, sort: 'billDate', order: 'desc' })
@@ -82,7 +82,6 @@ function PurchaseReturnForm({ doc, init }) {
   const applyBill = (bill) => {
     setBillInfo(bill);
     setLines(billLines(bill).length ? billLines(bill) : [emptyLine()]);
-    if (bill?.storeId) setStoreId(refId(bill.storeId));
   };
 
   // Bill handed over from the bill screen: load its lines once.
@@ -140,11 +139,11 @@ function PurchaseReturnForm({ doc, init }) {
   const loss = Math.max(0, Math.round((goodsValue - agreed) * 100) / 100);
 
   const save = async (status) => {
+    if (busyRef.current) return;
     setSubmitted(true);
     let problem;
     if (agreedInput !== '' && agreed > goodsValue + 0.009) problem = `The supplier can give at most ${formatINR(goodsValue)} (cost + GST).`;
     else if (!supplier?.value) problem = 'Select a supplier.';
-    else if (!effectiveStoreId) problem = 'Select the store the goods leave from.';
     else if (billLoading) problem = 'Bill items are still loading.';
     else problem = validateLines(lines);
     setFormError(problem);
@@ -154,7 +153,6 @@ function PurchaseReturnForm({ doc, init }) {
     }
     const payload = {
       supplierId: supplier.value,
-      storeId: effectiveStoreId,
       purchaseBillId: billId || null,
       returnDate,
       items: linesToPayload(lines, { bucket: true }),
@@ -162,6 +160,8 @@ function PurchaseReturnForm({ doc, init }) {
       ...docPricing({ overallDiscountPercent, otherCharges, roundOff }),
       notes,
     };
+    busyRef.current = true;
+    setBusy(true);
     try {
       let saved;
       if (isEdit) {
@@ -174,64 +174,77 @@ function PurchaseReturnForm({ doc, init }) {
           notify(res?.message || 'Purchase return updated');
         }
       } else {
-        const res = await dispatch(createPurchaseReturn({ ...payload, status })).unwrap();
+        const res = await dispatch(createPurchaseReturn({ ...payload, status, requestKey })).unwrap();
         saved = res?.data;
         notify(res?.message || (status === 'draft' ? 'Purchase return saved as draft' : 'Purchase return confirmed'));
       }
       navigate(viewPath('returns', saved?._id || doc._id), { replace: true });
     } catch (e) {
+      busyRef.current = false;
+      setBusy(false);
       const msg = errMsg(e);
       setFormError(msg);
       notifyError(msg);
     }
   };
 
+  const addLine = () => setLines((ls) => [...ls, emptyLine()]);
+  useShortcuts({ F2: addLine, 'mod+s': () => !saving && !busy && save('draft') });
+
+  const confirmButton = (className) => (
+    <Button onClick={() => save('confirmed')} disabled={busy} loading={saving} startIcon={<CheckCircle2 />} className={className}>
+      Confirm return
+    </Button>
+  );
+
   return (
-    <PageShell title={isEdit ? `Edit return - ${doc.returnNumber}` : 'New purchase return'} description="Goods going back to the supplier (debit note)">
-      {isEdit && (
-        <div>
-          <StatusBadge status={doc.status} size="lg" />
-        </div>
-      )}
-      <FormError message={formError} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Section title="Return details" className="lg:col-span-2" bodyClassName="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Supplier" required className="md:col-span-2">
-            <SupplierPicker value={supplier} onChange={changeSupplier} info={supplierInfo} infoLoading={supplierLoading} error={submitted && !supplier?.value} />
-          </Field>
-          <Field label="Against bill (optional)" hint={billLoading ? 'Loading bill items...' : 'Linking a bill reduces that bill’s balance when the return is confirmed.'}>
-            <NativeSelect
-              value={billId}
-              onChange={pickBill}
-              disabled={!supplier?.value || billLoading}
-              options={[{ value: '', label: supplier?.value ? 'No bill (reduce overall payable)' : 'Select a supplier first' }, ...billOptions]}
-            />
-          </Field>
-          <Field label="Return from store" required hint="Stock is taken out of this store.">
-            <NativeSelect
-              value={effectiveStoreId}
-              onChange={setStoreId}
-              error={submitted && !effectiveStoreId}
-              options={[{ value: '', label: storesLoading ? 'Loading stores...' : 'Select store' }, ...storeOptions]}
-            />
-          </Field>
-          <Field label="Return date" required>
-            <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
-          </Field>
-          {billInfo && (
-            <div className="md:col-span-2 rounded-lg bg-[var(--vs-bg-secondary)] border border-[var(--vs-border)] px-3 py-2 text-xs text-[var(--vs-text-secondary)] flex flex-wrap gap-x-4 gap-y-1">
-              <span>
-                Bill <strong className="font-mono text-[var(--vs-text-primary)]">{billInfo.billNumber}</strong>
-              </span>
-              {billInfo.billDate && <span>Dated {fmtDate(billInfo.billDate)}</span>}
-              {billInfo.totalAmount !== undefined && <span>Total {formatINR(billInfo.totalAmount)}</span>}
-              {billInfo.balanceAmount !== undefined && <span>Balance {formatINR(billInfo.balanceAmount)}</span>}
+    <DocumentLayout
+      header={{
+        title: isEdit ? 'Edit return' : 'New purchase return',
+        docNo: isEdit ? doc.returnNumber : undefined,
+        description: 'Goods going back to the supplier (debit note)',
+        actions: (
+          <>
+            {isEdit && <StatusBadge status={doc.status} size="lg" />}
+            <Button variant="ghost" onClick={() => navigate(-1)} className="hidden sm:inline-flex">
+              Cancel
+            </Button>
+            <Button variant="secondary" onClick={() => save('draft')} disabled={saving || busy} startIcon={<Save />}>
+              Save draft
+            </Button>
+            {confirmButton('hidden lg:inline-flex')}
+          </>
+        ),
+      }}
+      summary={
+        <TotalsPanel
+          title="Summary"
+          total={formatINR(totals.totalAmount)}
+          footer={
+            <div className="flex flex-col gap-2.5 border-t border-dashed border-nav-ink/20 pt-3">
+              <TotalsRow label="Supplier will give (₹)">
+                <TotalsInput
+                  min="0"
+                  step="0.01"
+                  aria-label="Supplier will give"
+                  value={agreedInput === '' ? (goodsValue ? goodsValue.toFixed(2) : '') : agreedInput}
+                  onChange={(e) => setAgreedInput(e.target.value)}
+                  className={`w-32 font-bold ${agreed > goodsValue + 0.009 ? 'border-danger' : ''}`}
+                />
+              </TotalsRow>
+              {agreedInput === '' && <p className="m-0 text-[11px] text-nav-ink/70">Cost + GST of the goods. Change it if the supplier gives less.</p>}
+              {loss > 0 && <TotalsRow label="Loss on this return" value={formatINR(loss)} tone="danger" />}
+              {agreedInput !== '' && (
+                <Button variant="link" size="xs" onClick={() => setAgreedInput('')} className="self-start text-highlight">
+                  Use cost + GST again
+                </Button>
+              )}
+              <p className="m-0 text-[11px] leading-relaxed text-nav-ink/70">
+                Confirming takes the goods out of stock and reduces what you owe the supplier by the amount they give. F2 adds an item · Ctrl S saves a draft.
+              </p>
             </div>
-          )}
-        </Section>
-
-        <Section title="Summary" bodyClassName="p-4 flex flex-col gap-4">
+          }
+        >
           <TotalsEditor
             totals={totals}
             overallDiscountPercent={overallDiscountPercent}
@@ -240,56 +253,60 @@ function PurchaseReturnForm({ doc, init }) {
             onOtherChargesChange={setOtherCharges}
             roundOff={roundOff}
             onRoundOffChange={setRoundOff}
+            showTotal={false}
           />
-          <div className="flex flex-col gap-2 border-t border-[var(--vs-border)] pt-4">
-            <Field label="Supplier will give (₹)" hint={agreedInput === '' ? 'Cost + GST of the goods. Change it if the supplier gives less.' : null}>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={agreedInput === '' ? (goodsValue ? goodsValue.toFixed(2) : '') : agreedInput}
-                onChange={(e) => setAgreedInput(e.target.value)}
-                className={`!font-bold ${agreed > goodsValue + 0.009 ? '!border-red-500' : ''}`}
+        </TotalsPanel>
+      }
+      mobileBar={{ label: 'Total', value: formatINR(totals.totalAmount), action: confirmButton() }}
+    >
+      <FormError message={formError} />
+
+      <Section title="Return details" description="Who the goods go back to, and against which bill.">
+        <div className="flex flex-col gap-4">
+          <Field label="Supplier" required error={submitted && !supplier?.value ? 'Select a supplier' : ''}>
+            <SupplierPicker value={supplier} onChange={changeSupplier} info={supplierInfo} infoLoading={supplierLoading} error={submitted && !supplier?.value} />
+          </Field>
+          <FormGrid cols={2}>
+            <Field label="Against bill (optional)" hint={billLoading ? 'Loading bill items...' : 'Linking a bill reduces that bill’s balance when the return is confirmed.'}>
+              <Select
+                value={billId}
+                onChange={pickBill}
+                disabled={!supplier?.value || billLoading}
+                loading={billLoading}
+                options={[{ value: '', label: supplier?.value ? 'No bill (reduce overall payable)' : 'Select a supplier first' }, ...billOptions]}
               />
             </Field>
-            {loss > 0 && (
-              <div className="rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
-                <span>Loss on this return</span>
-                <span className="font-mono font-bold">{formatINR(loss)}</span>
-              </div>
-            )}
-            {agreedInput !== '' && (
-              <button type="button" onClick={() => setAgreedInput('')} className="self-start text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-                Use cost + GST again
-              </button>
-            )}
-          </div>
-          <div className="flex flex-col gap-2 border-t border-[var(--vs-border)] pt-4">
-            <Button onClick={() => save('confirmed')} disabled={saving} className="w-full" startIcon={saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}>
-              Confirm return
-            </Button>
-            <Button variant="outline" onClick={() => save('draft')} disabled={saving} className="w-full" startIcon={<Save className="w-4 h-4" />}>
-              Save draft
-            </Button>
-            <p className="text-[11px] text-[var(--vs-text-secondary)]">Confirming takes the goods out of stock and reduces what you owe the supplier by the amount they give.</p>
-          </div>
-        </Section>
-      </div>
+            <Field label="Return date" required>
+              <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
+            </Field>
+          </FormGrid>
+          {billInfo && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-control bg-fill px-3.5 py-2.5 text-xs text-ink-muted">
+              <span>
+                Bill <strong className="font-mono text-ink">{billInfo.billNumber}</strong>
+              </span>
+              {billInfo.billDate && <span>Dated {fmtDate(billInfo.billDate)}</span>}
+              {billInfo.totalAmount !== undefined && <span>Total {formatINR(billInfo.totalAmount)}</span>}
+              {billInfo.balanceAmount !== undefined && <span>Balance {formatINR(billInfo.balanceAmount)}</span>}
+            </div>
+          )}
+        </div>
+      </Section>
 
-      <Section title="Items being returned" bodyClassName="p-3 sm:p-4">
-        <PurchaseLineEditor lines={lines} onChange={setLines} storeId={effectiveStoreId} submitted={submitted} options={{ bucket: true }} />
+      <Section title="Items being returned" bodyClassName="px-3 sm:px-4">
+        <PurchaseLineEditor lines={lines} onChange={setLines} submitted={submitted} options={{ bucket: true, addShortcut: 'F2' }} />
       </Section>
 
       <Section title="Notes">
-        <TextArea value={notes} onChange={setNotes} rows={2} placeholder="Reason for return, courier details..." />
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Reason for return, courier details..." />
       </Section>
       <PurchaseToaster />
-    </PageShell>
+    </DocumentLayout>
   );
 }
 
 /**
- * purchase/returns/create   (optional location.state = { supplierId, storeId, purchaseBillId })
+ * purchase/returns/create   (optional location.state = { supplierId, purchaseBillId })
  * purchase/returns/edit/:id
  */
 export default function CreatePurchaseReturn() {

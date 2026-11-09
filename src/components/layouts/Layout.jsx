@@ -12,7 +12,7 @@ function Layout({ setDarkMode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--vs-page-bg)] transition-colors duration-300">
+    <div className="flex h-screen overflow-hidden bg-page transition-colors duration-300">
       <Sidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
@@ -28,10 +28,17 @@ function Layout({ setDarkMode }) {
           setDarkMode={setDarkMode}
         />
 
-        <main className="flex-1 p-2 md:p-5 bg-[var(--vs-page-bg)] transition-colors duration-300">
+        <main className="flex-1 bg-page px-3 pb-4 pt-1 transition-colors duration-300 md:px-5 md:pb-6">
           {access && !access.allowed ? <NoAccess homePath={access.homePath} /> : <Outlet />}
         </main>
-        <footer className="sticky z-10 bottom-0 bg-white px-4 py-1 text-center text-xs border-t border-gray-200 dark:border-none dark:bg-white/[0.03] dark:text-white">Easy Connect © {new Date().getFullYear()} — All Rights Reserved</footer>
+        <footer className="px-3 pb-3 print:hidden md:px-5">
+          <div className="flex flex-col items-center justify-between gap-1 rounded-card bg-surface px-5 py-3 text-xs text-ink-muted shadow-card sm:flex-row">
+            <span>
+              © {new Date().getFullYear()} <b className="font-extrabold text-brand-ink">ecn</b><b className="font-extrabold text-highlight">biz</b> by Easy Connect. All rights reserved.
+            </span>
+            <span className="text-ink-subtle">Billing, stock and GST for your shop</span>
+          </div>
+        </footer>
       </div>
 
     </div>

@@ -1,15 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { CToaster, CToast, CToastBody } from '@coreui/react';
-import { Loader2 } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import { Input } from '@/components/inputs/Input';
-import { Label } from '@/components/inputs/Label';
-import Switch from '@/components/inputs/Switch';
+import { Plus } from 'lucide-react';
+import {
+  Alert,
+  Badge,
+  Button,
+  ConfirmDialog,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  Select,
+  SettingRow,
+  StatusBadge,
+  Switch,
+  Textarea,
+  ToastStack,
+} from '@/components/ui';
 import Table from '@/components/table/Table';
-import Card from '@/components/breadCrumbs/Card';
-import DeleteModal from '@/components/modal/DeleteModal';
-import { Modal } from '@/pages/purchase/components/ui';
 import {
   getDesignations,
   createDesignation,
@@ -17,6 +25,12 @@ import {
   changeDesignationStatus,
   deleteDesignation,
 } from '../services/staffSlice';
+
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
 
 /* ─── Add / edit modal (mounted with a key so it starts fresh each time) ───── */
 
@@ -53,26 +67,20 @@ function DesignationModal({ designation, onClose, onSaved }) {
     <Modal
       open
       onClose={saving ? undefined : onClose}
+      closeOnBackdrop={!saving}
       title={isEdit ? 'Edit Designation' : 'Add Designation'}
       subtitle="A designation is the job title shown for a staff member (e.g. Store Manager, Cashier)."
       footer={
         <>
-          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button
-            type="button"
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={saving}
-            startIcon={saving && <Loader2 className="w-4 h-4 animate-spin" />}
-          >
+          <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={handleSubmit} loading={saving}>
             {isEdit ? 'Save Changes' : 'Add Designation'}
           </Button>
         </>
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div>
-          <Label htmlFor="designation-name">Name<span className="text-red-500">*</span></Label>
+        <Field label="Name" required error={submitted && nameError ? nameError : undefined}>
           <Input
             id="designation-name"
             value={name}
@@ -82,34 +90,25 @@ function DesignationModal({ designation, onClose, onSaved }) {
             autoFocus
             error={submitted && !!nameError}
           />
-          {submitted && nameError && <span className="text-xs text-red-500 mt-1 block">{nameError}</span>}
-        </div>
-        <div>
-          <Label htmlFor="designation-description">Description</Label>
-          <textarea
+        </Field>
+        <Field label="Description">
+          <Textarea
             id="designation-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Optional"
             maxLength={300}
             rows={3}
-            className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3 py-2 text-sm text-gray-900 dark:!text-white placeholder:text-gray-400 dark:placeholder:text-white/25 outline-none focus:border-indigo-500/60 resize-y"
           />
+        </Field>
+        <div className="rounded-control bg-fill-2 px-4">
+          <SettingRow title="Active" description="Inactive designations cannot be picked for staff.">
+            <Switch checked={isActive} onChange={(val) => setIsActive(val)} />
+          </SettingRow>
         </div>
-        <div className="flex items-center justify-between gap-4 p-3 rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-secondary)]">
-          <div>
-            <p className="text-sm font-semibold text-[var(--vs-text-primary)] m-0">Active</p>
-            <p className="text-xs text-[var(--vs-text-secondary)] m-0">Inactive designations cannot be picked for staff.</p>
-          </div>
-          <Switch checked={isActive} onChange={(val) => setIsActive(val)} />
-        </div>
-        {serverError && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-sm text-red-600 dark:text-red-400">
-            {serverError}
-          </div>
-        )}
+        {serverError && <Alert tone="danger">{serverError}</Alert>}
         {/* Lets Enter submit the form. */}
-        <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
+        <Button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
       </form>
     </Modal>
   );
@@ -191,13 +190,13 @@ export default function DesignationList() {
     {
       label: 'Designation',
       key: 'name',
-      render: (item) => <span className="font-semibold text-[var(--vs-text-primary)]">{item.name}</span>,
+      render: (item) => <span className="font-semibold text-ink">{item.name}</span>,
     },
     {
       label: 'Description',
       key: 'description',
       render: (item) => (
-        <span className="text-xs text-[var(--vs-text-secondary)] line-clamp-2 max-w-[360px]">
+        <span className="line-clamp-2 block max-w-[360px] whitespace-normal text-xs text-ink-muted">
           {item.description || '—'}
         </span>
       ),
@@ -205,73 +204,59 @@ export default function DesignationList() {
     {
       label: 'Staff',
       key: 'staffCount',
-      render: (item) => (
-        <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20">
-          {item.staffCount || 0} staff
-        </span>
-      ),
+      render: (item) => <Badge tone="primary">{item.staffCount || 0} staff</Badge>,
     },
     {
       label: 'Status',
       key: 'isActive',
-      render: (item) => (
-        <span className={`font-semibold text-xs ${item.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-          {item.isActive ? 'Active' : 'Inactive'}
-        </span>
-      ),
+      render: (item) => <StatusBadge status={item.isActive ? 'active' : 'inactive'} />,
     },
   ];
 
   return (
-    <div>
-      <Card
-        h1="Designations"
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Designations"
         description="Job titles for your team, like Store Manager or Cashier. Access is controlled by roles."
-        bodyClassName="px-4 pb-4 pt-2"
-        rightNode={
-          <select
+        actions={<Button startIcon={<Plus />} onClick={() => openModal(null)}>Add Designation</Button>}
+      />
+
+      {designationError && !designationsLoading && typeof designationError === 'string' && (
+        <Alert tone="danger">{designationError}</Alert>
+      )}
+
+      <Table
+        headers={headers}
+        data={designations}
+        loading={designationsLoading}
+        showSearch={true}
+        searchPlaceholder="Search designations..."
+        searchTerm={searchTerm}
+        onSearchTermChange={(val) => setSearchTerm(val)}
+        onSearchClick={() => { setCurrentPage(1); fetchDesignations({ page: 1 }); }}
+        onSearchClear={() => { setSearchTerm(''); setCurrentPage(1); fetchDesignations({ page: 1, search: '' }); }}
+        emptyMessage="No designations yet. Click 'Add Designation' to create one."
+        onEdit={(row) => openModal(row)}
+        onDelete={(item) => setDeleteModal({ isOpen: true, designation: item })}
+        onToggle={handleToggle}
+        toggleField="isActive"
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalRows={designationsMeta?.total || 0}
+        onPageChange={(page) => setCurrentPage(page)}
+        onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+        actions={
+          <Select
+            size="sm"
+            aria-label="Filter by status"
             value={selectedStatus}
-            onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-            className="h-10 px-3 text-sm rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] text-[var(--vs-text-primary)] outline-none cursor-pointer shadow-sm"
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+            onChange={(v) => { setSelectedStatus(v || 'all'); setCurrentPage(1); }}
+            searchable={false}
+            options={STATUS_OPTIONS}
+            wrapperClassName="w-36"
+          />
         }
-      >
-        {designationError && !designationsLoading && typeof designationError === 'string' && (
-          <div className="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-sm text-red-600 dark:text-red-400">
-            {designationError}
-          </div>
-        )}
-        <Table
-          headers={headers}
-          data={designations}
-          loading={designationsLoading}
-          showSearch={true}
-          searchPlaceholder="Search designations..."
-          searchTerm={searchTerm}
-          onSearchTermChange={(val) => setSearchTerm(val)}
-          onSearchClick={() => { setCurrentPage(1); fetchDesignations({ page: 1 }); }}
-          onSearchClear={() => { setSearchTerm(''); setCurrentPage(1); fetchDesignations({ page: 1, search: '' }); }}
-          emptyMessage="No designations yet. Click 'Add Designation' to create one."
-          onEdit={(row) => openModal(row)}
-          onDelete={(item) => setDeleteModal({ isOpen: true, designation: item })}
-          onToggle={handleToggle}
-          toggleField="isActive"
-          currentPage={currentPage}
-          pageSize={pageSize}
-          totalRows={designationsMeta?.total || 0}
-          onPageChange={(page) => setCurrentPage(page)}
-          onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-          actions={
-            <div className="flex items-center gap-2">
-              <Button onClick={() => openModal(null)}>Add Designation</Button>
-            </div>
-          }
-        />
-      </Card>
+      />
 
       {editing && (
         <DesignationModal
@@ -282,9 +267,9 @@ export default function DesignationList() {
         />
       )}
 
-      <DeleteModal
-        isOpen={deleteModal.isOpen}
-        isLoading={saving}
+      <ConfirmDialog
+        open={deleteModal.isOpen}
+        loading={saving}
         onClose={() => setDeleteModal({ isOpen: false, designation: null })}
         onConfirm={handleConfirmDelete}
         title="Delete Designation"
@@ -293,15 +278,7 @@ export default function DesignationList() {
           : `Delete the designation "${deleteModal.designation?.name || ''}"? This cannot be undone.`}
       />
 
-      <CToaster className="p-3" style={{ zIndex: 2000, position: 'fixed', bottom: '20px', right: '20px' }}>
-        {toasts.map((t) => (
-          <CToast key={t.id} visible={true} color={t.color} className="text-white align-items-center mb-2">
-            <div className="d-flex">
-              <CToastBody className="font-semibold">{t.message}</CToastBody>
-            </div>
-          </CToast>
-        ))}
-      </CToaster>
+      <ToastStack toasts={toasts} />
     </div>
   );
 }

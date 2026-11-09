@@ -79,9 +79,8 @@ export const getActorName = (log) => {
  * Converts filter state into API params. Dates are sent as exact day
  * boundaries in the user's timezone.
  */
-export const buildAuditParams = ({ storeId, source, bucket, dateRange, search, productId }) => ({
+export const buildAuditParams = ({ source, bucket, dateRange, search, productId }) => ({
   productId: productId || undefined,
-  storeId: storeId || undefined,
   source: source || undefined,
   bucket: bucket || undefined,
   startDate: dateRange?.[0] ? dateRange[0].startOf('day').toISOString() : undefined,

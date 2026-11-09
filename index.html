@@ -3,9 +3,18 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/image/logos/newLogo.png" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VyaparSetu Admin</title>
+  <title>ecnbiz</title>
+  <!-- Apply the saved theme before the first paint, so a dark-mode reload never flashes light. -->
+  <script>
+    try {
+      if (localStorage.getItem('darkMode') === 'true') {
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = 'dark';
+      }
+    } catch (e) { /* storage blocked: start light */ }
+  </script>
 </head>
 
 <body>

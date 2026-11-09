@@ -1,5 +1,7 @@
-import React, { useState, useRef } from 'react';
-import { X, Upload } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { X, Upload, FileText } from 'lucide-react';
+import { Button, Input } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import ImageUploadModal from './ImageUploadModal';
 
 const truncateFileName = (name, maxLength = 25) => {
@@ -172,7 +174,7 @@ export default function FileInput({
 
   return (
     <>
-      <div className={`w-full ${className}`}>
+      <div className={cn('w-full', className)}>
         {/* ── Dropzone Box ── */}
         <div
           onClick={handleContainerClick}
@@ -180,22 +182,21 @@ export default function FileInput({
           onDragOver={handleDrag}
           onDragLeave={handleDrag}
           onDrop={handleDrop}
-          className={`group relative flex flex-col items-center justify-center rounded-xl border border-dashed text-center cursor-pointer transition-all duration-200 select-none
-            ${
-              isDragActive
-                ? "border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/20"
-                : "border-gray-200 hover:border-indigo-500 bg-gray-50/50 hover:bg-gray-100/50 dark:border-white/10 dark:bg-white/[0.02] dark:hover:bg-white/[0.04] dark:hover:border-indigo-500/80"
-            }
-            ${error ? "border-red-500 bg-red-50/10 dark:bg-red-500/5" : ""}
-            ${disabled ? "opacity-60 cursor-not-allowed" : ""}
-            ${compact ? "py-4 px-4" : "py-6 px-5"}
-          `}
+          className={cn(
+            'group relative flex cursor-pointer select-none flex-col items-center justify-center rounded-card border border-dashed text-center transition-colors duration-200',
+            isDragActive
+              ? 'border-brand bg-brand-soft'
+              : 'border-line-strong bg-fill-2 hover:border-brand hover:bg-fill',
+            error && 'border-danger bg-danger-soft',
+            disabled && 'cursor-not-allowed opacity-60',
+            compact ? 'px-4 py-4' : 'px-5 py-6'
+          )}
         >
           {/* Hidden Input */}
-          <input
+          <Input
             ref={inputRef}
             type="file"
-            className="hidden"
+            wrapperClassName="hidden"
             disabled={disabled}
             accept={accept}
             onChange={handleInputChange}
@@ -203,18 +204,18 @@ export default function FileInput({
           />
 
           {/* Icon Container */}
-          <div className="mb-2.5 flex items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 p-2.5 transition-transform duration-200 group-hover:scale-105">
-            <Upload className="w-5 h-5" />
+          <div className="mb-2.5 flex items-center justify-center rounded-full bg-brand-soft p-2.5 text-brand-ink transition-transform duration-200 group-hover:scale-105">
+            <Upload className="h-5 w-5" />
           </div>
 
           {/* Text Content */}
-          <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+          <p className="m-0 text-sm font-medium text-ink">
             {isDragActive ? (
               "Drop files here"
             ) : (
               <>
                 {title} or{" "}
-                <span className="text-indigo-600 dark:text-indigo-400 font-semibold group-hover:underline">
+                <span className="font-semibold text-brand-ink group-hover:underline">
                   {browseText}
                 </span>
               </>
@@ -222,7 +223,7 @@ export default function FileInput({
           </p>
 
           {description && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="m-0 mt-1 text-xs text-ink-subtle">
               {description}
             </p>
           )}
@@ -230,45 +231,46 @@ export default function FileInput({
 
         {/* ── Uploaded File Preview — Rendered underneath ── */}
         {!multiple && (imagePreview || fileName) && (
-          <div className="mt-3 p-2.5 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50/80 dark:bg-white/[0.03] flex items-center justify-between gap-3 shadow-sm dark:shadow-none transition-all duration-300">
-            <div className="flex items-center gap-3 overflow-hidden">
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-control border border-line bg-fill-2 p-2.5">
+            <div className="flex min-w-0 items-center gap-3">
               {imagePreview ? (
                 <img
                   src={imagePreview}
                   alt="Preview"
-                  className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-900"
+                  className="h-10 w-10 shrink-0 rounded-lg border border-line bg-surface object-cover"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 flex items-center justify-center text-lg">
-                  📄
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-ink-subtle">
+                  <FileText className="h-5 w-5" />
                 </div>
               )}
-              <div className="flex flex-col min-w-0">
+              <div className="flex min-w-0 flex-col">
                 <span
                   title={fileName}
-                  className="text-xs font-semibold text-gray-800 dark:text-white truncate"
+                  className="truncate text-xs font-semibold text-ink"
                 >
                   {fileName ? truncateFileName(fileName, 30) : "Uploaded Image"}
                 </span>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                <span className="text-[10px] font-medium text-ink-subtle">
                   Ready to save
                 </span>
               </div>
             </div>
 
             {!disabled && (
-              <button
-                type="button"
+              <Button
+                variant="danger-soft"
+                size="icon-sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (onRemove) onRemove();
                   if (inputRef.current) inputRef.current.value = "";
                 }}
-                className="p-1.5 rounded-lg border border-red-200 dark:border-red-500/20 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
                 title="Remove File"
+                aria-label="Remove file"
               >
-                <X className="w-3.5 h-3.5" />
-              </button>
+                <X />
+              </Button>
             )}
           </div>
         )}

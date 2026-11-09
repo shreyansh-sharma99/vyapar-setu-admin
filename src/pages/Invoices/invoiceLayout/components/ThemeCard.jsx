@@ -1,4 +1,6 @@
-import React from 'react';
+import { CheckCircle2 } from 'lucide-react';
+import { Card } from '@/components/ui';
+import { cn } from '@/lib/utils';
 
 export const THEMES = [
   {
@@ -35,19 +37,27 @@ export const THEMES = [
 
 export default function ThemeCard({ theme, isSelected, onClick }) {
   return (
-    <div
+    <Card
+      as="button"
+      type="button"
+      padding="none"
       onClick={onClick}
-      className={`relative p-3 sm:p-3.5 rounded-xl border cursor-pointer transition-all duration-200 select-none text-left ${isSelected
-        ? 'border-2  !border-blue-600 bg-white dark:bg-gray-800 dark:border-blue-500 shadow-xs'
-        : 'border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 bg-white dark:bg-gray-800/40'
-        }`}
+      aria-pressed={isSelected}
+      className={cn(
+        'relative flex cursor-pointer select-none flex-col gap-1 p-3.5 text-left shadow-none transition-shadow',
+        'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--ui-ring)]',
+        isSelected
+          ? 'bg-brand-soft ring-2 ring-brand'
+          : 'ring-1 ring-line hover:ring-line-strong'
+      )}
     >
-      <h4 className="text-[15px] font-semibold tracking-tight text-gray-900 dark:text-white mb-1">
+      {isSelected && <CheckCircle2 className="absolute right-3 top-3 size-4 text-brand" aria-hidden="true" />}
+      <span className={cn('pr-5 text-[15px] font-bold tracking-tight', isSelected ? 'text-brand-ink' : 'text-ink')}>
         {theme.title}
-      </h4>
-      <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug">
+      </span>
+      <span className="text-xs leading-snug text-ink-muted">
         {theme.description}
-      </p>
-    </div>
+      </span>
+    </Card>
   );
 }

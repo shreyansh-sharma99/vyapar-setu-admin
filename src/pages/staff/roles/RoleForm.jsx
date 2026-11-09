@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Info, ShieldCheck, Users } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Info, ShieldCheck, Users } from 'lucide-react';
 import { decryptData } from '@/utility/crypto';
-import Card from '@/components/breadCrumbs/Card';
-import Button from '@/components/inputs/Button';
-import { Input } from '@/components/inputs/Input';
-import { Label } from '@/components/inputs/Label';
-import Switch from '@/components/inputs/Switch';
-import Loader from '@/components/loader/Loader';
+import { cn } from '@/lib/utils';
+import {
+  Button, Card, Checkbox, Field, FormActions, FormGrid, Input, LINE_TD, LINE_TH, LineItemsTable, LineRow,
+  PageHeader, Section, SkeletonRows, Switch, Textarea,
+} from '@/components/ui';
 import {
   getStaffPermissionCatalog,
   getRoleById,
@@ -18,20 +17,19 @@ import {
 } from '../services/staffSlice';
 import { MATRIX_LEVELS, LEVEL_LABELS, moduleHasLevel, moduleExtras, cleanRolePermissions } from './rolePermissions';
 
-const checkboxCls = 'h-4 w-4 rounded border-gray-300 text-indigo-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50';
+const TH_CENTER = cn(LINE_TH, 'text-center');
+const TD_CENTER = cn(LINE_TD, 'text-center align-middle');
 
 /** Checkbox that can show a "some selected" (indeterminate) state. */
 function TriCheckbox({ checked, indeterminate, onChange, label, disabled }) {
   return (
-    <input
-      type="checkbox"
+    <Checkbox
       aria-label={label}
       title={label}
       checked={checked}
+      indeterminate={!!indeterminate && !checked}
       disabled={disabled}
-      ref={(el) => { if (el) el.indeterminate = !!indeterminate && !checked; }}
-      onChange={(e) => onChange(e.target.checked)}
-      className={checkboxCls}
+      onChange={(on) => onChange(on)}
     />
   );
 }
@@ -167,175 +165,167 @@ function RoleFormBody({ isEditMode, roleId, initial, modules, staffCount }) {
     }
   };
 
-  const fieldError = (key) => (submitted && errors[key]
-    ? <span className="text-xs text-red-500 mt-1 block">{errors[key]}</span>
-    : null);
+  const fieldError = (key) => (submitted && errors[key] ? errors[key] : undefined);
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <Card title="Role Details" bodyClassName="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="role-name">Role Name<span className="text-red-500">*</span></Label>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      <Section title="Role Details" description="Name and status of this role">
+        <FormGrid cols={2}>
+          <Field label="Role Name" required error={fieldError('name')}>
             <Input
               id="role-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Cashier"
               maxLength={60}
-              error={submitted && !!errors.name}
             />
-            {fieldError('name')}
-          </div>
-          <div className="flex items-center justify-between gap-4 p-3 rounded-xl border border-[var(--vs-border)] bg-[var(--vs-bg-secondary)] self-end">
+          </Field>
+          <div className="flex items-center justify-between gap-4 self-end rounded-control bg-fill-2 p-3">
             <div>
-              <p className="text-sm font-semibold text-[var(--vs-text-primary)] m-0">Active</p>
-              <p className="text-xs text-[var(--vs-text-secondary)] m-0">Inactive roles cannot be given to staff.</p>
+              <p className="m-0 text-sm font-semibold text-ink">Active</p>
+              <p className="m-0 text-xs text-ink-subtle">Inactive roles cannot be given to staff.</p>
             </div>
             <Switch checked={isActive} onChange={(val) => setIsActive(val)} />
           </div>
-          <div className="md:col-span-2">
-            <Label htmlFor="role-description">Description</Label>
-            <textarea
+          <Field label="Description" className="col-span-full">
+            <Textarea
               id="role-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What this role is for (optional)"
               maxLength={300}
               rows={2}
-              className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3 py-2 text-sm text-gray-900 dark:!text-white placeholder:text-gray-400 dark:placeholder:text-white/25 outline-none focus:border-indigo-500/60 resize-y"
             />
-          </div>
+          </Field>
           {isEditMode && staffCount > 0 && (
-            <p className="md:col-span-2 text-xs text-amber-700 dark:text-amber-300 m-0 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 shrink-0" />
+            <p className="col-span-full m-0 flex items-center gap-1.5 text-xs font-medium text-warning">
+              <Users className="size-3.5 shrink-0" />
               {staffCount} staff member{staffCount > 1 ? 's use' : ' uses'} this role. Changes apply to them immediately.
             </p>
           )}
-        </div>
-      </Card>
+        </FormGrid>
+      </Section>
 
-      <Card title="Permissions" bodyClassName="p-6 flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-[var(--vs-text-secondary)] m-0 flex items-start gap-1.5">
-            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>
-              <strong>View</strong> opens the screens. <strong>Create</strong>, <strong>Edit</strong> (includes approve / status changes)
-              and <strong>Delete</strong> each include View.
-            </span>
-          </p>
-          <div className="flex gap-2">
-            <Button size="xs" variant="outline" onClick={() => setAll(true)}>Select all</Button>
-            <Button size="xs" variant="outline" onClick={() => setAll(false)}>Clear</Button>
-          </div>
-        </div>
+      <Section
+        title="Permissions"
+        actions={
+          <>
+            <Button size="xs" variant="secondary" onClick={() => setAll(true)}>Select all</Button>
+            <Button size="xs" variant="secondary" onClick={() => setAll(false)}>Clear</Button>
+          </>
+        }
+        bodyClassName="flex flex-col gap-4"
+      >
+        <p className="m-0 flex items-start gap-1.5 text-xs text-ink-muted">
+          <Info className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            <strong>View</strong> opens the screens. <strong>Create</strong>, <strong>Edit</strong> (includes approve / status changes)
+            and <strong>Delete</strong> each include View.
+          </span>
+        </p>
 
-        <div className="overflow-x-auto rounded-xl border border-[var(--vs-border)]">
-          <table className="w-full text-sm border-collapse min-w-[560px]">
-            <thead className="bg-[var(--vs-bg-secondary)]">
-              <tr className="text-left text-xs font-bold uppercase tracking-wider text-[var(--vs-text-secondary)]">
-                <th className="py-3 px-4 border-b border-[var(--vs-border)]">Module</th>
-                {MATRIX_LEVELS.map((l) => {
-                  const st = columnState(l);
-                  return (
-                    <th key={l} className="py-3 px-3 border-b border-[var(--vs-border)] text-center w-24">
-                      <div className="flex flex-col items-center gap-1.5">
-                        <span>{LEVEL_LABELS[l]}</span>
-                        <TriCheckbox
-                          label={`Select all: ${LEVEL_LABELS[l]}`}
-                          checked={st.all}
-                          indeterminate={st.some}
-                          disabled={st.none}
-                          onChange={(on) => toggleColumn(l, on)}
-                        />
-                      </div>
-                    </th>
-                  );
-                })}
-                <th className="py-3 px-3 border-b border-[var(--vs-border)] text-center w-20">All</th>
-              </tr>
-            </thead>
-            <tbody>
-              {modules.map((m) => {
-                const rs = rowState(m);
+        <LineItemsTable
+          minWidth={560}
+          head={
+            <tr>
+              <th className={LINE_TH}>Module</th>
+              {MATRIX_LEVELS.map((l) => {
+                const st = columnState(l);
                 return (
-                  <tr key={m.key} className="border-b last:border-b-0 border-[var(--vs-border)] hover:bg-[var(--vs-bg-secondary)]/60">
-                    <td className="py-2.5 px-4 text-[var(--vs-text-primary)] font-medium">{m.label || m.key}</td>
-                    {MATRIX_LEVELS.map((l) => (
-                      <td key={l} className="py-2.5 px-3 text-center">
-                        {moduleHasLevel(m, l) ? (
-                          <input
-                            type="checkbox"
-                            aria-label={`${m.label || m.key}: ${LEVEL_LABELS[l]}`}
-                            checked={has(m.key, l)}
-                            onChange={(e) => toggleCell(m, l, e.target.checked)}
-                            className={checkboxCls}
-                          />
-                        ) : (
-                          <span className="text-[var(--vs-text-secondary)]" title="Not available for this module">—</span>
-                        )}
-                      </td>
-                    ))}
-                    <td className="py-2.5 px-3 text-center bg-[var(--vs-bg-secondary)]/40">
+                  <th key={l} className={cn(TH_CENTER, 'w-24')}>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <span>{LEVEL_LABELS[l]}</span>
                       <TriCheckbox
-                        label={`Select all: ${m.label || m.key}`}
-                        checked={rs.all}
-                        indeterminate={rs.some}
-                        onChange={(on) => toggleRow(m, on)}
+                        label={`Select all: ${LEVEL_LABELS[l]}`}
+                        checked={st.all}
+                        indeterminate={st.some}
+                        disabled={st.none}
+                        onChange={(on) => toggleColumn(l, on)}
                       />
-                    </td>
-                  </tr>
+                    </div>
+                  </th>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+              <th className={cn(TH_CENTER, 'w-20 align-top')}>All</th>
+            </tr>
+          }
+        >
+          {modules.map((m) => {
+            const rs = rowState(m);
+            return (
+              <LineRow key={m.key}>
+                <td className={cn(LINE_TD, 'align-middle font-medium')}>{m.label || m.key}</td>
+                {MATRIX_LEVELS.map((l) => (
+                  <td key={l} className={TD_CENTER}>
+                    {moduleHasLevel(m, l) ? (
+                      <Checkbox
+                        aria-label={`${m.label || m.key}: ${LEVEL_LABELS[l]}`}
+                        checked={has(m.key, l)}
+                        onChange={(on) => toggleCell(m, l, on)}
+                      />
+                    ) : (
+                      <span className="text-ink-subtle" title="Not available for this module">—</span>
+                    )}
+                  </td>
+                ))}
+                <td className={cn(TD_CENTER, 'bg-fill-2/50')}>
+                  <TriCheckbox
+                    label={`Select all: ${m.label || m.key}`}
+                    checked={rs.all}
+                    indeterminate={rs.some}
+                    onChange={(on) => toggleRow(m, on)}
+                  />
+                </td>
+              </LineRow>
+            );
+          })}
+        </LineItemsTable>
+
         {extraModules.length > 0 && (
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-[var(--vs-text-secondary)] m-0">Extra permissions</p>
+            <p className="m-0 text-xs font-semibold text-ink-subtle">Extra permissions</p>
             {extraModules.map((m) => moduleExtras(m).map((x) => (
-              <label
+              <Checkbox
                 key={`${m.key}.${x.key}`}
-                className="flex items-center gap-3 p-3 rounded-xl border border-[var(--vs-border)] cursor-pointer hover:bg-[var(--vs-bg-secondary)]/60"
-              >
-                <input
-                  type="checkbox"
-                  checked={has(m.key, x.key)}
-                  onChange={(e) => toggleExtra(m, x.key, e.target.checked)}
-                  className={checkboxCls}
-                />
-                <span className="text-sm text-[var(--vs-text-primary)]">
-                  <span className="font-medium">{x.label}</span>
-                  <span className="text-xs text-[var(--vs-text-secondary)]"> · {m.label || m.key} (also gives View)</span>
-                </span>
-              </label>
+                checked={has(m.key, x.key)}
+                onChange={(on) => toggleExtra(m, x.key, on)}
+                wrapperClassName="flex w-full items-center rounded-control border border-line p-3 hover:bg-fill-2"
+                label={
+                  <>
+                    {x.label}
+                    <span className="text-xs font-normal text-ink-subtle"> · {m.label || m.key} (also gives View)</span>
+                  </>
+                }
+              />
             )))}
           </div>
         )}
-        {fieldError('permissions')}
-        <p className="text-[11px] text-[var(--vs-text-secondary)] m-0 flex items-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5" />
+        {fieldError('permissions') && (
+          <p role="alert" className="m-0 text-xs font-medium text-danger">{fieldError('permissions')}</p>
+        )}
+        <p className="m-0 flex items-center gap-1.5 text-xs text-ink-subtle">
+          <ShieldCheck className="size-3.5" />
           Settings, invoice settings, payment accounts and staff management are always owner only.
         </p>
-      </Card>
+      </Section>
 
       {serverError && (
-        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-sm text-red-600 dark:text-red-400">
+        <div className="rounded-control bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
           {serverError}
         </div>
       )}
       {submitted && hasErrors && (
-        <div className="text-sm text-red-500">Please fix the highlighted fields.</div>
+        <p className="m-0 text-sm font-medium text-danger">Please fix the highlighted fields.</p>
       )}
 
-      <div className="flex justify-end gap-3">
-        <Button type="button" variant="outline" onClick={() => navigate('/staff/roles')} disabled={saving}>
+      <FormActions>
+        <Button variant="secondary" onClick={() => navigate('/staff/roles')} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" variant="primary" disabled={saving} startIcon={saving && <Loader2 className="w-4 h-4 animate-spin" />}>
+        <Button type="submit" loading={saving}>
           {isEditMode ? 'Save Changes' : 'Create Role'}
         </Button>
-      </div>
+      </FormActions>
     </form>
   );
 }
@@ -372,60 +362,63 @@ export default function RoleForm() {
     return { name: '', description: '', permissions: [], isActive: true };
   }, [isEditMode, currentRole]);
 
-  const header = {
-    h1: isEditMode ? 'Edit Role' : 'Add Role',
-    description: 'A role is a set of permissions. Every staff member with this role gets exactly this access.',
-    buttonName: 'Back',
-    navigation: '/staff/roles',
-    buttonVariant: 'danger',
-    buttonIcon: <ArrowLeft className="w-3.5 h-3.5" />,
-  };
+  const title = isEditMode ? 'Edit Role' : 'Add Role';
+  const header = (
+    <PageHeader
+      title={title}
+      description="A role is a set of permissions. Every staff member with this role gets exactly this access."
+      actions={
+        <Button as={Link} to="/staff/roles" variant="secondary" startIcon={<ArrowLeft />}>
+          Back
+        </Button>
+      }
+    />
+  );
+
+  const notice = (text) => (
+    <div className="flex flex-col gap-5">
+      {header}
+      <Card>
+        <p className="m-0 text-sm font-medium text-danger">{text}</p>
+      </Card>
+    </div>
+  );
 
   if (isEditMode && !roleId) {
-    return (
-      <Card {...header} bodyClassName="p-6">
-        <p className="text-sm text-red-500 m-0">This link is not valid. Please open the role again from the list.</p>
-      </Card>
-    );
+    return notice('This link is not valid. Please open the role again from the list.');
   }
 
   if (!catalogLoading && modules.length === 0 && catalogError) {
-    return (
-      <Card {...header} bodyClassName="p-6">
-        <p className="text-sm text-red-500 m-0">{typeof catalogError === 'string' ? catalogError : 'Could not load permissions.'}</p>
-      </Card>
-    );
+    return notice(typeof catalogError === 'string' ? catalogError : 'Could not load permissions.');
   }
 
   const waiting = catalogLoading || modules.length === 0 || (isEditMode && (roleLoading || (!editReady && !roleError)));
   if (waiting) {
     return (
-      <Card {...header} bodyClassName="p-6">
-        <Loader />
-      </Card>
+      <div className="flex flex-col gap-5">
+        {header}
+        <Card>
+          <SkeletonRows rows={6} cols={5} />
+        </Card>
+      </div>
     );
   }
 
   if (isEditMode && !editReady) {
-    return (
-      <Card {...header} bodyClassName="p-6">
-        <p className="text-sm text-red-500 m-0">{typeof roleError === 'string' ? roleError : 'Role not found.'}</p>
-      </Card>
-    );
+    return notice(typeof roleError === 'string' ? roleError : 'Role not found.');
   }
 
   return (
-    <div className="flex flex-col gap-6 mx-auto">
-      <Card {...header} bodyClassName="p-6">
-        <RoleFormBody
-          key={isEditMode ? `edit-${currentRole?._id}` : 'create'}
-          isEditMode={isEditMode}
-          roleId={roleId}
-          initial={initial}
-          modules={modules}
-          staffCount={currentRole?.staffCount || 0}
-        />
-      </Card>
+    <div className="flex flex-col gap-5">
+      {header}
+      <RoleFormBody
+        key={isEditMode ? `edit-${currentRole?._id}` : 'create'}
+        isEditMode={isEditMode}
+        roleId={roleId}
+        initial={initial}
+        modules={modules}
+        staffCount={currentRole?.staffCount || 0}
+      />
     </div>
   );
 }

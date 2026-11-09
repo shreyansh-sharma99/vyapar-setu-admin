@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { invoiceLayoutPdfBase64 } from '../invoiceLayoutPdf';
 import {
   getSalesInvoicesApi,
   getSalesInvoiceSummaryApi,
@@ -12,6 +13,7 @@ import {
   generatePaymentLinkApi,
   duplicateSalesInvoiceApi,
   deleteSalesInvoiceApi,
+  deletePaymentInApi,
 } from './salesInvoiceService';
 
 export const getSalesInvoices = createAsyncThunk(
@@ -128,9 +130,20 @@ export const voidSalesInvoice = createAsyncThunk(
 
 export const sendPaymentReminder = createAsyncThunk(
   'salesInvoice/sendPaymentReminder',
-  async (id, { rejectWithValue }) => {
+  // arg: invoice id, or { id, invoice } when the page already has the invoice
+  async (arg, { rejectWithValue }) => {
+    const id = typeof arg === 'object' ? arg.id : arg;
     try {
-      const data = await sendPaymentReminderApi(id);
+      // attach the same PDF as the invoice page / Download PDF (Invoice Layout design);
+      // if it cannot be drawn here, the server attaches its own copy
+      let body = {};
+      try {
+        const { base64, fileName } = await invoiceLayoutPdfBase64(typeof arg === 'object' && arg.invoice ? { invoice: arg.invoice } : { id });
+        body = { pdf: base64, fileName };
+      } catch {
+        body = {};
+      }
+      const data = await sendPaymentReminderApi(id, body);
       return data;
     } catch (error) {
       return rejectWithValue(
@@ -177,6 +190,20 @@ export const deleteSalesInvoice = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message || 'Failed to delete sales invoice'
+      );
+    }
+  }
+);
+
+export const deletePaymentIn = createAsyncThunk(
+  'salesInvoice/deletePaymentIn',
+  async (id, { rejectWithValue }) => {
+    try {
+      const data = await deletePaymentInApi(id);
+      return { id, data };
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to delete receipt'
       );
     }
   }
@@ -329,7 +356,8 @@ const salesInvoiceSlice = createSlice({
         if (index !== -1 && updated) {
           state.invoices[index] = updated;
         }
-        state.toast = { message: 'Payment recorded successfully.', color: 'success' };
+        const receiptNo = action.payload.data?.receipt?.receiptNumber;
+        state.toast = { message: receiptNo ? `Receipt ${receiptNo} saved.` : 'Payment recorded successfully.', color: 'success' };
       })
       .addCase(markSalesInvoicePaid.rejected, (state, action) => {
         state.loading = false;
@@ -411,6 +439,19 @@ const salesInvoiceSlice = createSlice({
       .addCase(deleteSalesInvoice.rejected, (state, action) => {
         state.loading = false;
         state.toast = { message: action.payload || 'Failed to delete invoice.', color: 'danger' };
+      })
+
+      // deletePaymentIn (a receipt on the invoice page)
+      .addCase(deletePaymentIn.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(deletePaymentIn.fulfilled, (state) => {
+        state.loading = false;
+        state.toast = { message: 'Receipt deleted. The invoice balance is updated.', color: 'success' };
+      })
+      .addCase(deletePaymentIn.rejected, (state, action) => {
+        state.loading = false;
+        state.toast = { message: action.payload || 'Failed to delete receipt.', color: 'danger' };
       });
   },
 });

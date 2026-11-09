@@ -1,38 +1,44 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
-import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   PlusCircle,
   MinusCircle,
   Equal,
   Package,
-  AlertCircle,
   CheckCircle2,
-  Loader2,
   Truck,
   ClipboardCheck,
   AlertOctagon,
   RotateCcw,
-  Building2,
   Sparkles,
   Check,
   Info,
-  Store as StoreIcon,
 } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import Card from '@/components/breadCrumbs/Card';
-import { Label } from '@/components/inputs/Label';
-import { Input } from '@/components/inputs/Input';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Field,
+  FormActions,
+  FormGrid,
+  Input,
+  PageHeader,
+  Section,
+  Select,
+  TONE_CLASSES,
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
 import { getProductByIdApi } from '../../storeManagement/products/services/productService';
-import { getStores } from '@/pages/storeManagement/stores/services/storeSlice';
 import { adjustStock, resetInventoryStatus } from './services/inventorySlice';
-import { AntdThemed, StoreSelect, ProductSearchSelect, InventoryToaster } from './components/InventoryShared';
-import { decodeId, formatQty, getStoreQty, useToasts } from './components/inventoryUtils';
+import { ProductSearchSelect, InventoryToaster } from './components/InventoryShared';
+import { decodeId, formatQty, useToasts } from './components/inventoryUtils';
 import { getBatchesApi } from './services/inventoryService';
 
-/** Quick reasons that mean new goods: not offered (new goods come in through Purchase or Opening Stock). */
+/** Quick reasons that mean new goods: not offered (new goods come in through a Purchase, or opening stock when creating the product). */
 const NEW_GOODS_TAGS = ['Purchase', 'Return', 'Transfer'];
 
 const fmtDay = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
@@ -42,49 +48,36 @@ const quickReasonPresets = [
     title: 'Restock from supplier',
     description: 'Incoming stock from vendor / purchase shipment',
     tag: 'Purchase',
-    icon: <Truck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />,
-    iconBg: 'bg-emerald-100 dark:bg-emerald-500/20',
-    badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400',
+    icon: Truck,
+    tone: 'success',
   },
   {
     title: 'Inventory audit correction',
     description: 'Discrepancy resolved during cycle count',
     tag: 'Audit',
-    icon: <ClipboardCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />,
-    iconBg: 'bg-indigo-100 dark:bg-indigo-500/20',
-    badgeClass: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400',
+    icon: ClipboardCheck,
+    tone: 'primary',
   },
   {
     title: 'Damaged / expired goods',
     description: 'Stock write-off due to breakage or shelf expiry',
     tag: 'Loss',
-    icon: <AlertOctagon className="w-4 h-4 text-rose-600 dark:text-rose-400" />,
-    iconBg: 'bg-rose-100 dark:bg-rose-500/20',
-    badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400',
+    icon: AlertOctagon,
+    tone: 'danger',
   },
   {
     title: 'Customer return restock',
     description: 'Good condition customer returns placed back on shelf',
     tag: 'Return',
-    icon: <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />,
-    iconBg: 'bg-amber-100 dark:bg-amber-500/20',
-    badgeClass: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
-  },
-  {
-    title: 'Internal store transfer',
-    description: 'Stock moved between branch stores or warehouses',
-    tag: 'Transfer',
-    icon: <Building2 className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />,
-    iconBg: 'bg-cyan-100 dark:bg-cyan-500/20',
-    badgeClass: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-400',
+    icon: RotateCcw,
+    tone: 'warning',
   },
   {
     title: 'Sample / promotional dispatch',
     description: 'Units used for client presentation or marketing campaign',
     tag: 'Marketing',
-    icon: <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400" />,
-    iconBg: 'bg-violet-100 dark:bg-violet-500/20',
-    badgeClass: 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400',
+    icon: Sparkles,
+    tone: 'info',
   },
 ];
 
@@ -92,34 +85,47 @@ const ACTIONS = [
   {
     value: 'increase',
     label: 'Increase Stock',
-    hint: 'Add units to this store (restock, returns).',
+    hint: 'Add units (restock, returns).',
     icon: PlusCircle,
-    on: 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 shadow-sm ring-2 ring-emerald-500/30',
-    text: 'text-emerald-700 dark:text-emerald-400',
+    tone: 'success',
   },
   {
     value: 'decrease',
     label: 'Decrease Stock',
-    hint: 'Remove units from this store (shrinkage, wastage).',
+    hint: 'Remove units (shrinkage, wastage).',
     icon: MinusCircle,
-    on: 'border-rose-500 bg-rose-50 dark:bg-rose-500/10 shadow-sm ring-2 ring-rose-500/30',
-    text: 'text-rose-700 dark:text-rose-400',
+    tone: 'danger',
   },
   {
     value: 'set',
     label: 'Set Exact Stock',
     hint: 'Replace with the physically counted quantity.',
     icon: Equal,
-    on: 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 shadow-sm ring-2 ring-indigo-500/30',
-    text: 'text-indigo-700 dark:text-indigo-400',
+    tone: 'primary',
   },
 ];
 
-const ErrorText = ({ children }) => (
-  <span className="text-xs text-red-500 mt-1 font-medium flex items-center gap-1">
-    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+/** Text colour per tone for the selected choice tile. */
+const TONE_INK = { success: 'text-success', danger: 'text-danger', primary: 'text-brand-ink', warning: 'text-warning', info: 'text-info' };
+
+/** Big selectable tile (adjustment action, quick reason). */
+const ChoiceTile = ({ active, onClick, className, children }) => (
+  <Card
+    as="button"
+    type="button"
+    padding="none"
+    aria-pressed={active}
+    onClick={onClick}
+    className={cn(
+      'relative flex w-full cursor-pointer text-left transition-shadow focus-visible:outline-none',
+      active
+        ? 'ring-2 ring-brand'
+        : 'ring-1 ring-line hover:ring-line-strong',
+      className
+    )}
+  >
     {children}
-  </span>
+  </Card>
 );
 
 export default function AdjustStock() {
@@ -129,16 +135,13 @@ export default function AdjustStock() {
   const [searchParams] = useSearchParams();
 
   const { adjustLoading } = useSelector((state) => state.inventory);
-  const { stores } = useSelector((state) => state.store);
   const { toasts, showToast } = useToasts();
 
   // Preselection: location.state wins, then (encrypted) query params
   const queryProductId = decodeId(searchParams.get('productId'));
-  const initialStoreId = location.state?.storeId || decodeId(searchParams.get('storeId'));
   const stateProduct = location.state?.selectedProduct || null;
 
   const [product, setProduct] = useState(stateProduct);
-  const [storeId, setStoreId] = useState(initialStoreId || '');
   const [submitted, setSubmitted] = useState(false);
 
   const {
@@ -165,7 +168,6 @@ export default function AdjustStock() {
   const currentReason = useWatch({ control, name: 'reason' });
 
   useEffect(() => {
-    dispatch(getStores({ limit: 100 }));
     dispatch(resetInventoryStatus());
   }, [dispatch]);
 
@@ -185,14 +187,8 @@ export default function AdjustStock() {
     };
   }, [stateProduct, queryProductId, showToast]);
 
-  const activeStores = useMemo(() => (stores || []).filter((s) => s.isActive !== false), [stores]);
-  // No store chosen yet → default to the default (or only) active store
-  const effectiveStoreId =
-    storeId || activeStores.find((s) => s.isDefault)?._id || (activeStores.length === 1 ? activeStores[0]._id : '');
-  const selectedStore = activeStores.find((s) => s._id === effectiveStoreId) || null;
-
-  const storeQty = getStoreQty(product, selectedStore);
-  const totalQty = Number(product?.currentStock ?? 0);
+  // Single location: the product's stock is its total.
+  const storeQty = product ? Number(product.currentStock ?? 0) : null;
   const parsedAmount = Number(currentAmount) || 0;
 
   const newStoreQty = useMemo(() => {
@@ -207,13 +203,12 @@ export default function AdjustStock() {
   const showCostFields =currentAction === 'increase' || (currentAction === 'set' && newStoreQty > (storeQty ?? 0));
   const needsBatch = showCostFields;
 
-  // Batches of the product in the chosen store (for a count increase).
-  const batchKey = needsBatch && product?._id && effectiveStoreId ? `${product._id}:${effectiveStoreId}` : '';
+  // Batches of the product (for a count increase).
+  const batchKey = needsBatch && product?._id ? String(product._id) : '';
   useEffect(() => {
     if (!batchKey) return undefined;
     let alive = true;
-    const [pid, sid] = batchKey.split(':');
-    getBatchesApi({ productId: pid, storeId: sid, onlyOpen: false })
+    getBatchesApi({ productId: batchKey, onlyOpen: false })
       .then((res) => {
         if (alive) setBatchState({ key: batchKey, list: res?.data?.batches || [], error: '' });
       })
@@ -234,12 +229,11 @@ export default function AdjustStock() {
 
   const onSubmit = (formData) => {
     setSubmitted(true);
-    if (!product || !effectiveStoreId) return;
+    if (!product) return;
     if (needsBatch && !chosenBatch) return;
 
     const payload = {
       productId: product._id,
-      storeId: effectiveStoreId,
       action: formData.action,
       amount: Number(formData.amount),
       reason: formData.reason.trim(),
@@ -258,112 +252,62 @@ export default function AdjustStock() {
   };
 
   const productError = submitted && !product ? 'Please select a product.' : '';
-  const storeError = submitted && !effectiveStoreId ? 'Please select a store.' : '';
 
   return (
-    <div className="flex flex-col gap-6 mx-auto">
-      <Card
-        h1="Adjust Stock"
-        rightNode={
-          <Button
-            variant="danger"
-            startIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-            size="sm"
-            onClick={() => navigate('/inventory')}
-            className="!h-9"
-          >
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
+      <PageHeader
+        title="Adjust Stock"
+        description="Correct a count or remove stock that is lost, used or wasted."
+        actions={
+          <Button variant="secondary" startIcon={<ArrowLeft />} onClick={() => navigate('/inventory')}>
             Back
           </Button>
         }
-        bodyClassName="p-4 sm:p-6"
-      >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-          <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
-            <Info className="w-4 h-4 shrink-0 mt-px" />
-            <span>
-              New goods come in through{' '}
-              <Link to="/purchase/receipts/create" className="font-semibold underline">Purchase (GRN)</Link> or{' '}
-              <Link to="/inventory/opening-stock/create" className="font-semibold underline">Opening Stock</Link>, with their MRP. Here you can
-              only remove stock or correct a count — extra units found in a count go into an existing batch.
-            </span>
-          </div>
-          <AntdThemed>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex flex-col">
-                <Label className="text-gray-700 dark:text-gray-200">
-                  Store / Warehouse <span className="text-red-500">*</span>
-                </Label>
-                <StoreSelect
-                  stores={activeStores}
-                  value={effectiveStoreId}
-                  onChange={setStoreId}
-                  placeholder="Select store"
-                  allowClear={false}
-                  status={storeError ? 'error' : undefined}
-                  className="w-full !h-11"
-                />
-                {storeError && <ErrorText>{storeError}</ErrorText>}
-              </div>
+      />
 
-              <div className="flex flex-col">
-                <Label className="text-gray-700 dark:text-gray-200">
-                  Product <span className="text-red-500">*</span>
-                </Label>
-                <ProductSearchSelect
-                  value={product}
-                  onChange={setProduct}
-                  storeId={effectiveStoreId}
-                  status={productError ? 'error' : undefined}
-                  className="w-full !h-11"
-                />
-                {productError ? (
-                  <ErrorText>{productError}</ErrorText>
-                ) : (
-                  <p className="text-xs text-gray-400 mt-1">Type a name, SKU or barcode to search.</p>
-                )}
-              </div>
-            </div>
-          </AntdThemed>
+      <Alert tone="warning" icon={Info}>
+        New goods come in through a Purchase or opening stock when creating the product. Here you can
+        only remove stock or correct a count — extra units found in a count go into an existing batch.
+      </Alert>
+
+      <Section title="Product" description="Which product's stock is changing">
+        <div className="flex flex-col gap-4">
+          <FormGrid cols={2}>
+            <Field label="Product" required error={productError || undefined} hint="Type a name, SKU or barcode to search.">
+              <ProductSearchSelect
+                value={product}
+                onChange={setProduct}
+                status={productError ? 'error' : undefined}
+              />
+            </Field>
+          </FormGrid>
 
           {product && (
-            <div className="p-4 rounded-xl border border-indigo-200 dark:border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-500/[0.04] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                  <Package className="w-5 h-5" />
-                </div>
+            <div className="flex flex-col justify-between gap-4 rounded-control bg-fill-2 p-4 lg:flex-row lg:items-center">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-control bg-brand-soft text-brand-ink">
+                  <Package className="size-5" />
+                </span>
                 <div className="min-w-0">
-                  <h4 className="text-sm font-bold text-gray-900 dark:text-white truncate">{product.name}</h4>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                  <p className="m-0 truncate text-sm font-bold text-ink">{product.name}</p>
+                  <p className="m-0 font-mono text-xs text-ink-subtle">
                     {product.sku ? `SKU: ${product.sku}` : 'No SKU'}
                     {product.status === 'inactive' ? ' · Inactive' : ''}
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-4 text-xs">
+              <div className="flex flex-wrap items-center gap-6">
                 <div>
-                  <span className="text-gray-400 block text-[11px] uppercase">All Stores</span>
-                  <span className="font-bold text-base text-gray-900 dark:text-white">
-                    {formatQty(totalQty)} {product.unit || 'units'}
+                  <span className="block text-xs font-medium text-ink-subtle">Current stock</span>
+                  <span className="text-lg font-extrabold tabular-nums text-ink">
+                    {formatQty(storeQty)} {product.unit || 'units'}
                   </span>
                 </div>
-                {selectedStore && (
-                  <div className="border-l border-indigo-200 dark:border-indigo-500/20 pl-4">
-                    <span className="text-gray-400 text-[11px] uppercase flex items-center gap-1">
-                      <StoreIcon className="w-3 h-3" />
-                      {selectedStore.name}
-                    </span>
-                    <span className="font-bold text-base text-gray-900 dark:text-white">
-                      {formatQty(storeQty)} {product.unit || 'units'}
-                    </span>
-                  </div>
-                )}
                 {showPreview ? (
-                  <div className="border-l border-indigo-200 dark:border-indigo-500/20 pl-4">
-                    <span className="text-gray-400 block text-[11px] uppercase">After Adjustment</span>
-                    <span
-                      className={`font-bold text-base ${newStoreQty < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}
-                    >
+                  <div className="border-l border-line pl-6">
+                    <span className="block text-xs font-medium text-ink-subtle">After adjustment</span>
+                    <span className={cn('text-lg font-extrabold tabular-nums', newStoreQty < 0 ? 'text-danger' : 'text-success')}>
                       {formatQty(newStoreQty)} {product.unit || 'units'}
                     </span>
                   </div>
@@ -371,44 +315,50 @@ export default function AdjustStock() {
               </div>
             </div>
           )}
+        </div>
+      </Section>
 
-          <div>
-            <Label className="text-gray-700 dark:text-gray-200">
-              Adjustment Action <span className="text-red-500">*</span>
-            </Label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {actions.map((a) => {
-                const Icon = a.icon;
-                const active = currentAction === a.value;
-                return (
-                  <button
-                    key={a.value}
-                    type="button"
-                    onClick={() => setValue('action', a.value, { shouldValidate: submitted })}
-                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1.5 ${active
-                      ? a.on
-                      : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={`flex items-center gap-2 font-bold text-sm ${a.text}`}>
-                        <Icon className="w-4 h-4" />
-                        {a.label}
+      <Section title="Adjustment" description="What happened to the stock">
+        <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {actions.map((a) => {
+              const Icon = a.icon;
+              const active = currentAction === a.value;
+              return (
+                <ChoiceTile
+                  key={a.value}
+                  active={active}
+                  onClick={() => setValue('action', a.value, { shouldValidate: submitted })}
+                  className="flex-col gap-1.5 p-4"
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className={cn('flex items-center gap-2 text-sm font-bold', active ? TONE_INK[a.tone] : 'text-ink')}>
+                      <span className={cn('grid size-8 place-items-center rounded-[10px]', TONE_CLASSES[a.tone])}>
+                        <Icon className="size-4" />
                       </span>
-                      {active && <CheckCircle2 className={`w-4 h-4 ${a.text}`} />}
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{a.hint}</p>
-                  </button>
-                );
-              })}
-            </div>
+                      {a.label}
+                    </span>
+                    {active && <CheckCircle2 className={cn('size-4 shrink-0', TONE_INK[a.tone])} />}
+                  </span>
+                  <span className="text-xs text-ink-subtle">{a.hint}</span>
+                </ChoiceTile>
+              );
+            })}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="amount" className="text-gray-700 dark:text-gray-200">
-                {currentAction === 'set' ? 'Counted Quantity' : 'Quantity'} <span className="text-red-500">*</span>
-              </Label>
+          <FormGrid cols={2}>
+            <Field
+              label={currentAction === 'set' ? 'Counted quantity' : 'Quantity'}
+              required
+              error={errors.amount?.message}
+              hint={
+                currentAction === 'increase'
+                  ? 'Units added to stock.'
+                  : currentAction === 'decrease'
+                    ? 'Units removed from stock.'
+                    : 'New stock of this product.'
+              }
+            >
               <Input
                 id="amount"
                 type="number"
@@ -416,7 +366,7 @@ export default function AdjustStock() {
                 step="any"
                 placeholder="e.g. 10"
                 error={Boolean(errors.amount)}
-                className="w-full"
+                className="tabular-nums"
                 {...register('amount', {
                   validate: (val) => {
                     const str = String(val ?? '').trim();
@@ -425,151 +375,104 @@ export default function AdjustStock() {
                     if (Number.isNaN(num) || num < 0) return 'Enter a valid non-negative number.';
                     if (currentAction !== 'set' && num === 0) return 'Quantity must be greater than 0.';
                     if (currentAction === 'decrease' && storeQty !== null && num > storeQty) {
-                      return `Only ${formatQty(storeQty)} available in this store.`;
+                      return `Only ${formatQty(storeQty)} available.`;
                     }
                     return true;
                   },
                 })}
               />
-              {errors.amount ? (
-                <ErrorText>{errors.amount.message}</ErrorText>
-              ) : (
-                <p className="text-xs text-gray-400 mt-1">
-                  {currentAction === 'increase' && 'Units added to the selected store.'}
-                  {currentAction === 'decrease' && 'Units removed from the selected store.'}
-                  {currentAction === 'set' && 'New stock of this product in the selected store.'}
-                </p>
-              )}
-            </div>
+            </Field>
 
             {needsBatch && (
-              <div>
-                <Label htmlFor="batchId" className="text-gray-700 dark:text-gray-200">
-                  Batch <span className="text-red-500">*</span>
-                </Label>
-                <select
+              <Field
+                label="Batch"
+                required
+                error={batchError || batchState.error || undefined}
+                hint="Same cost and MRP as that batch. No batch here? Receive it on a Purchase."
+              >
+                <Select
                   id="batchId"
                   value={chosenBatch}
-                  onChange={(e) => setBatchId(e.target.value)}
+                  onChange={(v) => setBatchId(v)}
                   disabled={batchesLoading}
-                  className={`w-full h-10 rounded-xl border px-3 text-sm bg-white dark:bg-white/5 text-gray-900 dark:!text-white outline-none cursor-pointer ${batchError ? 'border-red-500' : 'border-gray-200 dark:border-white/10'}`}
-                >
-                  <option value="">{batchesLoading ? 'Loading batches...' : batches.length ? 'Select batch' : 'No batch in this store'}</option>
-                  {batches.map((b) => (
-                    <option key={b._id} value={b._id}>
-                      {[b.batchNo || 'No batch no', b.mrp > 0 ? `MRP ₹${b.mrp}` : 'MRP —', `${formatQty(b.qtyRemaining)} left`, fmtDay(b.receivedAt)].filter(Boolean).join(' · ')}
-                    </option>
-                  ))}
-                </select>
-                {batchError || batchState.error ? (
-                  <ErrorText>{batchError || batchState.error}</ErrorText>
-                ) : (
-                  <p className="text-xs text-gray-400 mt-1">Same cost and MRP as that batch. No batch here? Use Purchase (GRN).</p>
-                )}
-              </div>
+                  searchable={false}
+                  invalid={!!batchError}
+                  placeholder={batchesLoading ? 'Loading batches...' : batches.length ? 'Select batch' : 'No batch'}
+                  options={batches.map((b) => ({
+                    value: b._id,
+                    label: [b.batchNo || 'No batch no', b.mrp > 0 ? `MRP ₹${b.mrp}` : 'MRP —', `${formatQty(b.qtyRemaining)} left`, fmtDay(b.receivedAt)].filter(Boolean).join(' · '),
+                  }))}
+                />
+              </Field>
             )}
+          </FormGrid>
+        </div>
+      </Section>
 
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-1">
-              <Label htmlFor="reason" className="!mb-0 text-gray-700 dark:text-gray-200">
-                Reason <span className="text-red-500">*</span>
-              </Label>
-              <span className="text-[11px] font-medium text-gray-400 flex items-center gap-1">
-                <Info className="w-3 h-3 text-indigo-500" /> Pick a quick reason or type your own
-              </span>
-            </div>
-
+      <Section
+        title="Reason"
+        description="Pick a quick reason or type your own"
+      >
+        <div className="flex flex-col gap-4">
+          <Field label="Reason" required error={errors.reason?.message}>
             <Input
               id="reason"
               type="text"
               maxLength={500}
               placeholder="Type or select a reason below..."
               error={Boolean(errors.reason)}
-              className="w-full"
               {...register('reason', {
                 validate: (val) => (val && val.trim().length > 0) || 'Reason is required.',
               })}
             />
-            {errors.reason && <ErrorText>{errors.reason.message}</ErrorText>}
+          </Field>
 
-            <div>
-              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 block uppercase tracking-wider">
-                Quick Reasons:
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {reasonPresets.map((preset) => {
-                  const isSelected = (currentReason || '').trim().toLowerCase() === preset.title.toLowerCase();
-                  return (
-                    <div
-                      key={preset.title}
-                      onClick={() => setValue('reason', preset.title, { shouldValidate: true })}
-                      className={`group relative p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-start gap-3 select-none ${isSelected
-                        ? 'border-indigo-500/80 bg-indigo-50/70 dark:bg-indigo-500/10 shadow-xs ring-2 ring-indigo-500/25'
-                        : 'border-gray-200 dark:border-white/10 bg-gray-50/40 dark:bg-white/[0.02] hover:bg-white dark:hover:bg-white/[0.05] hover:border-indigo-300 dark:hover:border-indigo-500/30'
-                        }`}
-                    >
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${preset.iconBg}`}
-                      >
-                        {preset.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                          <h5
-                            className={`text-xs font-bold leading-snug truncate ${isSelected ? 'text-indigo-900 dark:text-indigo-200' : 'text-gray-800 dark:text-gray-200'
-                              }`}
-                          >
-                            {preset.title}
-                          </h5>
-                          <span
-                            className={`text-[9px] px-1.5 rounded-md font-semibold shrink-0 uppercase tracking-wider ${preset.badgeClass}`}
-                          >
-                            {preset.tag}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-gray-400 dark:text-gray-400 line-clamp-1 leading-normal">
-                          {preset.description}
-                        </p>
-                      </div>
-                      {isSelected && (
-                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xs">
-                          <Check className="w-2.5 h-2.5 stroke-[3]" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+          <div>
+            <p className="m-0 mb-2 text-xs font-semibold text-ink-subtle">Quick reasons</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {reasonPresets.map((preset) => {
+                const isSelected = (currentReason || '').trim().toLowerCase() === preset.title.toLowerCase();
+                const Icon = preset.icon;
+                return (
+                  <ChoiceTile
+                    key={preset.title}
+                    active={isSelected}
+                    onClick={() => setValue('reason', preset.title, { shouldValidate: true })}
+                    className="items-start gap-3 p-3"
+                  >
+                    <span className={cn('grid size-8 shrink-0 place-items-center rounded-[10px]', TONE_CLASSES[preset.tone])}>
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="flex items-center justify-between gap-2 pr-5">
+                        <span className={cn('truncate text-xs font-bold', isSelected ? 'text-brand-ink' : 'text-ink')}>{preset.title}</span>
+                        <Badge tone={preset.tone} size="xs" className="px-2 uppercase tracking-wider">{preset.tag}</Badge>
+                      </span>
+                      <span className="line-clamp-1 text-[11px] text-ink-subtle">{preset.description}</span>
+                    </span>
+                    {isSelected && (
+                      <span className="absolute right-2 top-2 grid size-4 place-items-center rounded-full bg-brand text-white">
+                        <Check className="size-2.5 stroke-[3]" />
+                      </span>
+                    )}
+                  </ChoiceTile>
+                );
+              })}
             </div>
           </div>
+        </div>
+      </Section>
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-white/10">
-            <Button type="button" variant="outline" onClick={() => navigate('/inventory')} disabled={adjustLoading}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={adjustLoading}
-              className="!h-10 px-6 font-semibold"
-              onClick={() => setSubmitted(true)}
-            >
-              {adjustLoading ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
-                </span>
-              ) : (
-                'Save Adjustment'
-              )}
-            </Button>
-          </div>
-        </form>
-      </Card>
+      <FormActions>
+        <Button variant="secondary" onClick={() => navigate('/inventory')} disabled={adjustLoading}>
+          Cancel
+        </Button>
+        <Button type="submit" loading={adjustLoading} onClick={() => setSubmitted(true)}>
+          {adjustLoading ? 'Saving...' : 'Save Adjustment'}
+        </Button>
+      </FormActions>
 
       <InventoryToaster toasts={toasts} />
-    </div>
+    </form>
   );
 }

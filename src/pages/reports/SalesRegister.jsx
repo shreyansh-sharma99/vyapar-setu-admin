@@ -3,26 +3,29 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import {
   FileText,
-  DollarSign,
-  TrendingUp,
+  IndianRupee,
+  Landmark,
+  Receipt,
   CreditCard,
   AlertCircle,
 } from 'lucide-react';
-import Card from '@/components/breadCrumbs/Card';
-import Button from '@/components/inputs/Button';
-import { Label } from '@/components/inputs/Label';
-import DatePicker from '@/components/inputs/Datepicker';
-import Table from '@/components/table/Table';
-import TableInfoCard from '@/components/table/TableInfoCard';
+import { DataTable, PageHeader, StatusBadge } from '@/components/ui';
 import { formatDate } from '@/utility/dateTiming';
 import { getSalesRegister } from './services/reportSlice';
-import ReportTabs from './ReportTabs';
+import { DateFilterBar, StatRow } from './components/ReportBits';
 
 const STATUS_BADGE = {
-  paid: { label: 'Paid', className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' },
-  partially_paid: { label: 'Partially Paid', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' },
-  unpaid: { label: 'Unpaid', className: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400' },
+  paid: { label: 'Paid' },
+  partially_paid: { label: 'Partially Paid' },
+  unpaid: { label: 'Unpaid' },
+  approved: { label: 'Approved' },
+  issued: { label: 'Issued' },
 };
+
+const MONEY = 'text-xs tabular-nums';
+// returns / credit notes are negative (red); 0 shows as —
+const money = (v, cls = '') => (Number(v) ? <span className={`${MONEY} ${cls} ${Number(v) < 0 ? 'text-danger' : ''}`}>{Number(v) < 0 ? '−' : ''}₹{Math.abs(Number(v)).toFixed(2)}</span> : <span className={MONEY}>—</span>);
+const DOC_TONE = { Invoice: 'text-ink-muted', 'Sales return': 'text-danger', 'Credit note': 'text-danger' };
 
 export default function SalesRegister() {
   const dispatch = useDispatch();
@@ -53,8 +56,10 @@ export default function SalesRegister() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleApplyFilter = () => {
-    fetchReport(dateFrom, dateTo);
+  const handleApplyFilter = ({ dateFrom: from, dateTo: to }) => {
+    setDateFrom(from);
+    setDateTo(to);
+    fetchReport(from, to);
   };
 
   const handleResetFilters = () => {
@@ -71,222 +76,194 @@ export default function SalesRegister() {
   const stats = useMemo(() => {
     return [
       {
-        label: 'Total Invoices',
-        value: totals.count || 0,
-        icon: <FileText className="w-3.5 h-3.5 text-blue-500" />,
-      },
-      {
-        label: 'Total Taxable',
-        value: `₹${(totals.taxable || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <DollarSign className="w-3.5 h-3.5 text-indigo-500" />,
-        colorClass: 'text-indigo-600 dark:text-indigo-400 font-bold',
-      },
-      {
-        label: 'CGST + SGST',
-        value: `₹${((totals.cgst || 0) + (totals.sgst || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />,
-      },
-      {
-        label: 'IGST',
-        value: `₹${(totals.igst || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <TrendingUp className="w-3.5 h-3.5 text-purple-500" />,
-      },
-      {
-        label: 'Total Invoiced',
+        label: 'Net sales',
         value: `₹${(totals.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <CreditCard className="w-3.5 h-3.5 text-blue-600" />,
-        colorClass: 'text-blue-600 dark:text-blue-400 font-bold',
+        icon: Receipt,
+        tone: 'primary',
+        chip: `${totals.invoices || 0} invoices${(totals.returns || 0) + (totals.creditNotes || 0) ? ` − ${(totals.returns || 0) + (totals.creditNotes || 0)} returns / credit notes` : ''}`,
       },
       {
         label: 'Total Paid',
         value: `₹${(totals.paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <CreditCard className="w-3.5 h-3.5 text-emerald-600" />,
-        colorClass: 'text-emerald-600 dark:text-emerald-400 font-bold',
+        icon: CreditCard,
+        tone: 'success',
       },
       {
-        label: 'Outstanding Balance',
+        label: 'Outstanding',
         value: `₹${(totals.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <AlertCircle className="w-3.5 h-3.5 text-amber-500" />,
-        colorClass: (totals.balance || 0) > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-bold',
+        icon: AlertCircle,
+        tone: (totals.balance || 0) > 0 ? 'warning' : 'success',
+      },
+      {
+        label: 'Net taxable',
+        value: `₹${(totals.taxable || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        icon: IndianRupee,
+        tone: 'info',
+      },
+      {
+        label: 'CGST + SGST',
+        value: `₹${((totals.cgst || 0) + (totals.sgst || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        icon: Landmark,
+        tone: 'neutral',
+      },
+      {
+        label: 'IGST',
+        value: `₹${(totals.igst || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        icon: FileText,
+        tone: 'neutral',
       },
     ];
   }, [totals]);
 
-  const headers = [
+  const columns = [
     {
-      label: 'Invoice Number',
-      key: 'invoiceNumber',
+      header: 'Document',
+      key: 'docNumber',
       sortable: true,
-      render: (item) => <span className="font-mono font-semibold text-xs text-[var(--vs-text-primary)]">{item.invoiceNumber}</span>,
-      value: 'checked',
+      mobile: 'title',
+      render: (item) => <span className="font-mono text-xs font-semibold text-ink">{item.docNumber}</span>,
     },
     {
-      label: 'Invoice Date',
-      key: 'invoiceDate',
+      header: 'Kind',
+      key: 'docType',
       sortable: true,
-      render: (item) => <span className="text-xs">{formatDate(item.invoiceDate)}</span>,
-      value: 'checked',
+      render: (item) => <span className={`text-[11px] font-semibold uppercase ${DOC_TONE[item.docType] || 'text-ink-muted'}`}>{item.docType}</span>,
     },
     {
-      label: 'Customer Name',
+      header: 'Date',
+      key: 'docDate',
+      sortable: true,
+      render: (item) => <span className="text-xs">{formatDate(item.docDate)}</span>,
+    },
+    {
+      header: 'Against invoice',
+      key: 'againstInvoice',
+      hideBelow: 'lg',
+      render: (item) => (item.againstInvoice ? <span className="font-mono text-xs">{item.againstInvoice}</span> : <span className="text-ink-subtle">—</span>),
+    },
+    {
+      header: 'Customer Name',
       key: 'customer',
       sortable: true,
-      render: (item) => <span className="font-medium text-xs">{item.customer || '—'}</span>,
-      value: 'checked',
+      render: (item) => <span className="text-xs font-medium">{item.customer || '—'}</span>,
     },
     {
-      label: 'GSTIN',
+      header: 'GSTIN',
       key: 'gstin',
       sortable: true,
-      render: (item) => <span className="font-mono text-xs text-[var(--vs-text-secondary)]">{item.gstin || '—'}</span>,
-      value: 'checked',
+      render: (item) => <span className="font-mono text-xs text-ink-muted">{item.gstin || '—'}</span>,
     },
     {
-      label: 'Type',
+      header: 'Type',
       key: 'invoiceType',
       sortable: true,
-      render: (item) => <span className="text-[11px] font-semibold uppercase">{item.invoiceType || 'B2C'}</span>,
-      value: 'checked',
+      render: (item) => <span className="text-[11px] font-semibold uppercase text-ink-muted">{item.invoiceType || 'B2C'}</span>,
     },
     {
-      label: 'Status',
+      header: 'Status',
       key: 'status',
       sortable: true,
-      render: (item) => {
-        const badge = STATUS_BADGE[item.status] || { label: item.status, className: 'bg-slate-100 text-slate-800' };
-        return (
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${badge.className}`}>
-            {badge.label}
-          </span>
-        );
-      },
-      value: 'checked',
+      render: (item) => <StatusBadge status={item.status} label={(STATUS_BADGE[item.status] || { label: item.status }).label} />,
     },
     {
-      label: 'Place of Supply',
+      header: 'Place of Supply',
       key: 'placeOfSupply',
       sortable: true,
+      hideBelow: 'xl',
       render: (item) => <span className="text-xs">{item.placeOfSupply || '—'}</span>,
-      value: 'checked',
     },
     {
-      label: 'Taxable Amount',
+      header: 'Taxable Amount',
       key: 'taxable',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs font-semibold',
-      render: (item) => <span>₹{Number(item.taxable || 0).toFixed(2)}</span>,
-      value: 'checked',
+      render: (item) => money(item.taxable, 'font-semibold'),
     },
     {
-      label: 'CGST',
+      header: 'CGST',
       key: 'cgst',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.cgst > 0 ? `₹${Number(item.cgst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
+      render: (item) => money(item.cgst),
     },
     {
-      label: 'SGST',
+      header: 'SGST',
       key: 'sgst',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.sgst > 0 ? `₹${Number(item.sgst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
+      render: (item) => money(item.sgst),
     },
     {
-      label: 'IGST',
+      header: 'IGST',
       key: 'igst',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.igst > 0 ? `₹${Number(item.igst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
+      render: (item) => money(item.igst),
     },
     {
-      label: 'Cess',
+      header: 'Cess',
       key: 'cess',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.cess > 0 ? `₹${Number(item.cess).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
+      hideBelow: 'xl',
+      render: (item) => money(item.cess),
     },
     {
-      label: 'Total Amount',
+      header: 'Discount after GST',
+      key: 'afterTaxDiscount',
+      type: 'money',
+      hideBelow: 'xl',
+      render: (item) => money(item.afterTaxDiscount),
+    },
+    {
+      header: 'Total Amount',
       key: 'total',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs font-bold text-[var(--vs-text-primary)]',
-      render: (item) => <span>₹{Number(item.total || 0).toFixed(2)}</span>,
-      value: 'checked',
+      mobile: 'amount',
+      render: (item) => money(item.total, 'font-bold text-ink'),
     },
     {
-      label: 'Paid Amount',
+      header: 'Paid Amount',
       key: 'paid',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs text-emerald-600 dark:text-emerald-400 font-semibold',
-      render: (item) => <span>₹{Number(item.paid || 0).toFixed(2)}</span>,
-      value: 'checked',
+      render: (item) => money(item.paid, 'font-semibold text-success'),
     },
     {
-      label: 'Balance',
+      header: 'Balance',
       key: 'balance',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs text-amber-600 dark:text-amber-400 font-bold',
-      render: (item) => <span>₹{Number(item.balance || 0).toFixed(2)}</span>,
-      value: 'checked',
+      render: (item) => money(item.balance, 'font-bold text-warning'),
     },
   ];
 
   return (
-    <div>
-      <Card h1="Sales Register Report" bodyClassName="px-4 pb-4 pt-2">
-        <ReportTabs />
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Sales Register Report"
+        description="Every sales invoice, sales return and credit note in the period with its GST breakup. Returns and credit notes are minus; totals are net."
+      />
 
-        {/* ── Filter Bar ── */}
-        <div className="mb-5 bg-[var(--vs-bg-secondary)] p-3 sm:p-4 rounded-xl border border-[var(--vs-border)]">
-          <div className="flex flex-wrap items-end gap-3 sm:gap-4">
-            <div className="w-40 sm:w-48">
-              <Label className="!text-[11px] font-bold text-[var(--vs-text-secondary)] uppercase">From Date</Label>
-              <DatePicker
-                id="salesRegisterDateFrom"
-                placeholder="YYYY-MM-DD"
-                defaultDate={dateFrom}
-                onChange={(selectedDates, dateStr) => setDateFrom(dateStr)}
-              />
-            </div>
-            <div className="w-40 sm:w-48">
-              <Label className="!text-[11px] font-bold text-[var(--vs-text-secondary)] uppercase">To Date</Label>
-              <DatePicker
-                id="salesRegisterDateTo"
-                placeholder="YYYY-MM-DD"
-                defaultDate={dateTo}
-                onChange={(selectedDates, dateStr) => setDateTo(dateStr)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={handleApplyFilter} className="h-9 px-4 text-xs font-bold !bg-[#0f6ebd] hover:!bg-[#0d60a6] text-white">
-                Apply Filter
-              </Button>
-              <Button variant="outline" onClick={handleResetFilters} className="h-9 px-3 text-xs">
-                Reset
-              </Button>
-            </div>
-          </div>
-        </div>
+      <DateFilterBar
+        idPrefix="salesRegister"
+        value={{ dateFrom, dateTo }}
+        defaults={{ dateFrom: '2026-04-01', dateTo: '2027-03-31' }}
+        onApply={handleApplyFilter}
+        onReset={handleResetFilters}
+      />
 
-        {/* ── Summary Stats ── */}
-        <div className="mb-5">
-          <TableInfoCard stats={stats} className="!flex-nowrap overflow-x-auto !gap-5 py-2 [&_*]:whitespace-nowrap" />
-        </div>
+      <StatRow stats={stats} />
 
-        {/* ── Table ── */}
-        <Table
-          headers={headers}
-          data={rows}
-          loading={loading}
-          showSearch={true}
-          searchPlaceholder="Search invoice no, customer..."
-          emptyMessage="No sales invoices found for the selected period."
-        />
-      </Card>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        loading={loading}
+        search={{ placeholder: 'Search document no, customer...' }}
+        empty={{ icon: FileText, title: 'No sales documents found for the selected period.' }}
+        pageSizeOptions={[10, 20, 50, 100, 500]}
+      />
     </div>
   );
 }

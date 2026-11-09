@@ -5,7 +5,6 @@ import { encryptData, decryptData } from '@/utility/crypto';
 export const PATHS = {
   suppliers: '/purchase/suppliers',
   orders: '/purchase/orders',
-  receipts: '/purchase/receipts',
   bills: '/purchase/bills',
   returns: '/purchase/returns',
   payments: '/purchase/payments',
@@ -342,8 +341,6 @@ export const docPricing = ({ overallDiscountPercent, otherCharges, roundOff }) =
 export const supplierName = (doc) =>
   doc?.supplierSnapshot?.name || (typeof doc?.supplierId === 'object' ? doc.supplierId?.name : '') || doc?.supplierName || '—';
 
-export const storeName = (doc) =>
-  (typeof doc?.storeId === 'object' ? doc.storeId?.name : '') || doc?.storeSnapshot?.name || '—';
 
 /** Overall discount % of a saved document, worked back from its totals. */
 export const inferOverallDiscount = (doc) => {

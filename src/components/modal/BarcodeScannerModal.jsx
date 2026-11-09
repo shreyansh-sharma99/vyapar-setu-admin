@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Camera, Check, AlertCircle, RefreshCw, QrCode } from 'lucide-react';
+import { Check, AlertCircle, RefreshCw, QrCode } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
-import Button from '@/components/inputs/Button';
-import { Input } from '@/components/inputs/Input';
-import { Label } from '@/components/inputs/Label';
+import { Button, Field, Modal, Select } from '@/components/ui';
 
 export default function BarcodeScannerModal({
   isOpen,
@@ -181,10 +179,27 @@ export default function BarcodeScannerModal({
   if (!isOpen) return null;
 
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${animating ? 'modal-backdrop-enter' : ''}`}
-      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+    <Modal
+      open={isOpen}
+      onClose={handleClose}
+      title={
+        <span className="flex items-center gap-2.5">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+            <QrCode className="size-4" />
+          </span>
+          Scan QR / Barcode
+        </span>
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} startIcon={<Check />}>
+            Save Code
+          </Button>
+        </>
+      }
     >
       <style>{`
         @keyframes scanAnimation {
@@ -197,138 +212,61 @@ export default function BarcodeScannerModal({
         }
       `}</style>
 
-      <div
-        className={`relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden ${animating ? 'modal-content-enter' : ''}`}
-        style={{
-          background: 'var(--vs-bg-primary)',
-          border: '1px solid var(--vs-border)',
-        }}
-      >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between px-4 py-3"
-          style={{ borderBottom: '1px solid var(--vs-border)' }}
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center w-8 h-8  rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
-              <QrCode className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="block text-sm font-semibold leading-tight" style={{ color: 'var(--vs-active-text)' }}>
-                Scan QR / Barcode
-              </span>
-              {/* <p className="text-[11px] leading-normal" style={{ color: 'var(--vs-text-secondary)' }}>
-                Align the code inside the frame to scan automatically
-              </p> */}
-            </div>
-          </div>
+      {/* Scanner Viewport */}
+      <div className="flex flex-col gap-4" data-state={animating ? 'open' : 'opening'}>
+        {/* Camera feed stays black in both themes so the code is easy to see. */}
+        <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-control bg-black ring-1 ring-line">
+          {/* Target reader div for html5-qrcode */}
+          <div id="barcode-scanner-reader" className="h-full w-full" />
 
-          <button
-            type="button"
-            onClick={handleClose}
-            className="p-1.5 rounded-lg transition-colors hover:bg-red-100 dark:hover:bg-white/[0.06]"
-            title="Close"
-          >
-            <X className="w-4 h-4" style={{ color: 'var(--vs-logout-text)' }} />
-          </button>
-        </div>
+          {/* Glowing scanning laser animation and alignment guide overlay */}
+          {scanningState === 'active' && (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+              <div className="relative flex h-[140px] w-[260px] max-w-[80%] items-center justify-center rounded-2xl border-2 border-highlight/40">
+                {/* Corner brackets */}
+                <div className="absolute -left-1.5 -top-1.5 h-5 w-5 rounded-tl border-l-4 border-t-4 border-highlight" />
+                <div className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-tr border-r-4 border-t-4 border-highlight" />
+                <div className="absolute -bottom-1.5 -left-1.5 h-5 w-5 rounded-bl border-b-4 border-l-4 border-highlight" />
+                <div className="absolute -bottom-1.5 -right-1.5 h-5 w-5 rounded-br border-b-4 border-r-4 border-highlight" />
 
-        {/* Scanner Viewport */}
-        <div className="px-5 pt-4 flex flex-col gap-4">
-          <div
-            className="relative w-full rounded-xl overflow-hidden bg-black flex items-center justify-center border border-gray-800"
-            style={{ aspectRatio: '16/9' }}
-          >
-            {/* Target reader div for html5-qrcode */}
-            <div id="barcode-scanner-reader" className="w-full h-full" />
-
-            {/* Glowing scanning laser animation and alignment guide overlay */}
-            {scanningState === 'active' && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                <div className="w-[260px] h-[140px] border-2 border-indigo-500/40 rounded-2xl relative flex items-center justify-center">
-                  {/* Corner brackets */}
-                  <div className="absolute -top-1.5 -left-1.5 w-5 h-5 border-t-4 border-l-4 border-indigo-500 rounded-tl" />
-                  <div className="absolute -top-1.5 -right-1.5 w-5 h-5 border-t-4 border-r-4 border-indigo-500 rounded-tr" />
-                  <div className="absolute -bottom-1.5 -left-1.5 w-5 h-5 border-b-4 border-l-4 border-indigo-500 rounded-bl" />
-                  <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 border-b-4 border-r-4 border-indigo-500 rounded-br" />
-
-                  {/* Laser line centered inside the box */}
-                  <div className="absolute inset-x-3 h-0.5 bg-gradient-to-r from-transparent via-indigo-500 to-transparent shadow-[0_0_8px_#6366f1] scanner-line pointer-events-none" />
-                </div>
+                {/* Laser line centered inside the box */}
+                <div className="scanner-line pointer-events-none absolute inset-x-3 h-0.5 bg-gradient-to-r from-transparent via-highlight to-transparent shadow-[0_0_8px_var(--color-highlight)]" />
               </div>
-            )}
-
-            {/* Overlay indicators for different states */}
-            {scanningState === 'initializing' && (
-              <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-3 text-white text-xs">
-                <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
-                <span>Accessing camera...</span>
-              </div>
-            )}
-
-            {scanningState === 'error' && (
-              <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center gap-3 text-red-400">
-                <AlertCircle className="w-9 h-9" />
-                <span className="text-xs font-semibold">{errorMsg || "Unable to start camera"}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Camera selector if multiple cameras are available */}
-          {cameras.length > 1 && (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="cameraSelect">Select Camera</Label>
-              <select
-                id="cameraSelect"
-                value={selectedCameraId}
-                onChange={(e) => setSelectedCameraId(e.target.value)}
-                className="w-full rounded-xl border border-[var(--vs-input-border)] bg-[var(--vs-input-bg)] px-3 py-2 text-xs text-[var(--vs-text-primary)] transition-all duration-200 outline-none focus:border-indigo-500/60"
-              >
-                {cameras.map((camera) => (
-                  <option key={camera.id} value={camera.id}>
-                    {camera.label || `Camera ${cameras.indexOf(camera) + 1}`}
-                  </option>
-                ))}
-              </select>
             </div>
           )}
 
-          {/* Scanned/Edited Value Form */}
-          {/* <div className="flex flex-col gap-1.5">
-            <Label htmlFor="scannedBarcode">Scanned Code Value</Label>
-            <Input
-              id="scannedBarcode"
-              type="text"
-              placeholder="Waiting for scan or type manually..."
-              value={barcodeValue}
-              onChange={(e) => setBarcodeValue(e.target.value)}
+          {/* Overlay indicators for different states */}
+          {scanningState === 'initializing' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-xs text-white">
+              <RefreshCw className="h-8 w-8 animate-spin text-highlight" />
+              <span>Accessing camera...</span>
+            </div>
+          )}
+
+          {scanningState === 'error' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/85 p-6 text-center text-white">
+              <AlertCircle className="h-9 w-9 text-danger" />
+              <span className="text-xs font-semibold">{errorMsg || "Unable to start camera"}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Camera selector if multiple cameras are available */}
+        {cameras.length > 1 && (
+          <Field label="Select Camera" htmlFor="cameraSelect">
+            <Select
+              id="cameraSelect"
+              searchable={false}
+              value={selectedCameraId}
+              onChange={(value) => setSelectedCameraId(value)}
+              options={cameras.map((camera, idx) => ({
+                value: camera.id,
+                label: camera.label || `Camera ${idx + 1}`,
+              }))}
             />
-          </div> */}
-        </div>
-
-        {/* Footer Actions */}
-        <div
-          className="flex items-center justify-end gap-3 px-5 py-4 mt-4"
-          style={{ borderTop: '1px solid var(--vs-border)' }}
-        >
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleClose}
-          >
-            Cancel
-          </Button>
-
-          <Button
-            type="button"
-            variant="primary"
-            onClick={handleSave}
-            startIcon={<Check className="w-4 h-4" />}
-          >
-            Save Code
-          </Button>
-        </div>
+          </Field>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

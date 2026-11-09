@@ -1,15 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
-import { Layers, DollarSign, TrendingUp, Package } from 'lucide-react';
-import Card from '@/components/breadCrumbs/Card';
-import Button from '@/components/inputs/Button';
-import { Label } from '@/components/inputs/Label';
-import DatePicker from '@/components/inputs/Datepicker';
-import Table from '@/components/table/Table';
-import TableInfoCard from '@/components/table/TableInfoCard';
+import { Layers, IndianRupee, Landmark, Package } from 'lucide-react';
+import { DataTable, PageHeader } from '@/components/ui';
 import { getHsnSummary } from './services/reportSlice';
-import ReportTabs from './ReportTabs';
+import { DateFilterBar, StatRow } from './components/ReportBits';
+
+const MONEY = 'text-xs tabular-nums';
+// sales returns / credit notes are already taken off; a net minus shows red
+const money = (v, cls = '') => (Number(v) ? <span className={`${MONEY} ${cls} ${Number(v) < 0 ? 'text-danger' : ''}`}>{Number(v) < 0 ? '−' : ''}₹{Math.abs(Number(v)).toFixed(2)}</span> : <span className={MONEY}>—</span>);
 
 export default function HsnSummary() {
   const dispatch = useDispatch();
@@ -40,8 +39,10 @@ export default function HsnSummary() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleApplyFilter = () => {
-    fetchReport(dateFrom, dateTo);
+  const handleApplyFilter = ({ dateFrom: from, dateTo: to }) => {
+    setDateFrom(from);
+    setDateTo(to);
+    fetchReport(from, to);
   };
 
   const handleResetFilters = () => {
@@ -75,162 +76,142 @@ export default function HsnSummary() {
 
     return [
       {
-        label: 'HSN Items',
-        value: dataList.length,
-        icon: <Layers className="w-3.5 h-3.5 text-blue-500" />,
-      },
-      {
-        label: 'Total Quantity',
-        value: totalQty.toLocaleString(),
-        icon: <Package className="w-3.5 h-3.5 text-purple-500" />,
+        label: 'Grand Total Amount',
+        value: `₹${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        icon: IndianRupee,
+        tone: 'success',
       },
       {
         label: 'Total Taxable',
         value: `₹${totalTaxable.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <DollarSign className="w-3.5 h-3.5 text-indigo-500" />,
-        colorClass: 'text-indigo-600 dark:text-indigo-400 font-bold',
+        icon: IndianRupee,
+        tone: 'primary',
       },
       {
         label: 'CGST + SGST',
         value: `₹${(totalCgst + totalSgst).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />,
+        icon: Landmark,
+        tone: 'info',
       },
       {
         label: 'IGST',
         value: `₹${totalIgst.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <TrendingUp className="w-3.5 h-3.5 text-amber-500" />,
+        icon: Landmark,
+        tone: 'neutral',
       },
       {
-        label: 'Grand Total Amount',
-        value: `₹${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-        icon: <DollarSign className="w-3.5 h-3.5 text-emerald-600" />,
-        colorClass: 'text-emerald-600 dark:text-emerald-400 font-bold',
+        label: 'Total Quantity',
+        value: totalQty.toLocaleString(),
+        icon: Package,
+        tone: 'warning',
+      },
+      {
+        label: 'HSN Items',
+        value: dataList.length,
+        icon: Layers,
+        tone: 'neutral',
       },
     ];
   }, [dataList]);
 
-  const headers = [
+  const columns = [
     {
-      label: 'HSN / SAC Code',
+      header: 'HSN / SAC Code',
       key: 'hsnCode',
       sortable: true,
+      mobile: 'title',
       render: (item) => (
-        <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-          {item.hsnCode || '—'}
-        </span>
+        <span className="rounded-chip bg-fill px-2 py-0.5 font-mono text-xs font-bold text-ink">{item.hsnCode || '—'}</span>
       ),
-      value: 'checked',
     },
     {
-      label: 'Quantity',
+      header: 'GST Rate',
+      key: 'taxRate',
+      sortable: true,
+      render: (item) => <span className="font-mono text-xs font-bold">{Number(item.taxRate || 0)}%</span>,
+    },
+    {
+      header: 'Unit (UQC)',
+      key: 'unit',
+      render: (item) => <span className="text-xs uppercase">{item.unit || '—'}</span>,
+    },
+    {
+      header: 'Quantity',
       key: 'qty',
+      type: 'number',
       sortable: true,
-      cellClassName: 'text-center font-semibold text-xs',
-      render: (item) => <span>{item.qty || 0}</span>,
-      value: 'checked',
+      render: (item) => <span className="text-xs font-semibold tabular-nums">{item.qty || 0}</span>,
     },
     {
-      label: 'Taxable Amount',
+      header: 'Taxable Amount',
       key: 'taxable',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs font-semibold',
-      render: (item) => <span>₹{Number(item.taxable || 0).toFixed(2)}</span>,
-      value: 'checked',
+      render: (item) => money(item.taxable, 'font-semibold'),
     },
     {
-      label: 'CGST',
+      header: 'CGST',
       key: 'cgst',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.cgst > 0 ? `₹${Number(item.cgst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
+      render: (item) => money(item.cgst),
     },
     {
-      label: 'SGST',
+      header: 'SGST',
       key: 'sgst',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.sgst > 0 ? `₹${Number(item.sgst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
+      render: (item) => money(item.sgst),
     },
     {
-      label: 'IGST',
+      header: 'IGST',
       key: 'igst',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.igst > 0 ? `₹${Number(item.igst).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
+      render: (item) => money(item.igst),
     },
     {
-      label: 'Cess',
+      header: 'Cess',
       key: 'cess',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs',
-      render: (item) => <span>{item.cess > 0 ? `₹${Number(item.cess).toFixed(2)}` : '—'}</span>,
-      value: 'checked',
+      render: (item) => money(item.cess),
     },
     {
-      label: 'Total Amount',
+      header: 'Total Amount',
       key: 'total',
+      type: 'money',
       sortable: true,
-      cellClassName: 'text-right font-mono text-xs font-bold text-[var(--vs-text-primary)]',
-      render: (item) => <span>₹{Number(item.total || 0).toFixed(2)}</span>,
-      value: 'checked',
+      mobile: 'amount',
+      render: (item) => money(item.total, 'font-bold text-ink'),
     },
   ];
 
   return (
-    <div>
-      <Card h1="HSN Summary Report" bodyClassName="px-4 pb-4 pt-2">
-        <ReportTabs />
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="HSN Summary Report"
+        description="Quantity, taxable value and GST for each HSN / SAC code sold in the period."
+      />
 
-        {/* ── Filter Bar ── */}
-        <div className="mb-5 bg-[var(--vs-bg-secondary)] p-3 sm:p-4 rounded-xl border border-[var(--vs-border)]">
-          <div className="flex flex-wrap items-end gap-3 sm:gap-4">
-            <div className="w-40 sm:w-48">
-              <Label className="!text-[11px] font-bold text-[var(--vs-text-secondary)] uppercase">From Date</Label>
-              <DatePicker
-                id="hsnDateFrom"
-                placeholder="YYYY-MM-DD"
-                defaultDate={dateFrom}
-                onChange={(selectedDates, dateStr) => setDateFrom(dateStr)}
-              />
-            </div>
-            <div className="w-40 sm:w-48">
-              <Label className="!text-[11px] font-bold text-[var(--vs-text-secondary)] uppercase">To Date</Label>
-              <DatePicker
-                id="hsnDateTo"
-                placeholder="YYYY-MM-DD"
-                defaultDate={dateTo}
-                onChange={(selectedDates, dateStr) => setDateTo(dateStr)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={handleApplyFilter} className="h-9 px-4 text-xs font-bold !bg-[#0f6ebd] hover:!bg-[#0d60a6] text-white">
-                Apply Filter
-              </Button>
-              <Button variant="outline" onClick={handleResetFilters} className="h-9 px-3 text-xs">
-                Reset
-              </Button>
-            </div>
-          </div>
-        </div>
+      <DateFilterBar
+        idPrefix="hsn"
+        value={{ dateFrom, dateTo }}
+        defaults={{ dateFrom: '2026-04-01', dateTo: '2027-03-31' }}
+        onApply={handleApplyFilter}
+        onReset={handleResetFilters}
+      />
 
-        {/* ── Summary Stats ── */}
-        <div className="mb-5">
-          <TableInfoCard stats={totals} className="!flex-nowrap overflow-x-auto !gap-5 py-2 [&_*]:whitespace-nowrap" />
-        </div>
+      <StatRow stats={totals} />
 
-        {/* ── Table ── */}
-        <Table
-          headers={headers}
-          data={dataList}
-          loading={loading}
-          showSearch={true}
-          searchPlaceholder="Search HSN code..."
-          emptyMessage="No HSN summary data found for the selected period."
-        />
-      </Card>
+      <DataTable
+        columns={columns}
+        rows={dataList}
+        loading={loading}
+        search={{ placeholder: 'Search HSN code...' }}
+        empty={{ icon: Layers, title: 'No HSN summary data found for the selected period.' }}
+        pageSizeOptions={[10, 20, 50, 100, 500]}
+      />
     </div>
   );
 }

@@ -1,10 +1,9 @@
 import apiClient from '@/utility/Http';
 
-/** GET /lookups/products?q=&storeId=&limit= */
-export const searchProductsApi = async (q, { storeId, limit = 20 } = {}) => {
+/** GET /lookups/products?q=&limit= */
+export const searchProductsApi = async (q, { limit = 20 } = {}) => {
   // withGst: today's GST from the GST master (Master Settings → GST Rates), not the product card
   const params = { q: q || '', limit, withGst: true };
-  if (storeId) params.storeId = storeId;
   const response = await apiClient.get('/lookups/products', { params });
   return response.data?.data || [];
 };
@@ -37,8 +36,8 @@ export const supplierOptionsLoader = async (q) => {
   }));
 };
 
-export const productOptionsLoader = (storeId) => async (q) => {
-  const rows = await searchProductsApi(q, { storeId });
+export const productOptionsLoader = () => async (q) => {
+  const rows = await searchProductsApi(q);
   return rows.map((p) => ({
     value: p._id,
     label: p.name,
@@ -46,7 +45,7 @@ export const productOptionsLoader = (storeId) => async (q) => {
       p.sku,
       p.unit,
       `Cost ₹${Number(p.lastPurchasePrice || p.costPrice || 0).toFixed(2)}`,
-      p.storeStock !== undefined ? `Stock ${p.storeStock}` : `Stock ${p.currentStock ?? 0}`,
+      `Stock ${p.currentStock ?? 0}`,
     ]
       .filter(Boolean)
       .join(' · '),

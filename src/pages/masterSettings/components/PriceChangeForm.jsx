@@ -1,10 +1,9 @@
 import { Fragment, useState } from 'react';
-import { DatePicker, Input as AntInput } from 'antd';
 import dayjs from 'dayjs';
-import { AlertTriangle, ArrowRight, IndianRupee, Layers, Loader2, Wand2, X } from 'lucide-react';
-import Button from '@/components/inputs/Button';
-import { Label } from '@/components/inputs/Label';
-import ConfirmDialog from '@/pages/storeManagement/products/components/ConfirmDialog';
+import { AlertTriangle, ArrowRight, IndianRupee, Layers, Wand2, X } from 'lucide-react';
+import {
+  Badge, Button, Checkbox, DatePicker, Field, FormGrid, Input, Label, LINE_TD, LINE_TH, LineItemsTable, LineRow, Modal, Section, Segmented,
+} from '@/components/ui';
 import { getApiErrorMessage } from '@/pages/storeManagement/products/utils/productUtils';
 import { useStockInPricing } from '@/pages/purchase/components/stockInPricing';
 import { saveBatchWisePricesApi } from '../services/priceMasterService';
@@ -33,27 +32,37 @@ const GST_BASIS = [
   { value: 'no', label: '+ GST' },
 ];
 
-const th = 'py-2.5 px-3 text-left text-[11px] font-bold uppercase tracking-wider text-[var(--vs-text-secondary)] whitespace-nowrap border border-[var(--vs-border)]';
-const td = 'py-2 px-3 align-middle border border-[var(--vs-border)]';
-const cellInput =
-  'h-9 w-28 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-2 text-sm text-gray-900 dark:!text-white outline-none focus:border-indigo-500/60 disabled:opacity-40';
+const th = LINE_TH;
+const td = LINE_TD;
+const num2 = 'text-right tabular-nums whitespace-nowrap';
 
 /** Price incl. GST. */
 const inclOf = (price, includesGst, gstRate) => (includesGst ? num(price) : round2(num(price) * (1 + num(gstRate) / 100)));
 
 const Change = ({ from, to }) => {
-  if (!(num(to) > 0) || !(num(from) > 0)) return <span className="text-[var(--vs-text-secondary)]">—</span>;
+  if (!(num(to) > 0) || !(num(from) > 0)) return <span className="text-ink-subtle">—</span>;
   const d = round2(num(to) - num(from));
-  if (Math.abs(d) < 0.005) return <span className="text-[var(--vs-text-secondary)]">Same</span>;
+  if (Math.abs(d) < 0.005) return <Badge tone="neutral">Same</Badge>;
   const pct = round2((d / num(from)) * 100);
   return (
-    <span className={`font-semibold ${d < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+    <Badge tone={d < 0 ? 'danger' : 'success'} className="tabular-nums">
       {d > 0 ? '+' : ''}
       {formatMoney(d)} ({pct > 0 ? '+' : ''}
       {pct}%)
-    </span>
+    </Badge>
   );
 };
+
+/** Old → new price in the confirm list. */
+const OldNew = ({ from, to }) => (
+  <span className="flex items-center gap-1.5 whitespace-nowrap tabular-nums">
+    <span className="text-ink-subtle">{from}</span>
+    <ArrowRight className="size-3 text-ink-subtle" />
+    <Badge tone="primary" className="tabular-nums">
+      {to}
+    </Badge>
+  </span>
+);
 
 /**
  * Change selling prices batch-wise. Pick products: each shows its default price (what new
@@ -201,302 +210,287 @@ export default function PriceChangeForm({ notify, onApplied }) {
   const changeCount = defaultsToSave.length + batchesToSave.length;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <Label htmlFor="price-products">
-          Products <span className="text-rose-500">*</span>
-        </Label>
-        <ProductPicker
-          id="price-products"
-          multiple
-          value={products}
-          onChange={setProducts}
-          invalid={!!shown('products')}
-          placeholder="Search by name, SKU or barcode — pick one or many"
-        />
-        <FieldError>{shown('products')}</FieldError>
-      </div>
+    <div className="flex flex-col gap-5">
+      <Section title="Products" description="Each shows its default price (for new batches) and every open batch with its own price.">
+        <div className="flex flex-col gap-4">
+          <Field label="Products" required error={shown('products')}>
+            <ProductPicker
+              id="price-products"
+              multiple
+              value={products}
+              onChange={setProducts}
+              invalid={!!shown('products')}
+              placeholder="Search by name, SKU or barcode — pick one or many"
+            />
+          </Field>
 
-      {products.length > 0 && (
-        <>
-          {/* one input fills the default prices and the ticked batches */}
-          <div className="rounded-xl border border-indigo-100 dark:border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-500/[0.04] p-3 flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 mr-1">Change all</span>
-              <div className="flex rounded-lg border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] overflow-hidden h-9" role="group" aria-label="How to change">
-                {ALL_MODES.map((m) => (
-                  <button
-                    key={m.value}
-                    type="button"
-                    onClick={() => setAllMode(m.value)}
-                    className={`px-3 text-xs font-semibold cursor-pointer ${allMode === m.value ? 'bg-indigo-600 text-white' : 'text-[var(--vs-text-secondary)] hover:bg-[var(--vs-bg-secondary)]'}`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex h-9 rounded-lg border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] overflow-hidden focus-within:border-indigo-500/60">
-                <span className="px-2.5 flex items-center text-sm font-semibold text-[var(--vs-text-secondary)] bg-[var(--vs-bg-secondary)] border-r border-[var(--vs-border)]">{modeInfo.unit}</span>
-                <input
-                  id="price-all-value"
-                  type="number"
-                  step="0.01"
-                  aria-label="Value for all"
-                  value={allValue}
-                  onChange={(e) => setAllValue(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && applyToAll()}
-                  placeholder={modeInfo.placeholder}
-                  className="w-32 px-2 text-sm bg-transparent text-gray-900 dark:!text-white outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={applyToAll}
-                  disabled={allValue === ''}
-                  className="px-3 inline-flex items-center gap-1.5 text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <Wand2 className="w-3.5 h-3.5" /> Fill
-                </button>
-              </div>
-              <div className="flex items-center gap-2 sm:ml-auto">
-                <span className="text-xs font-semibold text-[var(--vs-text-secondary)]">Default price is</span>
-                <div className="flex rounded-lg border border-[var(--vs-border)] bg-[var(--vs-bg-primary)] overflow-hidden h-9" role="group" aria-label="Does the new default price include GST?">
-                  {GST_BASIS.map((g) => (
-                    <button
-                      key={g.value}
-                      type="button"
-                      onClick={() => setGstBasis(g.value)}
-                      className={`px-3 text-xs font-semibold cursor-pointer ${gstBasis === g.value ? 'bg-indigo-600 text-white' : 'text-[var(--vs-text-secondary)] hover:bg-[var(--vs-bg-secondary)]'}`}
-                    >
-                      {g.label}
-                    </button>
-                  ))}
+          {products.length > 0 && (
+            <>
+              {/* one input fills the default prices and the ticked batches */}
+              <div className="flex flex-col gap-2.5 rounded-control bg-fill-2 p-3.5 ring-1 ring-line">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="mr-1 text-xs font-bold uppercase tracking-wider text-brand-ink">Change all</span>
+                  <Segmented size="sm" aria-label="How to change" options={ALL_MODES} value={allMode} onChange={setAllMode} />
+                  <Input
+                    id="price-all-value"
+                    size="sm"
+                    type="number"
+                    step="0.01"
+                    aria-label="Value for all"
+                    value={allValue}
+                    onChange={(e) => setAllValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && applyToAll()}
+                    placeholder={modeInfo.placeholder}
+                    startIcon={<span className="text-sm font-semibold">{modeInfo.unit}</span>}
+                    wrapperClassName="w-40"
+                    className="tabular-nums"
+                  />
+                  <Button size="sm" variant="soft" onClick={applyToAll} disabled={allValue === ''} startIcon={<Wand2 />}>
+                    Fill
+                  </Button>
+                  <div className="flex items-center gap-2 sm:ml-auto">
+                    <span className="text-xs font-semibold text-ink-muted">Default price is</span>
+                    <Segmented size="sm" aria-label="Does the new default price include GST?" options={GST_BASIS} value={gstBasis} onChange={setGstBasis} />
+                  </div>
                 </div>
+                <span className="text-xs text-ink-subtle">
+                  {modeInfo.hint} — fills every default price and every <b className="text-ink-muted">ticked</b> batch. Tick the batches whose price should change; untouched
+                  batches keep their price.
+                </span>
               </div>
-            </div>
-            <span className="text-[11px] text-[var(--vs-text-secondary)]">
-              {modeInfo.hint} — fills every default price and every <b>ticked</b> batch. Tick the batches whose price should change; untouched batches keep their price.
-            </span>
-          </div>
 
-          <div className="max-h-[60vh] overflow-auto rounded-xl border border-[var(--vs-border)]">
-            <table className="w-full text-sm border-collapse min-w-[980px]">
-              <thead className="bg-[var(--vs-bg-secondary)] sticky top-0 z-[1]">
-                <tr>
-                  <th className={`${th} w-10 text-center`} aria-label="Change" />
-                  <th className={th}>Product / batch</th>
-                  <th className={th}>Store</th>
-                  <th className={`${th} text-right`}>Qty left</th>
-                  <th className={`${th} text-right`}>MRP</th>
-                  <th className={`${th} text-right`}>Current price</th>
-                  <th className={th}>New price (₹)</th>
-                  <th className={th}>Change</th>
-                </tr>
-              </thead>
-              <tbody>
+              <LineItemsTable
+                minWidth={980}
+                className="max-h-[60vh] overflow-auto"
+                head={
+                  <tr>
+                    <th className={`${th} sticky top-0 z-[1] w-10 text-center`} aria-label="Change" />
+                    <th className={`${th} sticky top-0 z-[1]`}>Product / batch</th>
+                    <th className={`${th} sticky top-0 z-[1] text-right`}>Qty left</th>
+                    <th className={`${th} sticky top-0 z-[1] text-right`}>MRP</th>
+                    <th className={`${th} sticky top-0 z-[1] text-right`}>Current price</th>
+                    <th className={`${th} sticky top-0 z-[1]`}>New price (₹)</th>
+                    <th className={`${th} sticky top-0 z-[1]`}>Change</th>
+                  </tr>
+                }
+              >
                 {rows.map((r) => {
                   const allOn = r.batches.length > 0 && r.batches.every((b) => b.on);
                   return (
                     <Fragment key={r.id}>
                       {/* product: its default price (what new batches get) */}
-                      <tr className="bg-indigo-50/40 dark:bg-indigo-500/[0.05]">
+                      <LineRow className="[&>td]:bg-fill-2">
                         <td className={`${td} text-center`}>
                           {r.batches.length > 0 && (
-                            <input type="checkbox" checked={allOn} onChange={() => tickAll(r, !allOn)} title="Tick every batch of this product" className="h-4 w-4 cursor-pointer" />
+                            <Checkbox checked={allOn} onChange={() => tickAll(r, !allOn)} title="Tick every batch of this product" aria-label="Tick every batch of this product" />
                           )}
                         </td>
                         <td className={td}>
-                          <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex min-w-0 items-center gap-2.5">
                             <ProductThumb product={r.product} size="sm" />
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-semibold text-[var(--vs-text-primary)] break-words">{r.product.name}</span>
-                              <span className="text-[10px] text-[var(--vs-text-secondary)]">
+                            <div className="flex min-w-0 flex-col">
+                              <span className="break-words font-semibold text-ink">{r.product.name}</span>
+                              <span className="text-[11px] text-ink-subtle">
                                 Default price — for new batches{r.gstRate > 0 ? ` · GST ${r.gstRate}%` : ' · No GST'}
                               </span>
                             </div>
-                            <button
-                              type="button"
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
                               title="Remove from the list"
+                              aria-label={`Remove ${r.product.name} from the list`}
                               onClick={() => removeProduct(r.id)}
-                              className="ml-auto p-1 rounded-lg text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 cursor-pointer"
+                              className="ml-auto hover:bg-danger-soft hover:text-danger"
                             >
-                              <X className="w-4 h-4" />
-                            </button>
+                              <X />
+                            </Button>
                           </div>
                         </td>
-                        <td className={`${td} text-xs text-[var(--vs-text-secondary)]`}>All stores</td>
-                        <td className={`${td} text-right text-xs`}>{r.batches.length ? `${r.batches.reduce((s, b) => s + num(b.qtyRemaining), 0)} in ${r.batches.length} batch${r.batches.length === 1 ? '' : 'es'}` : 'No stock'}</td>
-                        <td className={`${td} text-right`}>—</td>
-                        <td className={`${td} text-right whitespace-nowrap`}>
+                        <td className={`${td} ${num2} text-xs text-ink-muted`}>
+                          {r.batches.length
+                            ? `${r.batches.reduce((s, b) => s + num(b.qtyRemaining), 0)} in ${r.batches.length} batch${r.batches.length === 1 ? '' : 'es'}`
+                            : 'No stock'}
+                        </td>
+                        <td className={`${td} ${num2} text-ink-subtle`}>—</td>
+                        <td className={`${td} ${num2}`}>
                           {r.current > 0 ? (
                             <>
-                              <span className="font-mono font-semibold">{formatMoney(r.current)}</span>
-                              <div className="text-[10px] text-[var(--vs-text-secondary)]">{r.currentIncl ? 'incl. GST' : '+ GST'}</div>
+                              <span className="font-semibold">{formatMoney(r.current)}</span>
+                              <div className="text-[11px] text-ink-subtle">{r.currentIncl ? 'incl. GST' : '+ GST'}</div>
                             </>
                           ) : (
-                            <span className="text-xs italic text-[var(--vs-text-secondary)]">Not set yet</span>
+                            <span className="text-xs italic text-ink-subtle">Not set yet</span>
                           )}
                         </td>
                         <td className={td}>
-                          <input
+                          <Input
+                            size="sm"
                             type="number"
                             min="0"
                             step="0.01"
+                            aria-label={`New default price of ${r.product.name}`}
                             value={r.typed}
                             onChange={(e) => setDefaults((prev) => ({ ...prev, [r.id]: e.target.value }))}
                             placeholder={r.current > 0 ? String(r.current) : 'e.g. 120'}
-                            className={cellInput}
+                            wrapperClassName="w-32"
+                            className="tabular-nums"
                           />
-                          {r.defaultChanged && <div className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-0.5">From {fmtDay(effectiveFrom)}{r.newIncl ? ' · incl. GST' : ' · + GST'}</div>}
+                          {r.defaultChanged && (
+                            <div className="mt-1 text-[11px] font-medium text-brand-ink">
+                              From {fmtDay(effectiveFrom)}
+                              {r.newIncl ? ' · incl. GST' : ' · + GST'}
+                            </div>
+                          )}
                         </td>
-                        <td className={`${td} text-xs whitespace-nowrap`}>
-                          {r.defaultChanged ? r.current > 0 ? <Change from={r.current} to={r.next} /> : <span className="font-semibold text-indigo-600 dark:text-indigo-400">First price</span> : '—'}
+                        <td className={`${td} whitespace-nowrap text-xs`}>
+                          {r.defaultChanged ? r.current > 0 ? <Change from={r.current} to={r.next} /> : <Badge tone="primary">First price</Badge> : <span className="text-ink-subtle">—</span>}
                         </td>
-                      </tr>
+                      </LineRow>
                       {/* its open batches: tick to change, each with its own new price */}
                       {r.batches.map((b) => (
-                        <tr key={b.bid} className={b.on ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.04]' : 'hover:bg-gray-50/60 dark:hover:bg-white/[0.02]'}>
+                        <LineRow key={b.bid} tone={b.aboveMrp ? 'danger' : undefined} className={b.on && !b.aboveMrp ? '[&>td]:bg-success-soft/50' : ''}>
                           <td className={`${td} text-center`}>
-                            <input type="checkbox" checked={b.on} onChange={() => toggleBatch(b.bid)} aria-label={`Change batch ${b.batchNo}`} className="h-4 w-4 cursor-pointer" />
+                            <Checkbox checked={b.on} onChange={() => toggleBatch(b.bid)} aria-label={`Change batch ${b.batchNo}`} />
                           </td>
                           <td className={td}>
-                            <div className="pl-9 flex items-center gap-1.5 text-xs">
-                              <Layers className="w-3.5 h-3.5 text-[var(--vs-text-secondary)]" />
-                              <span className="font-mono font-semibold">{b.batchNo || '(no batch no)'}</span>
-                              <span className="text-[var(--vs-text-secondary)]">
+                            <div className="flex items-center gap-1.5 pl-9 text-xs">
+                              <Layers className="size-3.5 text-ink-subtle" />
+                              <span className="font-mono font-semibold text-ink">{b.batchNo || '(no batch no)'}</span>
+                              <span className="text-ink-subtle">
                                 · received {fmtDay(b.receivedAt)}
                                 {b.expiryDate ? ` · exp ${fmtDay(b.expiryDate)}` : ''}
                               </span>
                             </div>
                           </td>
-                          <td className={`${td} text-xs`}>{b.storeName || '—'}</td>
-                          <td className={`${td} text-right font-semibold`}>{num(b.qtyRemaining)}</td>
-                          <td className={`${td} text-right`}>{num(b.mrp) > 0 ? formatMoney(b.mrp) : '—'}</td>
-                          <td className={`${td} text-right whitespace-nowrap`}>
+                          <td className={`${td} ${num2} font-semibold`}>{num(b.qtyRemaining)}</td>
+                          <td className={`${td} ${num2} text-ink-muted`}>{num(b.mrp) > 0 ? formatMoney(b.mrp) : '—'}</td>
+                          <td className={`${td} ${num2}`}>
                             {num(b.sellingPrice) > 0 ? (
                               <>
-                                <span className="font-mono">{formatMoney(b.sellingPrice)}</span>
-                                <div className="text-[10px] text-[var(--vs-text-secondary)]">{b.incl ? 'incl. GST' : '+ GST'}</div>
+                                <span>{formatMoney(b.sellingPrice)}</span>
+                                <div className="text-[11px] text-ink-subtle">{b.incl ? 'incl. GST' : '+ GST'}</div>
                               </>
                             ) : (
-                              <span className="text-xs italic text-[var(--vs-text-secondary)]">Default</span>
+                              <span className="text-xs italic text-ink-subtle">Default</span>
                             )}
                           </td>
                           <td className={td}>
-                            <input
+                            <Input
+                              size="sm"
                               type="number"
                               min="0"
                               step="0.01"
+                              aria-label={`New price of batch ${b.batchNo || ''}`}
                               value={b.bTyped}
                               disabled={!b.on}
                               onChange={(e) => setBatchPrices((prev) => ({ ...prev, [b.bid]: e.target.value }))}
                               placeholder={b.on ? (r.next > 0 ? String(r.next) : 'New price') : 'Tick to change'}
-                              className={`${cellInput} ${b.aboveMrp ? '!border-red-500' : ''}`}
+                              invalid={b.aboveMrp}
+                              wrapperClassName="w-32"
+                              className="tabular-nums"
                             />
-                            {b.on && !(num(b.bTyped) > 0) && r.next > 0 && <div className="text-[10px] text-[var(--vs-text-secondary)] mt-0.5">Takes the new default price</div>}
+                            {b.on && !(num(b.bTyped) > 0) && r.next > 0 && <div className="mt-1 text-[11px] text-ink-subtle">Takes the new default price</div>}
                             {b.aboveMrp && (
-                              <div className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5 flex items-center gap-1">
-                                <AlertTriangle className="w-3 h-3" /> Above its MRP
+                              <div className="mt-1 flex items-center gap-1 text-[11px] font-medium text-danger">
+                                <AlertTriangle className="size-3" /> Above its MRP
                               </div>
                             )}
                           </td>
-                          <td className={`${td} text-xs whitespace-nowrap`}>{b.changed ? <Change from={num(b.sellingPrice) || r.current} to={b.bNext} /> : '—'}</td>
-                        </tr>
+                          <td className={`${td} whitespace-nowrap text-xs`}>
+                            {b.changed ? <Change from={num(b.sellingPrice) || r.current} to={b.bNext} /> : <span className="text-ink-subtle">—</span>}
+                          </td>
+                        </LineRow>
                       ))}
                     </Fragment>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-          <FieldError>{shown('prices') || shown('batches')}</FieldError>
-          <FieldHint>Batch prices change right away. The default price applies from the date below and is what new stock (purchases) gets.</FieldHint>
-        </>
-      )}
+              </LineItemsTable>
+              <div>
+                <FieldError>{shown('prices') || shown('batches')}</FieldError>
+                <FieldHint>Batch prices change right away. The default price applies from the date below and is what new stock (purchases) gets.</FieldHint>
+              </div>
+            </>
+          )}
+        </div>
+      </Section>
 
       {/* date, note and save on one row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[200px_minmax(0,1fr)_auto] gap-3 items-start">
-        <div>
-          <Label htmlFor="price-effective-from">
-            Default price from <span className="text-rose-500">*</span>
-          </Label>
-          <DatePicker
-            id="price-effective-from"
-            size="large"
-            value={effectiveFrom}
-            onChange={setEffectiveFrom}
-            format="DD MMM YYYY"
-            allowClear={false}
-            inputReadOnly
-            status={shown('effectiveFrom') ? 'error' : undefined}
-            className="w-full"
-          />
-          <FieldError>{shown('effectiveFrom')}</FieldError>
-          {!shown('effectiveFrom') && startsTodayOrEarlier && <FieldHint>Applies right away.</FieldHint>}
-        </div>
-        <div>
-          <Label htmlFor="price-note">Note</Label>
-          <AntInput id="price-note" size="large" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="e.g. New rate list from the distributor" />
-        </div>
-        <div className="flex flex-col">
-          <span className="hidden lg:block text-sm mb-1.5 invisible" aria-hidden="true">
-            Save
-          </span>
-          <Button onClick={save} disabled={applying} startIcon={applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <IndianRupee className="w-4 h-4" />}>
-            Save {changeCount > 0 ? `${changeCount} change${changeCount === 1 ? '' : 's'}` : 'new prices'}
-          </Button>
-        </div>
-      </div>
-      {lastResult && <span className="text-xs text-[var(--vs-text-secondary)]">Last save: {lastResult}</span>}
-
-      <ConfirmDialog
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={runApply}
-        isLoading={applying}
-        title={`Save ${changeCount} price change${changeCount === 1 ? '' : 's'}?`}
-        message={
-          <div className="flex flex-col gap-2 text-left">
-            {defaultsToSave.length > 0 && (
-              <>
-                <p className="m-0 font-semibold">Default price from {effectiveFrom ? formatDay(effectiveFrom) : '—'} (new batches)</p>
-                <ul className="list-none m-0 p-0 max-h-32 overflow-y-auto divide-y divide-[var(--vs-border)] rounded-lg border border-[var(--vs-border)]">
-                  {defaultsToSave.map((r) => (
-                    <li key={r.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs">
-                      <span className="font-medium break-words min-w-0">{r.product.name}</span>
-                      <span className="flex items-center gap-1 font-mono whitespace-nowrap">
-                        {r.current > 0 ? formatMoney(r.current) : 'Not set'} <ArrowRight className="w-3 h-3" />
-                        <span className="font-bold text-indigo-600 dark:text-indigo-400">{formatMoney(r.next)}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {batchesToSave.length > 0 && (
-              <>
-                <p className="m-0 font-semibold">Batches — right away</p>
-                <ul className="list-none m-0 p-0 max-h-40 overflow-y-auto divide-y divide-[var(--vs-border)] rounded-lg border border-[var(--vs-border)]">
-                  {batchesToSave.map((b) => (
-                    <li key={b.bid} className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs">
-                      <span className="min-w-0 break-words">
-                        <span className="font-medium">{b.row.product.name}</span> · {b.batchNo || '(no batch no)'} · {b.storeName}
-                      </span>
-                      <span className="flex items-center gap-1 font-mono whitespace-nowrap">
-                        {num(b.sellingPrice) > 0 ? formatMoney(b.sellingPrice) : 'Default'} <ArrowRight className="w-3 h-3" />
-                        <span className="font-bold text-indigo-600 dark:text-indigo-400">{formatMoney(b.bNext)}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            <p className="m-0 text-[11px]">Batches you did not tick keep their price. Bills already saved do not change.</p>
+      <Section title="Save" description="Bills already saved do not change.">
+        <FormGrid cols={3} className="items-start lg:grid-cols-[200px_minmax(0,1fr)_auto]">
+          <Field
+            label="Default price from"
+            required
+            error={shown('effectiveFrom')}
+            hint={startsTodayOrEarlier ? 'Applies right away.' : undefined}
+          >
+            <DatePicker id="price-effective-from" value={effectiveFrom} onChange={setEffectiveFrom} allowClear={false} inputReadOnly invalid={!!shown('effectiveFrom')} />
+          </Field>
+          <Field label="Note">
+            <Input id="price-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="e.g. New rate list from the distributor" />
+          </Field>
+          <div className="flex flex-col">
+            <Label aria-hidden="true" className="invisible hidden lg:block">
+              Save
+            </Label>
+            <Button onClick={save} loading={applying} startIcon={<IndianRupee />} className="h-11">
+              Save {changeCount > 0 ? `${changeCount} change${changeCount === 1 ? '' : 's'}` : 'new prices'}
+            </Button>
           </div>
+        </FormGrid>
+        {lastResult && <p className="m-0 mt-3 text-xs text-ink-subtle">Last save: {lastResult}</p>}
+      </Section>
+
+      <Modal
+        open={confirmOpen}
+        onClose={() => {
+          if (!applying) setConfirmOpen(false);
+        }}
+        closeOnBackdrop={!applying}
+        title={`Save ${changeCount} price change${changeCount === 1 ? '' : 's'}?`}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={applying}>
+              Cancel
+            </Button>
+            <Button onClick={runApply} loading={applying}>
+              {applying ? 'Saving...' : 'Save'}
+            </Button>
+          </>
         }
-        confirmText="Save"
-        loadingText="Saving..."
-        maxWidth="max-w-lg"
-      />
+      >
+        <div className="flex flex-col gap-3 text-sm">
+          {defaultsToSave.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="m-0 font-semibold text-ink">Default price from {effectiveFrom ? formatDay(effectiveFrom) : '—'} (new batches)</p>
+              <ul className="m-0 max-h-32 list-none divide-y divide-line overflow-y-auto rounded-control p-0 ring-1 ring-line">
+                {defaultsToSave.map((r) => (
+                  <li key={r.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <span className="min-w-0 break-words font-medium text-ink">{r.product.name}</span>
+                    <OldNew from={r.current > 0 ? formatMoney(r.current) : 'Not set'} to={formatMoney(r.next)} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {batchesToSave.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="m-0 font-semibold text-ink">Batches — right away</p>
+              <ul className="m-0 max-h-40 list-none divide-y divide-line overflow-y-auto rounded-control p-0 ring-1 ring-line">
+                {batchesToSave.map((b) => (
+                  <li key={b.bid} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <span className="min-w-0 break-words text-ink-muted">
+                      <span className="font-medium text-ink">{b.row.product.name}</span> · {b.batchNo || '(no batch no)'}
+                    </span>
+                    <OldNew from={num(b.sellingPrice) > 0 ? formatMoney(b.sellingPrice) : 'Default'} to={formatMoney(b.bNext)} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="m-0 text-xs text-ink-subtle">Batches you did not tick keep their price. Bills already saved do not change.</p>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -63,8 +63,6 @@ function TermsNotes({ terms, notes, className = 'text-[10px] text-gray-600', tit
   );
 }
 
-/** "Dispatch from: Mansarovar Warehouse (JP-RJ-MNS-001), Jaipur …" */
-const dispatchText = (dp) => (dp ? `${dp.name}${dp.code ? ` (${dp.code})` : ''}${dp.address ? `, ${dp.address}` : ''}` : '');
 
 function Signature({ signature, businessName, align = 'right', imgClass = 'max-h-10' }) {
   return (
@@ -105,8 +103,8 @@ function ClassicTemplate({ d, accentColor, logo, signature, showHsn, showDiscoun
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 border-x border-b border-gray-400">
-        <div className="p-2.5 sm:border-r border-gray-400 bg-gray-50/40">
+      <div className="grid grid-cols-1 border-x border-b border-gray-400">
+        <div className="p-2.5 bg-gray-50/40">
           <div className="text-[10px] font-black uppercase text-gray-700 tracking-wider mb-0.5">Bill To (Details of Receiver)</div>
           <div className="font-bold text-sm text-gray-900">{d.buyer.name}</div>
           {(d.buyer.gstin || d.buyer.state) && (
@@ -118,15 +116,6 @@ function ClassicTemplate({ d, accentColor, logo, signature, showHsn, showDiscoun
           )}
           {d.buyer.address && <div className="text-[10px] text-gray-600">{d.buyer.address}</div>}
           {d.buyer.phone && <div className="text-[10px] text-gray-600">Ph: {d.buyer.phone}</div>}
-        </div>
-        <div className="p-2.5 border-t sm:border-t-0 border-gray-400">
-          <div className="text-[10px] font-black uppercase text-gray-700 tracking-wider mb-0.5">Dispatch From (Store / Warehouse)</div>
-          {d.dispatch ? (
-            <>
-              <div className="font-bold text-sm text-gray-900">{d.dispatch.name}{d.dispatch.code && <span className="ml-1 font-mono text-[10px] text-gray-600">({d.dispatch.code})</span>}</div>
-              {d.dispatch.address && <div className="text-[10px] text-gray-600">{d.dispatch.address}</div>}
-            </>
-          ) : <div className="text-[10px] text-gray-500">—</div>}
         </div>
       </div>
 
@@ -276,15 +265,7 @@ function ModernTemplate({ d, accentColor, logo, signature, showHsn, showDiscount
             {d.buyer.phone && <div className="text-gray-500 text-[11px]">Ph: {d.buyer.phone}</div>}
           </div>
           <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200/60">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">Dispatch From</div>
-            {d.dispatch ? (
-              <>
-                <div className="font-bold text-sm text-gray-900">{d.dispatch.name}</div>
-                {d.dispatch.code && <div className="text-gray-500 text-[11px] font-mono">{d.dispatch.code}</div>}
-                {d.dispatch.address && <div className="text-gray-500 text-[11px] mt-0.5">{d.dispatch.address}</div>}
-              </>
-            ) : <div className="text-gray-400">—</div>}
-            <div className="text-xs text-gray-600 mt-2"><span className="font-semibold text-gray-700">Due:</span> {d.dueDate}</div>
+            <div className="text-xs text-gray-600"><span className="font-semibold text-gray-700">{d.dueLabel || 'Due'}:</span> {d.dueDate}</div>
           </div>
         </div>
 
@@ -405,7 +386,7 @@ function MinimalTemplate({ d, accentColor, logo, signature, showHsn, showDiscoun
 
       <div className="w-full h-[2px] my-3.5" style={{ backgroundColor: accentColor }} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
         <div className="text-gray-600 leading-tight">
           <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">From</div>
           {d.seller.gstin && <div className="text-gray-800 font-medium">GSTIN: {d.seller.gstin}</div>}
@@ -418,16 +399,6 @@ function MinimalTemplate({ d, accentColor, logo, signature, showHsn, showDiscoun
           {d.buyer.gstin && <div className="text-gray-700 mt-0.5">GSTIN: {d.buyer.gstin}</div>}
           {d.buyer.address && <div className="text-gray-600 mt-0.5">{d.buyer.address}</div>}
           {d.placeOfSupply && <div className="text-gray-600 mt-0.5">Place of supply: {d.placeOfSupply}</div>}
-        </div>
-        <div className="leading-tight">
-          <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">Dispatch From</div>
-          {d.dispatch ? (
-            <>
-              <div className="font-semibold text-gray-900">{d.dispatch.name}</div>
-              {d.dispatch.code && <div className="text-gray-500 font-mono text-[10px]">{d.dispatch.code}</div>}
-              {d.dispatch.address && <div className="text-gray-600 mt-0.5">{d.dispatch.address}</div>}
-            </>
-          ) : <div className="text-gray-400">—</div>}
         </div>
       </div>
 
@@ -561,15 +532,7 @@ function GstDetailedTemplate({ d, logo, signature, showSignature, showUpiQr, ban
           {d.placeOfSupply && <div><span className="font-semibold">Place of Supply:</span> {d.placeOfSupply}</div>}
         </div>
         <div className="col-span-12 sm:col-span-3 p-2 text-[9px] bg-gray-50/20">
-          <div className="font-semibold uppercase">Dispatch From:</div>
-          {d.dispatch ? (
-            <>
-              <div className="font-bold">{d.dispatch.name}</div>
-              {d.dispatch.code && <div className="font-mono">{d.dispatch.code}</div>}
-              {d.dispatch.address && <div>{d.dispatch.address}</div>}
-            </>
-          ) : <div>—</div>}
-          <div className="mt-1"><span className="font-semibold">Date of Supply:</span> {d.date}</div>
+          <div><span className="font-semibold">Date of Supply:</span> {d.date}</div>
         </div>
       </div>
 
@@ -754,7 +717,6 @@ function ThermalTemplate({ d, logo, signature, showHsn, showDiscount, showTaxBre
         <div className="text-left text-[10px] mt-1">
           <span className="font-semibold">Cust:</span> {d.buyer.name}{d.buyer.gstin ? ` (${d.buyer.gstin})` : ''}
         </div>
-        {d.dispatch && <div className="text-left text-[10px]"><span className="font-semibold">From:</span> {dispatchText(d.dispatch)}</div>}
       </div>
 
       <div className="border-b border-dashed border-black my-1.5" />
