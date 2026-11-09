@@ -1,6 +1,10 @@
 import dayjs from 'dayjs';
 
-// The GST % list comes from the platform (Admin Owner → Settings → GST Rates): see useGstRates.js.
+/** India's current GST slabs — same list as the backend (taxRateService GST_SLABS). New entries must use one. */
+export const GST_SLABS = [0, 5, 18, 40];
+
+/** Dropdown options for a GST % field: { value: 18, label: '18%' }. */
+export const gstOptions = GST_SLABS.map((s) => ({ value: s, label: `${s}%` }));
 
 /** "18%" or "18% + 12% cess". */
 export const formatGst = (gstRate, cessRate) => {
