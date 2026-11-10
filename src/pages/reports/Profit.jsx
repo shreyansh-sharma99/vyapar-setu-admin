@@ -18,7 +18,8 @@ export default function Profit() {
   const defaults = useMemo(() => currentFy(), []);
   const [range, setRange] = useState(defaults);
   const [groupBy, setGroupBy] = useState('invoice');
-  const { data, loading, error } = useReportData(getProfitApi, { ...range, groupBy });
+  const [itemType, setItemType] = useState('');
+  const { data, loading, error } = useReportData(getProfitApi, { ...range, groupBy, ...(itemType ? { itemType } : {}) });
   const totals = data?.totals || {};
   const rows = data?.rows || [];
 
@@ -62,6 +63,10 @@ export default function Profit() {
         <div className="flex flex-col">
           <Label>Group by</Label>
           <Segmented aria-label="Group by" options={GROUPS} value={groupBy} onChange={setGroupBy} />
+        </div>
+        <div className="flex flex-col">
+          <Label>Type</Label>
+          <Segmented aria-label="Item type" options={[{ value: '', label: 'All' }, { value: 'goods', label: 'Goods' }, { value: 'service', label: 'Services' }]} value={itemType} onChange={setItemType} />
         </div>
       </DateFilterBar>
       <ReportError message={error} />

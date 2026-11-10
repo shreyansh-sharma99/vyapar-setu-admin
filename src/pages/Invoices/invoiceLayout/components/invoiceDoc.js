@@ -141,6 +141,7 @@ export const docFromInvoice = (invoice) => {
   const subtotal = num(invoice?.subtotal) || round2(items.reduce((s, it) => s + it.qty * it.rate, 0));
   const tax = num(invoice?.taxAmount) || sumOf('taxAmt');
   return finish({
+    details: (invoice?.customFields || []).filter((f) => f.printOnBill !== false),
     title: 'TAX INVOICE',
     number: invoice?.invoiceNumber || '',
     date: fmtDate(invoice?.invoiceDate),

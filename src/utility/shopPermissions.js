@@ -29,6 +29,7 @@ export const MENU_PERMISSIONS = {
   // Owner only
   '/staff': null,
   '/sales/general-invoice-setting': null,
+  '/sales/bill-fields': null,
   '/sales/invoice-setting': null,
   '/sales/invoice-settings': null,
   '/sales/invoice-layout': null,

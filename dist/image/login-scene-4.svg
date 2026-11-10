@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-label="An ecnbiz market street with grocery, fashion and electronics stalls and shoppers walking past">
+  <style>
+    .mv { animation: linear infinite; }
+    .f-r { animation-name: fR; animation-duration: 14s; }
+    .f-l { animation-name: fL; animation-duration: 14s; animation-delay: -7s; }
+    .b-r { animation-name: bR; animation-duration: 18s; animation-delay: -12s; }
+    .b-l { animation-name: bL; animation-duration: 18s; animation-delay: -3s; }
+    @keyframes fR { from { transform: translate(-30px, 300px); } to { transform: translate(510px, 300px); } }
+    @keyframes fL { from { transform: translate(510px, 300px); } to { transform: translate(-30px, 300px); } }
+    @keyframes bR { from { transform: translate(-30px, 262px) scale(.82); } to { transform: translate(510px, 262px) scale(.82); } }
+    @keyframes bL { from { transform: translate(510px, 262px) scale(.82); } to { transform: translate(-30px, 262px) scale(.82); } }
+    .leg, .arm { transform-box: fill-box; transform-origin: 50% 0; animation: swing .5s ease-in-out infinite alternate; }
+    .leg.b, .arm { animation-direction: alternate-reverse; }
+    @keyframes swing { from { transform: rotate(22deg); } to { transform: rotate(-22deg); } }
+    .bob { animation: bob .25s ease-in-out infinite alternate; }
+    @keyframes bob { to { transform: translateY(-2px); } }
+
+    .bulb { animation: twinkle 1.6s ease-in-out infinite alternate; }
+    .bulb:nth-of-type(2n) { animation-delay: -.8s; }
+    .bulb:nth-of-type(3n) { animation-delay: -.4s; }
+    @keyframes twinkle { from { opacity: .35; } to { opacity: 1; } }
+
+    .pop { animation: pop 4.5s ease-out infinite; }
+    .p2 { animation-delay: -1.5s; } .p3 { animation-delay: -3s; }
+    @keyframes pop {
+      0%   { transform: translateY(0) scale(.4); opacity: 0; }
+      15%  { transform: translateY(-10px) scale(1); opacity: 1; }
+      70%  { opacity: 1; }
+      100% { transform: translateY(-46px) scale(1); opacity: 0; }
+    }
+    .keeper { animation: bob 1.4s ease-in-out infinite alternate; }
+
+    @media (prefers-reduced-motion: reduce) { * { animation-play-state: paused !important; } }
+  </style>
+
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a5b4fc" stop-opacity=".45"/><stop offset="1" stop-color="#a5b4fc" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="awnG" width="32" height="22" patternUnits="userSpaceOnUse"><rect width="16" height="22" fill="#22c55e"/><rect x="16" width="16" height="22" fill="#fff"/></pattern>
+    <pattern id="awnP" width="32" height="22" patternUnits="userSpaceOnUse"><rect width="16" height="22" fill="#ec4899"/><rect x="16" width="16" height="22" fill="#fff"/></pattern>
+    <pattern id="awnB" width="32" height="22" patternUnits="userSpaceOnUse"><rect width="16" height="22" fill="#3b82f6"/><rect x="16" width="16" height="22" fill="#fff"/></pattern>
+    <g id="shirt"><path d="M-10-18L-4-22L4-22L10-18L7-12L4-13L4 0L-4 0L-4-13L-7-12Z"/></g>
+    <g id="apple"><circle cx="0" cy="-8" r="7" fill="#ef4444"/><ellipse cx="3" cy="-16" rx="3" ry="1.6" fill="#22c55e" transform="rotate(-30 3 -16)"/></g>
+    <g id="phone"><rect x="-6" y="-22" width="12" height="22" rx="2" fill="#1e293b"/><rect x="-4.5" y="-19.5" width="9" height="15" rx="1" fill="#60a5fa"/></g>
+    <g id="bubble"><circle r="12" fill="#fff" stroke="#e0e7ff" stroke-width="1.5"/></g>
+  </defs>
+
+  <!-- string lights -->
+  <path d="M0 40Q120 70 240 40Q360 70 480 40" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+  <g>
+    <circle class="bulb" cx="30" cy="51" r="4" fill="#fde047"/>
+    <circle class="bulb" cx="60" cy="56" r="4" fill="#fb923c"/>
+    <circle class="bulb" cx="90" cy="59" r="4" fill="#f472b6"/>
+    <circle class="bulb" cx="150" cy="59" r="4" fill="#818cf8"/>
+    <circle class="bulb" cx="180" cy="56" r="4" fill="#fde047"/>
+    <circle class="bulb" cx="210" cy="51" r="4" fill="#fb923c"/>
+    <circle class="bulb" cx="270" cy="51" r="4" fill="#f472b6"/>
+    <circle class="bulb" cx="300" cy="56" r="4" fill="#818cf8"/>
+    <circle class="bulb" cx="330" cy="59" r="4" fill="#fde047"/>
+    <circle class="bulb" cx="390" cy="59" r="4" fill="#fb923c"/>
+    <circle class="bulb" cx="420" cy="56" r="4" fill="#f472b6"/>
+    <circle class="bulb" cx="450" cy="51" r="4" fill="#818cf8"/>
+  </g>
+
+  <!-- market banner -->
+  <rect x="170" y="70" width="140" height="30" rx="10" fill="url(#brand)"/>
+  <text x="240" y="91" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="800" fill="#fff">ecn<tspan fill="#fdba74">biz</tspan> market</text>
+
+  <!-- ground -->
+  <rect x="0" y="232" width="480" height="88" fill="url(#ground)"/>
+  <line x1="0" y1="232" x2="480" y2="232" stroke="#a5b4fc" stroke-width="2"/>
+
+  <!-- stall 1: grocery -->
+  <rect x="34" y="150" width="5" height="82" fill="#64748b"/><rect x="141" y="150" width="5" height="82" fill="#64748b"/>
+  <g class="keeper"><rect x="80" y="176" width="20" height="24" rx="7" fill="#22c55e"/><circle cx="90" cy="168" r="8" fill="#e0ac69"/><path d="M82 167a8 8 0 0 1 16 0z" fill="#1f2937"/></g>
+  <rect x="26" y="140" width="128" height="20" fill="url(#awnG)"/>
+  <rect x="26" y="158" width="128" height="4" fill="#15803d"/>
+  <rect x="50" y="114" width="80" height="20" rx="6" fill="#fff" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="90" y="128" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="10.5" font-weight="700" fill="#15803d">Grocery</text>
+  <rect x="30" y="196" width="120" height="36" rx="3" fill="#fbbf24"/><rect x="30" y="196" width="120" height="6" fill="#d97706"/>
+  <use href="#apple" transform="translate(46 197)"/><use href="#apple" transform="translate(60 197)"/>
+  <circle cx="80" cy="189" r="7" fill="#f97316"/><circle cx="94" cy="189" r="7" fill="#f97316"/>
+  <circle cx="114" cy="189" r="7" fill="#84cc16"/><circle cx="130" cy="189" r="7" fill="#84cc16"/>
+
+  <!-- stall 2: fashion -->
+  <rect x="184" y="150" width="5" height="82" fill="#64748b"/><rect x="291" y="150" width="5" height="82" fill="#64748b"/>
+  <g class="keeper"><rect x="230" y="186" width="20" height="24" rx="7" fill="#ec4899"/><circle cx="240" cy="178" r="8" fill="#f1c27d"/><path d="M232 177a8 8 0 0 1 16 0v10h-3v-10h-10v10h-3z" fill="#6b3e26"/></g>
+  <rect x="176" y="140" width="128" height="20" fill="url(#awnP)"/>
+  <rect x="176" y="158" width="128" height="4" fill="#be185d"/>
+  <rect x="200" y="114" width="80" height="20" rx="6" fill="#fff" stroke="#ec4899" stroke-width="1.5"/>
+  <text x="240" y="128" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="10.5" font-weight="700" fill="#be185d">Fashion</text>
+  <line x1="190" y1="170" x2="290" y2="170" stroke="#94a3b8" stroke-width="2"/>
+  <use href="#shirt" transform="translate(202 194)" fill="#6366f1"/>
+  <use href="#shirt" transform="translate(278 194)" fill="#f97316"/>
+  <rect x="180" y="206" width="120" height="26" rx="3" fill="#fbbf24"/><rect x="180" y="206" width="120" height="6" fill="#d97706"/>
+  <use href="#shirt" transform="translate(222 206) scale(.7)" fill="#10b981"/>
+  <use href="#shirt" transform="translate(258 206) scale(.7)" fill="#f43f5e"/>
+
+  <!-- stall 3: electronics -->
+  <rect x="334" y="150" width="5" height="82" fill="#64748b"/><rect x="441" y="150" width="5" height="82" fill="#64748b"/>
+  <g class="keeper"><rect x="400" y="176" width="20" height="24" rx="7" fill="#3b82f6"/><circle cx="410" cy="168" r="8" fill="#c68642"/><path d="M402 167a8 8 0 0 1 16 0z" fill="#111827"/></g>
+  <rect x="326" y="140" width="128" height="20" fill="url(#awnB)"/>
+  <rect x="326" y="158" width="128" height="4" fill="#1d4ed8"/>
+  <rect x="350" y="114" width="80" height="20" rx="6" fill="#fff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="390" y="128" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="10.5" font-weight="700" fill="#1d4ed8">Electronics</text>
+  <rect x="330" y="196" width="120" height="36" rx="3" fill="#fbbf24"/><rect x="330" y="196" width="120" height="6" fill="#d97706"/>
+  <use href="#phone" transform="translate(348 196)"/>
+  <rect x="362" y="174" width="30" height="19" rx="2" fill="#1e293b"/><rect x="365" y="177" width="24" height="13" rx="1" fill="#a5b4fc"/><rect x="358" y="193" width="38" height="3" rx="1.5" fill="#475569"/>
+  <path d="M422 190a9 9 0 0 1 18 0" fill="none" stroke="#1e293b" stroke-width="2.5"/>
+  <rect x="419" y="187" width="6" height="9" rx="2" fill="#6366f1"/><rect x="437" y="187" width="6" height="9" rx="2" fill="#6366f1"/>
+
+  <!-- sold items popping up -->
+  <g transform="translate(90 186)"><g class="pop"><use href="#bubble"/><use href="#apple" transform="translate(0 7) scale(.8)"/></g></g>
+  <g transform="translate(240 196)"><g class="pop p2"><use href="#bubble"/><use href="#shirt" transform="translate(0 8) scale(.75)" fill="#ec4899"/></g></g>
+  <g transform="translate(390 186)"><g class="pop p3"><use href="#bubble"/><use href="#phone" transform="translate(0 8) scale(.7)"/></g></g>
+
+  <!-- back row shoppers -->
+  <g class="mv b-r"><g class="bob">
+    <rect class="leg a" x="-5" y="-24" width="5" height="24" rx="2.5" fill="#3f3f46"/>
+    <rect class="leg b" x="0" y="-24" width="5" height="24" rx="2.5" fill="#52525b"/>
+    <rect x="-9" y="-50" width="18" height="29" rx="7" fill="#8b5cf6"/>
+    <rect class="arm" x="-2" y="-47" width="5" height="22" rx="2.5" fill="#7c3aed"/>
+    <circle cx="0" cy="-58" r="8" fill="#f1c27d"/>
+    <path d="M-8-60a8 8 0 0 1 16 0z" fill="#92400e"/>
+  </g></g>
+  <g class="mv b-l"><g transform="scale(-1 1)"><g class="bob">
+    <rect class="leg a" x="-5" y="-24" width="5" height="24" rx="2.5" fill="#1e293b"/>
+    <rect class="leg b" x="0" y="-24" width="5" height="24" rx="2.5" fill="#334155"/>
+    <rect x="-9" y="-50" width="18" height="29" rx="7" fill="#14b8a6"/>
+    <g class="arm"><rect x="-2" y="-47" width="5" height="22" rx="2.5" fill="#0d9488"/><rect x="-5" y="-26" width="11" height="12" rx="2" fill="#f97316"/></g>
+    <circle cx="0" cy="-58" r="8" fill="#c68642"/>
+    <path d="M-9-58a9 9 0 0 1 18 0v6h-3v-6h-12v8h-3z" fill="#111827"/>
+  </g></g></g>
+
+  <!-- front row shoppers -->
+  <g class="mv f-r"><g class="bob">
+    <rect class="leg a" x="-5" y="-24" width="5" height="24" rx="2.5" fill="#1e3a8a"/>
+    <rect class="leg b" x="0" y="-24" width="5" height="24" rx="2.5" fill="#1e40af"/>
+    <rect x="-9" y="-50" width="18" height="29" rx="7" fill="#f97316"/>
+    <g class="arm"><rect x="-2" y="-47" width="5" height="22" rx="2.5" fill="#ea580c"/><rect x="-5" y="-26" width="11" height="12" rx="2" fill="#6366f1"/></g>
+    <circle cx="0" cy="-58" r="8" fill="#e0ac69"/>
+    <path d="M-8-59a8 8 0 0 1 16 0z" fill="#3f2a1d"/>
+  </g></g>
+  <g class="mv f-l"><g transform="scale(-1 1)"><g class="bob">
+    <rect class="leg a" x="-5" y="-24" width="5" height="24" rx="2.5" fill="#374151"/>
+    <rect class="leg b" x="0" y="-24" width="5" height="24" rx="2.5" fill="#4b5563"/>
+    <rect x="-9" y="-50" width="18" height="29" rx="7" fill="#ec4899"/>
+    <g class="arm"><rect x="-2" y="-47" width="5" height="22" rx="2.5" fill="#db2777"/><rect x="-5" y="-26" width="11" height="12" rx="2" fill="#22c55e"/></g>
+    <circle cx="0" cy="-58" r="8" fill="#f1c27d"/>
+    <path d="M-8-59a8 8 0 0 1 16 0v10h-3v-10h-10v10h-3z" fill="#6b3e26"/>
+  </g></g></g>
+</svg>

@@ -78,7 +78,7 @@ export const searchSuppliersApi = async (search = '', limit = 20) => {
 };
 
 /** GET /lookups/products?q=&limit= — lightweight product search. */
-export const lookupProductsApi = async (q = '', limit = 20) => {
-  const response = await apiClient.get('/lookups/products', { params: { q, limit } });
+export const lookupProductsApi = async (q = '', limit = 20, extra = {}) => {
+  const response = await apiClient.get('/lookups/products', { params: { q, limit, ...extra } });
   return response.data;
 };

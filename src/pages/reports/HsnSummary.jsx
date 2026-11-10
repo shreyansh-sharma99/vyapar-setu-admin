@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { Layers, IndianRupee, Landmark, Package } from 'lucide-react';
-import { DataTable, PageHeader } from '@/components/ui';
+import { Badge, DataTable, PageHeader, Segmented } from '@/components/ui';
 import { getHsnSummary } from './services/reportSlice';
 import { DateFilterBar, StatRow } from './components/ReportBits';
 
@@ -17,6 +17,7 @@ export default function HsnSummary() {
   const initialDateFrom = searchParams.get('dateFrom') || '2026-04-01';
   const initialDateTo = searchParams.get('dateTo') || '2027-03-31';
 
+  const [typeFilter, setTypeFilter] = useState('');
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
   const [dateTo, setDateTo] = useState(initialDateTo);
 
@@ -53,7 +54,7 @@ export default function HsnSummary() {
     fetchReport(defaultFrom, defaultTo);
   };
 
-  const dataList = Array.isArray(hsnSummary) ? hsnSummary : [];
+  const dataList = (Array.isArray(hsnSummary) ? hsnSummary : []).filter((r) => !typeFilter || r.itemType === typeFilter);
 
   const totals = useMemo(() => {
     let totalQty = 0;
@@ -115,6 +116,11 @@ export default function HsnSummary() {
   }, [dataList]);
 
   const columns = [
+    {
+      header: 'Type',
+      key: 'itemType',
+      render: (item) => <Badge tone={item.itemType === 'service' ? 'info' : 'neutral'}>{item.itemType === 'service' ? 'Service' : 'Goods'}</Badge>,
+    },
     {
       header: 'HSN / SAC Code',
       key: 'hsnCode',
@@ -190,7 +196,7 @@ export default function HsnSummary() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="HSN Summary Report"
+        title="HSN / SAC Summary"
         description="Quantity, taxable value and GST for each HSN / SAC code sold in the period."
       />
 
@@ -202,13 +208,21 @@ export default function HsnSummary() {
         onReset={handleResetFilters}
       />
 
+      <Segmented
+        aria-label="Item type"
+        value={typeFilter}
+        onChange={setTypeFilter}
+        options={[{ value: '', label: 'All' }, { value: 'goods', label: 'Goods' }, { value: 'service', label: 'Services' }]}
+        className="self-start"
+      />
+
       <StatRow stats={totals} />
 
       <DataTable
         columns={columns}
         rows={dataList}
         loading={loading}
-        search={{ placeholder: 'Search HSN code...' }}
+        search={{ placeholder: 'Search HSN / SAC code...' }}
         empty={{ icon: Layers, title: 'No HSN summary data found for the selected period.' }}
         pageSizeOptions={[10, 20, 50, 100, 500]}
       />

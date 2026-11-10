@@ -43,6 +43,7 @@ import CustomerLedger from './pages/sales/customerLedger/CustomerLedger';
 import PaymentAccount from './pages/sales/paymentAccout/PaymentAccount';
 import InvoiceSetting from './pages/Invoices/invoiceSetting/InvoiceSetting';
 import GeneralInvoiceSetting from './pages/Invoices/generalInvoiceSetting/GeneralInvoiceSetting';
+import BillFields from './pages/Invoices/billFields/BillFields';
 import InvoiceLayout from './pages/Invoices/invoiceLayout/InvoiceLayout';
 import SalesRegister from './pages/reports/SalesRegister';
 import Gstr1Report from './pages/reports/Gstr1Report';
@@ -134,7 +135,8 @@ function App() {
           <Route path="manufacturers/edit/:id" element={<UpdateManufacturer />} />
           <Route path="manufacturers/view/:id" element={<ManufacturerDetails />} />
           <Route path="products" element={<ProductList />} />
-          <Route path="products/create" element={<CreateProduct />} />
+          <Route path="products/create" element={<CreateProduct key="goods" />} />
+          <Route path="products/create-service" element={<CreateProduct key="service" itemType="service" />} />
           <Route path="products/edit/:id" element={<UpdateProduct />} />
           <Route path="products/view/:id" element={<ProductDetails />} />
           <Route path="products/audit/:id" element={<ProductAuditReport />} />
@@ -192,6 +194,7 @@ function App() {
           <Route path="sales/credit-note/view/:id" element={<CreditNoteDetails />} />
           <Route path="sales/payment-account" element={<PaymentAccount />} />
           <Route path="sales/general-invoice-setting" element={<GeneralInvoiceSetting />} />
+          <Route path="sales/bill-fields" element={<BillFields />} />
           <Route path="sales/invoice-setting" element={<InvoiceSetting />} />
           <Route path="sales/invoice-settings" element={<InvoiceSetting />} />
           <Route path="sales/invoice-layout" element={<InvoiceLayout />} />

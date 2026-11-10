@@ -92,7 +92,7 @@ export default function PurchaseOrderDetails() {
       render: (l) => (
         <div className="min-w-[180px]">
           <div className="font-semibold">{l.productName}</div>
-          <div className="text-xs text-ink-subtle">{[l.sku && `SKU ${l.sku}`, l.hsnCode && `HSN ${l.hsnCode}`].filter(Boolean).join(' · ')}</div>
+          <div className="text-xs text-ink-subtle">{[l.itemType === 'service' && 'Service', l.sku && `SKU ${l.sku}`, l.hsnCode && `${l.itemType === 'service' ? 'SAC' : 'HSN'} ${l.hsnCode}`].filter(Boolean).join(' · ')}</div>
         </div>
       ),
     },

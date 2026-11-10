@@ -18,8 +18,8 @@ export const createCustomerQuickApi = async (data) => {
  * Matches name, SKU, barcode, pack barcode and HSN; exact barcode/SKU matches come first
  * (flagged with `matchedExactly`).
  */
-export const lookupProductsApi = async ({ q = '', limit = 20 } = {}) => {
-  const params = { q, limit };
+export const lookupProductsApi = async ({ q = '', limit = 20, itemType } = {}) => {
+  const params = { q, limit, ...(itemType ? { itemType } : {}) };
   const response = await apiClient.get('/lookups/products', { params });
   return response.data?.data || [];
 };

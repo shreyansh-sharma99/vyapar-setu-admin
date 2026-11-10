@@ -37,6 +37,7 @@ import { docFromInvoice, inr } from '@/pages/Invoices/invoiceLayout/components/i
 import { downloadInvoiceLayoutPdf, printInvoiceLayout, printWidth } from './invoiceLayoutPdf';
 import { downloadReceiptPdf } from './receiptPdf';
 import { PAYMENT_METHOD_LABELS } from './paymentMethods';
+import ServiceProductsPanel from './ServiceProductsPanel';
 
 const PAYMENT_OPTIONS = Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }));
 
@@ -66,6 +67,7 @@ export default function SalesInvoiceDetails() {
   const canTakeReceipt = can(user, 'sales', 'update');
   const canDeleteReceipt = can(user, 'sales', 'delete');
   const canReturn = can(user, 'sales', 'create');
+  const canEditDraft = can(user, 'sales', 'update');
 
   const showToast = (message, color = 'success') => {
     const id = Date.now();
@@ -305,6 +307,23 @@ export default function SalesInvoiceDetails() {
           </Alert>
         )}
 
+        {(currentInvoice.customFields || []).length > 0 && (
+          <Alert tone="neutral" title="Bill details">
+            {currentInvoice.customFields.map((f) => <div key={f.key}><b>{f.label}:</b> {f.value}</div>)}
+          </Alert>
+        )}
+
+        {(currentInvoice.lineItems || []).some((l) => l.consumedItems?.length > 0) && (
+          <Alert tone="neutral" title="Goods used in services (not on the bill)">
+            {currentInvoice.lineItems.filter((l) => l.consumedItems?.length > 0).map((l, i) => (
+              <div key={i}>
+                <b>{l.productName}:</b>{' '}
+                {l.consumedItems.map((e) => `${e.productName} ${e.qty} ${e.unit}${e.shortQty > 0 ? ` (${e.shortQty} short)` : ''}`).join(', ')}
+              </div>
+            ))}
+          </Alert>
+        )}
+
         {currentInvoice.voidReason && (
           <Alert tone="danger" title="Void reason">{currentInvoice.voidReason}</Alert>
         )}
@@ -382,6 +401,18 @@ export default function SalesInvoiceDetails() {
             </LineItemsTable>
           </Section>
         )}
+
+        <ServiceProductsPanel
+          invoice={currentInvoice}
+          canEdit={canEditDraft}
+          canReturn={canStartReturn && canReturn}
+          onReturn={(line) => navigate('/sales/return/create', { state: { invoiceId: currentInvoice._id, lineIndex: currentInvoice.lineItems.indexOf(line) } })}
+          onSaved={(message) => {
+            showToast(message);
+            dispatch(getSalesInvoiceById(id));
+          }}
+          onError={(message) => showToast(message, 'danger')}
+        />
 
         {/* The invoice, in the design chosen in Sales → Invoice Layout */}
         <Section title="Invoice" description="As your customer sees it">

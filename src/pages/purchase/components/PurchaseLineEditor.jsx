@@ -77,8 +77,9 @@ export default function PurchaseLineEditor({ lines, onChange, options = {}, subm
     const costIncl = priceInclGst(line.rate, tax, line.discountPercent);
     const value = lineValue(line.qty, line.rate, tax, line.discountPercent);
     const info = stockIn ? stockIn.prices[String(line.productId)] : null;
-    const sp = stockIn ? shownSp(line, info) : '';
-    const mrp = stockIn ? shownMrp(line, info) : '';
+    const svc = line.itemType === 'service';
+    const sp = stockIn && !svc ? shownSp(line, info) : '';
+    const mrp = stockIn && !svc ? shownMrp(line, info) : '';
     const pieces = num(line.qty) * factorOf(line);
     const profit = stockIn && has ? profitPerPiece(sp, mrp, costIncl / factorOf(line)) : null;
     return { line, has, tax, costIncl, value, info, sp, mrp, pieces, profit };
@@ -132,8 +133,9 @@ export default function PurchaseLineEditor({ lines, onChange, options = {}, subm
               const badRate = submitted && has && !(num(line.rate) > 0);
               const changed = stockIn && spChanged(line, info);
               const spAboveMrp = num(sp) > 0 && num(mrp) > 0 && num(sp) > num(mrp);
-              const mrpMissing = !!stockIn && submitted && has && !(num(mrp) > 0);
-              const noPriceYet = info && !(num(info.sellingPrice) > 0) && !line.spTouched;
+              const svc = line.itemType === 'service';
+              const mrpMissing = !!stockIn && submitted && has && !svc && !(num(mrp) > 0);
+              const noPriceYet = !svc && info && !(num(info.sellingPrice) > 0) && !line.spTouched;
               return (
                 <LineRow key={line.key} tone={spAboveMrp || codeProblems[line.key] ? 'warning' : undefined}>
                   <td className={`${TD} pt-4 text-xs text-ink-subtle`}>{idx + 1}</td>
@@ -153,7 +155,8 @@ export default function PurchaseLineEditor({ lines, onChange, options = {}, subm
                     {has && (
                       <div className="mt-1 text-[11px] text-ink-subtle flex flex-wrap items-center gap-x-2">
                         {line.sku && <span>SKU {line.sku}</span>}
-                        {line.hsnCode && <span>HSN {line.hsnCode}</span>}
+                        {svc && <span className="font-semibold text-info">Service · no stock</span>}
+                        {line.hsnCode && <span>{svc ? 'SAC' : 'HSN'} {line.hsnCode}</span>}
                         {line.units.length > 1 ? (
                           <Select
                             size="sm"
@@ -193,8 +196,8 @@ export default function PurchaseLineEditor({ lines, onChange, options = {}, subm
                           min="0"
                           step="0.01"
                           value={noPriceYet ? '' : sp}
-                          disabled={!has || !stockIn.canUpdatePrices}
-                          placeholder={noPriceYet ? 'Not set yet' : 'Optional'}
+                          disabled={svc || !has || !stockIn.canUpdatePrices}
+                          placeholder={svc ? 'Not needed' : noPriceYet ? 'Not set yet' : 'Optional'}
                           title={stockIn.canUpdatePrices ? 'Change it to set a new selling price' : 'Only users who can edit products may change the selling price'}
                           onChange={(e) => update(line.key, { sellingPrice: e.target.value, spTouched: true })}
                           invalid={spAboveMrp}
@@ -211,8 +214,8 @@ export default function PurchaseLineEditor({ lines, onChange, options = {}, subm
                           min="0"
                           step="0.01"
                           value={mrp}
-                          disabled={!has}
-                          placeholder="Required"
+                          disabled={!has || svc}
+                          placeholder={svc ? 'Not needed' : 'Required'}
                           onChange={(e) => update(line.key, { mrp: e.target.value, mrpTouched: true })}
                           invalid={mrpMissing}
                           className={CELL}
@@ -224,16 +227,16 @@ export default function PurchaseLineEditor({ lines, onChange, options = {}, subm
                             size="sm"
                             value={line.barcode ?? ''}
                             maxLength={64}
-                            disabled={!has}
+                            disabled={!has || svc}
                             readOnly={line.barcodeLocked}
-                            placeholder="Optional"
+                            placeholder={svc ? 'Not needed' : 'Optional'}
                             title={line.barcodeLocked ? 'Same barcode as the stock on hand' : 'Barcode of these goods'}
                             onChange={(e) => update(line.key, { barcode: e.target.value })}
                             onBlur={(e) => !line.barcodeLocked && checkBarcode(line, e.target.value)}
                             invalid={!!codeProblems[line.key]}
                             className={cn(CELL, line.barcodeLocked && 'opacity-70')}
                           />
-                          {has && !line.barcodeLocked && (
+                          {has && !svc && !line.barcodeLocked && (
                             <Button variant="ghost" size="icon-sm" title="Scan barcode" aria-label="Scan barcode" onClick={() => setScanKey(line.key)} className="!size-9 shrink-0 !rounded-lg bg-fill hover:!bg-brand-soft hover:!text-brand-ink">
                               <QrCode className="w-3.5 h-3.5" />
                             </Button>
@@ -249,7 +252,7 @@ export default function PurchaseLineEditor({ lines, onChange, options = {}, subm
                         )}
                       </td>
                       <td className={TD}>
-                        <Input size="sm" type="date" value={line.expiryDate ?? ''} disabled={!has} onChange={(e) => update(line.key, { expiryDate: e.target.value })} className={CELL} />
+                        <Input size="sm" type="date" value={line.expiryDate ?? ''} disabled={!has || svc} onChange={(e) => update(line.key, { expiryDate: e.target.value })} className={CELL} />
                       </td>
                       <td className={TD}>
                         <Input
@@ -258,8 +261,8 @@ export default function PurchaseLineEditor({ lines, onChange, options = {}, subm
                           min="0"
                           step="any"
                           value={line.lowStockAlert ?? ''}
-                          disabled={!has}
-                          placeholder="e.g. 5"
+                          disabled={!has || svc}
+                          placeholder={svc ? 'Not needed' : 'e.g. 5'}
                           title="Alert when this product's stock falls to this number"
                           onChange={(e) => update(line.key, { lowStockAlert: e.target.value })}
                           className={CELL}

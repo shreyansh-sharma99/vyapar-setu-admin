@@ -127,6 +127,16 @@ const SOURCE_BADGES = {
     icon: Upload,
     tone: 'info',
   },
+  service_consumption: {
+    label: 'Used in Service',
+    icon: Upload,
+    tone: 'danger',
+  },
+  service_consumption_void: {
+    label: 'Service Bill Voided',
+    icon: Upload,
+    tone: 'success',
+  },
 };
 
 const FALLBACK_BADGE = {

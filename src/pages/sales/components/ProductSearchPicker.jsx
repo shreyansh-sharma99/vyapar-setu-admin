@@ -14,7 +14,7 @@ const formatPrice = (p) => {
 };
 
 /** Shared hook: debounced product search with stale-response protection. */
-function useProductSearch() {
+function useProductSearch(itemType) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchedFor, setSearchedFor] = useState(null);
@@ -25,7 +25,7 @@ function useProductSearch() {
     const reqId = ++requestRef.current;
     setLoading(true);
     try {
-      const rows = await lookupProductsApi({ q, limit: 20 });
+      const rows = await lookupProductsApi({ q, limit: 20, itemType });
       if (reqId === requestRef.current) {
         setResults(rows);
         setSearchedFor(q);
@@ -74,7 +74,9 @@ export default function ProductSearchPicker({
   placeholder = 'Search name, SKU or scan barcode',
   disabled = false,
   showStock = true,
+  itemType,
 }) {
+  const noun = itemType === 'service' ? 'service' : 'product';
   const wrapperRef = useRef(null);
   const dropdownRef = useRef(null);
   const inputRef = useRef(null);
@@ -83,7 +85,7 @@ export default function ProductSearchPicker({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [notice, setNotice] = useState('');
   const [dropdownStyle, setDropdownStyle] = useState({});
-  const { results, loading, searchedFor, scheduleSearch, searchNow } = useProductSearch();
+  const { results, loading, searchedFor, scheduleSearch, searchNow } = useProductSearch(itemType);
 
   useEffect(() => {
     const onOutside = (e) => {
@@ -176,7 +178,7 @@ export default function ProductSearchPicker({
       const rows = resultsAreCurrent ? results : await searchNow(q);
       const match = pickOnEnter(rows);
       if (match) choose(match);
-      else setNotice(rows.length ? 'No exact barcode / SKU match. Pick a product from the list.' : `No product found for "${q}".`);
+      else setNotice(rows.length ? `No exact barcode / SKU match. Pick a ${noun} from the list.` : `No ${noun} found for "${q}".`);
     }
   };
 
@@ -197,11 +199,12 @@ export default function ProductSearchPicker({
         </div>
       ) : results.length === 0 ? (
         <div className="px-3 py-3 text-sm text-ink-muted">
-          {query.trim() ? 'No matching products.' : 'No products found.'}
+          {query.trim() ? `No matching ${noun}s.` : `No ${noun}s found.`}
         </div>
       ) : (
         results.map((p, i) => {
           const stock = Number(p.currentStock ?? 0);
+          const isService = p.itemType === 'service';
           return (
             <div
               key={p._id}
@@ -225,7 +228,8 @@ export default function ProductSearchPicker({
                 </div>
                 <div className="flex flex-col items-end shrink-0 gap-0.5">
                   <span className="text-xs font-semibold tabular-nums text-ink">{formatPrice(p)}</span>
-                  {showStock && (
+                  {isService && <Badge tone="info" size="xs" className="rounded-md font-semibold">Service · no stock</Badge>}
+                  {showStock && !isService && (
                     <Badge tone={stock > 0 ? 'success' : 'danger'} size="xs" className="rounded-md font-semibold">
                       In stock: {stock} {p.unit || ''}
                     </Badge>
@@ -264,7 +268,7 @@ export default function ProductSearchPicker({
  * Barcode / SKU scan box. Scanners type the code and press Enter; the exact match is passed
  * to `onProduct`. Typing a code by hand and pressing Enter works the same way.
  */
-export function BarcodeScanInput({ onProduct, placeholder = 'Scan barcode or type SKU, then press Enter' }) {
+export function BarcodeScanInput({ onProduct, placeholder = 'Scan barcode or type SKU, then press Enter', itemType }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
@@ -276,7 +280,7 @@ export function BarcodeScanInput({ onProduct, placeholder = 'Scan barcode or typ
     if (!q || busy) return;
     setBusy(true);
     try {
-      const rows = await lookupProductsApi({ q, limit: 5 });
+      const rows = await lookupProductsApi({ q, limit: 5, itemType });
       const match = pickOnEnter(rows);
       if (match) {
         onProduct(match);

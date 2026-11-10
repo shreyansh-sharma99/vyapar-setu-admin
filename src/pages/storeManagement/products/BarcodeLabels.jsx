@@ -71,7 +71,7 @@ const loadSettings = () => {
 const sellingPrice = (p) => (toNumberOr(p.finalPrice, 0) > 0 ? toNumberOr(p.finalPrice, 0) : computeCustomerPrice(p));
 
 const fetchProductOptions = async (query) => {
-  const res = await lookupProductsApi(query, 20);
+  const res = await lookupProductsApi(query, 20, { itemType: 'goods' });
   return (res?.data || []).map((p) => ({
     value: p._id,
     label: p.name,

@@ -65,6 +65,8 @@ export default function CreateSalesReturn() {
   const location = useLocation();
   // Opened with the Return button on an invoice: that invoice is fixed (create mode only).
   const [presetInvoiceId] = useState(() => (isEditMode ? '' : location.state?.invoiceId || ''));
+  // Opened from one product on the invoice: that line starts ticked, at its full quantity.
+  const [presetLineIndex] = useState(() => (isEditMode ? -1 : location.state?.lineIndex ?? -1));
 
   const { currentReturn, loading: returnLoading, success, error } = useSelector((s) => s.salesReturn);
   const { invoices } = useSelector((s) => s.salesInvoice);
@@ -170,18 +172,19 @@ export default function CreateSalesReturn() {
           setLineItems(mapped);
         } else {
           // Creating mode: pre-fill items with qty 0 and included false
-          const mapped = (invoice.lineItems || []).map((invItem) => ({
+          const presetLine = invoice.lineItems?.[presetLineIndex];
+          const mapped = (invoice.lineItems || []).filter((invItem) => invItem.itemType !== 'service').map((invItem) => ({
             productId: invItem.productId?._id || invItem.productId || null,
             productName: invItem.productName,
             hsnCode: invItem.hsnCode,
-            qty: 1, // Start with 1 returned item by default
+            qty: invItem === presetLine ? invItem.qty : 1, // Start with 1 returned item by default
             rate: invItem.rate,
             discountPercent: invItem.discountPercent,
             taxPercent: invItem.taxPercent,
             returnReason: '',
             condition: 'good',
             maxQty: invItem.qty,
-            included: false,
+            included: invItem === presetLine,
           }));
           setLineItems(mapped);
         }
@@ -436,7 +439,7 @@ export default function CreateSalesReturn() {
             <div className="flex items-start gap-2 rounded-control bg-highlight-soft px-3 py-2.5 text-xs text-ink">
               <Info className="mt-0.5 size-4 shrink-0 text-warning" />
               <span>
-                Set the <strong>Condition</strong> of each returned item. <strong>Good</strong> items go back into sellable stock.
+                Services are not listed: refund them with a Credit Note. Set the <strong>Condition</strong> of each returned item. <strong>Good</strong> items go back into sellable stock.
                 {' '}<strong>Damaged</strong> items are moved to damaged stock — they will not be available for sale and can later be
                 restored or written off from Inventory → Damaged Stock.
               </span>

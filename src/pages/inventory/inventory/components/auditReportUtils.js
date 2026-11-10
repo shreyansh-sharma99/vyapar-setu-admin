@@ -22,6 +22,8 @@ export const SOURCE_OPTIONS = [
   { value: 'damage_restore', label: 'Damaged Stock Restored' },
   { value: 'damage_write_off', label: 'Damaged Stock Written Off' },
   { value: 'bulk_import', label: 'Bulk Import' },
+  { value: 'service_consumption', label: 'Used in Service' },
+  { value: 'service_consumption_void', label: 'Service Bill Voided' },
 ];
 
 export const BUCKET_OPTIONS = [

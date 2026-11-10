@@ -5,12 +5,14 @@ import { AlertTriangle, ArrowLeft, Loader2, Trash2, Save, Send, Search, UserPlus
 import { decryptData } from '@/utility/crypto';
 import {
   AddLineBar, Badge, Button, DocumentLayout, Field, FormGrid, Input, Label, LINE_TD, LINE_TH, LineItemsTable, LineRow,
-  Section, Segmented, Spinner, Switch, ToastStack, TotalsInput, TotalsPanel, TotalsRow, TotalsToggle, useShortcuts,
+  Section, Segmented, Select, Spinner, Switch, ToastStack, TotalsInput, TotalsPanel, TotalsRow, TotalsToggle, useShortcuts,
 } from '@/components/ui';
 import ProductSearchPicker, { BarcodeScanInput } from '../components/ProductSearchPicker';
 import { getProductForLineApi, lookupCustomersApi, createCustomerQuickApi } from '../services/productLookupService';
 import BatchPickerModal from '../components/BatchPickerModal';
+import { lookupBillFieldsApi } from '@/pages/Invoices/billFields/services/billFieldService';
 import LinePriceNote from '../components/LinePriceNote';
+import ServiceLineCard from '../components/ServiceLineCard';
 import { NO_BATCH, datedFieldsFromSaved, useDatedSalesLines } from '../components/datedPricing';
 import { canChangePrice } from '@/utility/shopPermissions';
 import {
@@ -36,6 +38,26 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const inr = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const digits10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
 
+// A product that came with a service sits under that service on the bill.
+const isLinkedGoods = (item) => !!item.groupKey && item.itemType !== 'service';
+const lineKind = (item) => (item.itemType === 'service' || isLinkedGoods(item) ? 'service' : 'goods');
+const newGroupKey = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const blankLine = (itemType) => ({
+  itemType,
+  productId: '',
+  productName: '',
+  hsnCode: '',
+  sku: '',
+  qty: 1,
+  unit: 'pcs',
+  rate: 0,
+  discountPercent: 0,
+  isGstApplicable: true,
+  taxPercent: 18,
+  cessPercent: 0,
+});
+
 export default function CreateSalesInvoice() {
   const { id: encryptedId } = useParams();
   const navigate = useNavigate();
@@ -43,8 +65,17 @@ export default function CreateSalesInvoice() {
 
   const id = encryptedId ? decryptData(decodeURIComponent(encryptedId)) : null;
   const isEditMode = !!id;
+  const [billFields, setBillFields] = useState([]);
+  const [billEdits, setBillEdits] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    lookupBillFieldsApi().then((rows) => { if (!cancelled) setBillFields(rows); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const { currentInvoice, loading: invoiceLoading, success, error } = useSelector((state) => state.salesInvoice);
+  const billValue = (key) => billEdits[key] ?? (isEditMode ? (currentInvoice?.customFields || []).find((f) => f.key === key)?.value : '') ?? '';
 
   // Products picked on this invoice (from the async lookup, or loaded for an edited draft),
   // keyed by id. Holds currentStock so stock can be shown without loading the catalogue.
@@ -86,21 +117,7 @@ export default function CreateSalesInvoice() {
     }, 3500);
   };
 
-  const [lineItems, setLineItems] = useState([
-    {
-      productId: '',
-      productName: '',
-      hsnCode: '',
-      sku: '',
-      qty: 1,
-      unit: 'pcs',
-      rate: 0,
-      discountPercent: 0,
-      isGstApplicable: true,
-      taxPercent: 18,
-      cessPercent: 0,
-    },
-  ]);
+  const [lineItems, setLineItems] = useState([blankLine('goods'), blankLine('service')]);
 
   // The server sets price / offer / GST for the invoice date; the rate can be
   // typed only with "Change price while billing" (+ a reason). Products with more than one MRP
@@ -152,7 +169,7 @@ export default function CreateSalesInvoice() {
   const getProductStock = (productId) => {
     if (!productId || !products) return null;
     const prod = products.find((p) => p._id === productId);
-    if (!prod) return null;
+    if (!prod || prod.itemType === 'service') return null;
     return { available: Number(prod.currentStock || 0), total: Number(prod.currentStock || 0) };
   };
 
@@ -178,6 +195,12 @@ export default function CreateSalesInvoice() {
           currentInvoice.lineItems.map((item) => ({
             productId: item.productId?._id || item.productId || '',
             productName: item.productName || '',
+            itemType: item.itemType || 'goods',
+            groupKey: item.groupKey || '',
+            includedOnBill: !!item.includedOnBill,
+            baseQty: item.groupKey && item.itemType !== 'service'
+              ? (item.qty || 1) / (currentInvoice.lineItems.find((l) => l.groupKey === item.groupKey && l.itemType === 'service')?.qty || 1)
+              : undefined,
             hsnCode: item.hsnCode || '',
             sku: item.sku || '',
             qty: item.qty || 1,
@@ -337,6 +360,10 @@ export default function CreateSalesInvoice() {
   const productLineFields = (product) => ({
     productId: product._id,
     productName: product.name,
+    itemType: product.itemType || 'goods',
+    chargeBy: product.chargeBy || 'fixed',
+    priceAtBilling: !!product.priceAtBilling,
+    ...(product.itemType === 'service' ? { qty: 1 } : {}),
     sku: product.sku || '',
     hsnCode: product.hsnSacCode || product.hsnCode || '',
     unit: product.unit || 'pcs',
@@ -350,17 +377,35 @@ export default function CreateSalesInvoice() {
     priceOverrideReason: '',
   });
 
-  // Scanned product: fill the first empty row, otherwise add a new row.
+  // Scanned product: fill the first empty product row, otherwise add a new row.
   const handleScannedProduct = (product) => {
     cacheProduct(product);
-    const emptyAt = lineItems.findIndex((item) => !item.productId);
+    const isEmptyGoods = (item) => !item.productId && lineKind(item) === 'goods';
+    const emptyAt = lineItems.findIndex(isEmptyGoods);
     dated.afterProductPicked(emptyAt !== -1 ? emptyAt : lineItems.length, product);
     setLineItems((prev) => {
-      const emptyIndex = prev.findIndex((item) => !item.productId);
+      const emptyIndex = prev.findIndex(isEmptyGoods);
       if (emptyIndex !== -1) {
         return prev.map((item, i) => (i === emptyIndex ? { ...item, ...productLineFields(product) } : item));
       }
       return [...prev, { qty: 1, discountPercent: 0, ...productLineFields(product) }];
+    });
+  };
+
+  // The products that come with a service, as their own lines (batch price, removable).
+  const addIncludedLines = async (service, groupKey) => {
+    const rows = await Promise.all((service.includedItems || []).map(async (inc) => {
+      const goods = await getProductForLineApi(inc.productId?._id || inc.productId).catch(() => null);
+      if (!goods) return null;
+      cacheProduct(goods);
+      return { ...blankLine('goods'), ...productLineFields(goods), groupKey, baseQty: inc.qty, qty: inc.qty, unit: inc.unit || goods.unit || 'pcs' };
+    }));
+    setLineItems((prev) => {
+      const at = prev.findIndex((item) => item.groupKey === groupKey && item.itemType === 'service');
+      if (at === -1) return prev;
+      const next = [...prev];
+      next.splice(at + 1, 0, ...rows.filter(Boolean));
+      return next;
     });
   };
 
@@ -375,13 +420,23 @@ export default function CreateSalesInvoice() {
     if (field === 'productId') {
       // `value` is the product object chosen in the picker (or '' to clear the line).
       const product = value && typeof value === 'object' ? value : null;
+      const oldKey = updated[index].groupKey;
+      if (oldKey) {
+        const kept = updated.filter((item) => !(isLinkedGoods(item) && item.groupKey === oldKey));
+        updated.length = 0;
+        updated.push(...kept);
+      }
       if (product) {
         cacheProduct(product);
+        const groupKey = product.itemType === 'service' && product.includedItems?.length ? newGroupKey() : '';
         updated[index] = {
           ...updated[index],
           ...productLineFields(product),
+          groupKey,
+          includedOnBill: !!groupKey,
         };
         dated.afterProductPicked(index, product);
+        if (groupKey) addIncludedLines(product, groupKey);
       } else {
         updated[index] = {
           ...updated[index],
@@ -390,36 +445,39 @@ export default function CreateSalesInvoice() {
           sku: '',
           hsnCode: '',
           rate: 0,
+          groupKey: '',
+          includedOnBill: false,
         };
       }
     } else {
       updated[index][field] = value;
+      const { groupKey, itemType } = updated[index];
+      if (field === 'qty' && groupKey && itemType === 'service') {
+        updated.forEach((item, i) => {
+          if (isLinkedGoods(item) && item.groupKey === groupKey) updated[i] = { ...item, qty: item.baseQty * value };
+        });
+      }
     }
     setLineItems(updated);
   };
 
-  const addLineItem = () => {
-    setLineItems([
-      ...lineItems,
-      {
-        productId: '',
-        productName: '',
-        hsnCode: '',
-        sku: '',
-        qty: 1,
-        unit: 'pcs',
-        rate: 0,
-        discountPercent: 0,
-        taxPercent: 18,
-        cessPercent: 0,
-      },
-    ]);
+  const addLineItem = (kind) => {
+    setLineItems([...lineItems, blankLine(kind)]);
   };
 
+  // The last row of a section is emptied, not removed, so the section stays ready to use.
   const removeLineItem = (index) => {
-    if (lineItems.length > 1) {
+    const target = lineItems[index];
+    if (isLinkedGoods(target)) {
       setLineItems(lineItems.filter((_, i) => i !== index));
+      return;
     }
+    const kind = lineKind(target);
+    const siblings = lineItems.filter((item) => lineKind(item) === kind && !isLinkedGoods(item));
+    const rest = siblings.length > 1
+      ? lineItems.filter((_, i) => i !== index)
+      : lineItems.map((item, i) => (i === index ? blankLine(kind) : item));
+    setLineItems(target.groupKey ? rest.filter((item) => !(isLinkedGoods(item) && item.groupKey === target.groupKey)) : rest);
   };
 
   // Calculations
@@ -473,12 +531,16 @@ export default function CreateSalesInvoice() {
       return;
     }
     const hasInvalidCustomerFields = !customerSnapshot.name || !customerSnapshot.phone || !customerSnapshot.billingAddress.pincode;
-    const invalidItem = viewLines.find((item) => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0);
+    // Empty rows are ignored: a bill can be only products, only services, or both.
+    const filledLines = viewLines.filter((item) => item.productId);
+    const invalidItem = filledLines.find((item) => Number(item.qty) <= 0 || Number(item.rate) < 0);
     const gstin = customerSnapshot.gstin;
     const invalidGstin = gstin && !GSTIN_RE.test(gstin);
 
-    if (invalidItem || hasInvalidCustomerFields || invalidGstin) {
-      if (invalidItem) {
+    if (filledLines.length === 0 || invalidItem || hasInvalidCustomerFields || invalidGstin) {
+      if (filledLines.length === 0) {
+        showToast('Add at least one product or service.', 'danger');
+      } else if (invalidItem) {
         showToast('Please select valid products with positive quantity and rate.', 'danger');
       } else if (hasInvalidCustomerFields) {
         showToast('Please fill in required customer details (Name, Phone, Pin Code).', 'danger');
@@ -495,6 +557,11 @@ export default function CreateSalesInvoice() {
     }
 
     if (status !== 'draft') {
+      const missingField = billFields.find((f) => f.required && !String(billValue(f.key)).trim());
+      if (missingField) {
+        showToast(`Enter ${missingField.label}`, 'danger');
+        return;
+      }
       const outOfStockItem = lineItems.find((item) => {
         if (!item.productId) return false;
         const stockInfo = getProductStock(item.productId);
@@ -532,7 +599,8 @@ export default function CreateSalesInvoice() {
       roundOff,
       paymentMethod,
       status,
-      lineItems: viewLines.map((item) => ({
+      customFields: billFields.map((f) => ({ key: f.key, value: billValue(f.key) })),
+      lineItems: filledLines.map((item) => ({
         ...dated.payloadExtras(item),
         productId: item.productId,
         productName: item.productName,
@@ -545,6 +613,8 @@ export default function CreateSalesInvoice() {
         isGstApplicable: !!item.isGstApplicable,
         taxPercent: Number(item.taxPercent),
         cessPercent: Number(item.cessPercent),
+        ...(item.groupKey ? { groupKey: item.groupKey } : {}),
+        ...(item.includedOnBill ? { includedOnBill: true } : {}),
       })),
     };
 
@@ -558,7 +628,7 @@ export default function CreateSalesInvoice() {
   const showCustomerForm = customerMode === 'found' || customerMode === 'new';
 
   useShortcuts({
-    F2: addLineItem,
+    F2: () => addLineItem('goods'),
     'mod+s': () => !invoiceLoading && handleSaveInvoice('draft'),
   });
 
@@ -587,6 +657,15 @@ export default function CreateSalesInvoice() {
 
   const stockBadges = (item) => {
     if (!item.productId) return null;
+    if (item.itemType === 'service') {
+      const included = products?.find((p) => p._id === item.productId)?.includedItems || [];
+      if (included.length === 0 || item.includedOnBill) return null;
+      return (
+        <div className="mt-1.5 text-[11px] text-ink-muted">
+          Includes: {included.map((i) => `${i.productId?.name || 'item'} ${i.qty}`).join(', ')}
+        </div>
+      );
+    }
     const stockInfo = getProductStock(item.productId);
     if (!stockInfo) return null;
     const isInsufficient = Number(item.qty || 0) > stockInfo.available;
@@ -608,6 +687,233 @@ export default function CreateSalesInvoice() {
   const lineTotalOf = (item) => {
     const taxable = Number(item.qty || 0) * Number(item.rate || 0) * (1 - Number(item.discountPercent || 0) / 100);
     return taxable * (1 + Number(item.taxPercent || 0) / 100);
+  };
+
+  // Empty rows don't count, so a red mark appears only when the whole bill has no items.
+  const noItems = isSubmitted && !viewLines.some((item) => item.productId);
+  const hasBadLine = viewLines.some((item) => item.productId && (Number(item.qty) <= 0 || Number(item.rate) < 0));
+
+  // idx stays the line's place in lineItems, so totals and pricing see one list.
+  const indexedLines = viewLines.map((item, idx) => ({ item, idx }));
+  const serviceKeys = new Set(viewLines.filter((l) => l.itemType === 'service' && l.groupKey).map((l) => l.groupKey));
+
+  const goodsSection = () => {
+    const rows = indexedLines.filter(({ item }) => lineKind(item) === 'goods' || (isLinkedGoods(item) && !serviceKeys.has(item.groupKey)));
+    return (
+      <div className="flex flex-col gap-3">
+        {/* Desktop table */}
+        {rows.length > 0 && <LineItemsTable
+          className="hidden md:block"
+          minWidth={760}
+          head={
+          <tr>
+            <th className={`${LINE_TH} w-auto min-w-[260px]`}>Product</th>
+            <th className={`${LINE_TH} w-[10%] min-w-[90px] text-right`}>Qty <span className="text-danger">*</span></th>
+            <th className={`${LINE_TH} w-[14%] min-w-[110px] text-right`}>Rate (₹) <span className="text-danger">*</span></th>
+            <th className={`${LINE_TH} w-[11%] min-w-[90px] text-right`}>Disc (%)</th>
+            <th className={`${LINE_TH} w-[8%] min-w-[70px] text-right`}>GST</th>
+            <th className={`${LINE_TH} w-[14%] min-w-[110px] text-right`}>Amount (₹)</th>
+            <th className={`${LINE_TH} w-[5%] min-w-[44px]`}><span className="sr-only">Remove</span></th>
+          </tr>
+          }
+        >
+          {rows.map(({ item, idx }) => (
+            <LineRow key={idx} tone={isShort(item) ? 'warning' : undefined}>
+              <td className={LINE_TD}>
+                <ProductSearchPicker
+                  value={item.productId}
+                  selectedLabel={item.productName}
+                  onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
+                  error={noItems}
+                  itemType="goods"
+                />
+                <LinePriceNote
+                  line={item}
+                  showBatch
+                  onChangeBatch={() => dated.changeBatch(idx)}
+                  onReason={(r) => dated.setReason(idx, r)}
+                  onReset={() => dated.resetPrice(idx)}
+                  submitted={isSubmitted}
+                />
+                {stockBadges(item)}
+              </td>
+              <td className={LINE_TD}>
+                <Input
+                  size="sm"
+                  type="number"
+                  min="1"
+                  value={item.qty}
+                  onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))}
+                  invalid={isSubmitted && Number(item.qty) <= 0}
+                  className="text-right tabular-nums"
+                />
+                {isSubmitted && Number(item.qty) <= 0 && <div className="mt-1 text-right text-xs text-danger">Invalid Qty</div>}
+              </td>
+              <td className={LINE_TD}>
+                <Input
+                  size="sm"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.rate}
+                  onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
+                  readOnly={lockRate}
+                  title={lockRate ? 'Price comes from the Price master' : undefined}
+                  invalid={isSubmitted && Number(item.rate) < 0}
+                  className="text-right tabular-nums"
+                />
+                {isSubmitted && Number(item.rate) < 0 && <div className="mt-1 text-right text-xs text-danger">Invalid Rate</div>}
+              </td>
+              <td className={LINE_TD}>
+                <Input
+                  size="sm"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={item.discountPercent}
+                  onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
+                  readOnly={lockRate}
+                  className="text-right tabular-nums"
+                />
+              </td>
+              <td className={`${LINE_TD} pt-5 text-right font-medium tabular-nums`}>
+                {item.isGstApplicable ? `${item.taxPercent}%` : '—'}
+              </td>
+              <td className={`${LINE_TD} pt-5 text-right font-bold tabular-nums`}>
+                {lineTotalOf(item).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </td>
+              <td className={`${LINE_TD} pt-3.5 text-center`}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remove row ${idx + 1}`}
+                  onClick={() => removeLineItem(idx)}
+                  disabled={rows.length <= 1 && !item.productId}
+                  className="hover:bg-danger-soft hover:text-danger"
+                >
+                  <Trash2 />
+                </Button>
+              </td>
+            </LineRow>
+          ))}
+        </LineItemsTable>}
+
+        {/* Phone: one card per line */}
+        <div className="flex flex-col gap-3 md:hidden">
+          {rows.map(({ item, idx }) => (
+            <div key={idx} className={`flex flex-col gap-3 rounded-control p-4 ${isShort(item) ? 'bg-highlight-soft' : 'bg-surface ring-1 ring-line'}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-ink-subtle">Item #{idx + 1}</span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remove item ${idx + 1}`}
+                  onClick={() => removeLineItem(idx)}
+                  disabled={rows.length <= 1 && !item.productId}
+                  className="hover:bg-danger-soft hover:text-danger"
+                >
+                  <Trash2 />
+                </Button>
+              </div>
+
+              <div className="flex flex-col">
+                <Label>Product</Label>
+                <ProductSearchPicker
+                  value={item.productId}
+                  selectedLabel={item.productName}
+                  onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
+                  error={noItems}
+                  itemType="goods"
+                />
+                <LinePriceNote
+                  line={item}
+                  showBatch
+                  onChangeBatch={() => dated.changeBatch(idx)}
+                  onReason={(r) => dated.setReason(idx, r)}
+                  onReset={() => dated.resetPrice(idx)}
+                  submitted={isSubmitted}
+                />
+                {stockBadges(item)}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Qty" required error={isSubmitted && Number(item.qty) <= 0 ? 'Invalid Qty' : undefined}>
+                  <Input type="number" min="1" value={item.qty} onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))} />
+                </Field>
+                <Field label="Rate (₹)" required error={isSubmitted && Number(item.rate) < 0 ? 'Invalid Rate' : undefined}>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.rate}
+                    onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
+                    readOnly={lockRate}
+                    title={lockRate ? 'Price comes from the Price master' : undefined}
+                  />
+                </Field>
+                <Field label="Discount (%)">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={item.discountPercent}
+                    onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
+                    readOnly={lockRate}
+                  />
+                </Field>
+                <div className="flex flex-col">
+                  <Label>GST</Label>
+                  <div className="flex h-11 items-center justify-center rounded-control bg-surface text-sm font-medium text-ink">
+                    {item.isGstApplicable ? `${item.taxPercent}%` : '—'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-line pt-2 text-sm font-semibold">
+                <span className="text-ink-muted">Line total</span>
+                <span className="tabular-nums text-ink">{inr(lineTotalOf(item))}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <AddLineBar onAdd={() => addLineItem('goods')} addLabel="Add product" shortcut="F2">
+          <BarcodeScanInput onProduct={handleScannedProduct} itemType="goods" />
+        </AddLineBar>
+      </div>
+    );
+  };
+
+  const serviceSection = () => {
+    const services = indexedLines.filter(({ item }) => item.itemType === 'service');
+    const ctx = {
+      dated,
+      noItems,
+      lockRate,
+      submitted: isSubmitted,
+      stock: stockBadges,
+      stockOf: (item) => getProductStock(item.productId),
+      isShort,
+      totalOf: lineTotalOf,
+      onChange: handleLineItemChange,
+      onRemove: removeLineItem,
+      chargedByQty: (item) => (item.chargeBy ?? productCache[item.productId]?.chargeBy) === 'quantity',
+      freePrice: (item) => (item.priceAtBilling ?? productCache[item.productId]?.priceAtBilling) === true,
+    };
+    return (
+      <div className="flex flex-col gap-3">
+        {services.map((row) => (
+          <ServiceLineCard
+            key={row.idx}
+            row={row}
+            products={indexedLines.filter(({ item }) => isLinkedGoods(item) && item.groupKey === row.item.groupKey)}
+            removable={services.length > 1 || !!row.item.productId}
+            ctx={ctx}
+          />
+        ))}
+        <AddLineBar onAdd={() => addLineItem('service')} addLabel="Add service" shortcut="" />
+      </div>
+    );
   };
 
   return (
@@ -822,195 +1128,39 @@ export default function CreateSalesInvoice() {
       </Section>
 
       {/* Line items */}
-      <Section title="Items" description={lockRate ? 'Rates come from the Price master.' : 'Rates are before GST.'} bodyClassName="px-3 sm:px-4">
-        <div className="flex flex-col gap-3">
-          {/* Desktop table */}
-          <LineItemsTable
-            className="hidden md:block"
-            minWidth={760}
-            head={
-            <tr>
-              <th className={`${LINE_TH} w-auto min-w-[260px]`}>Product <span className="text-danger">*</span></th>
-              <th className={`${LINE_TH} w-[10%] min-w-[90px] text-right`}>Qty <span className="text-danger">*</span></th>
-              <th className={`${LINE_TH} w-[14%] min-w-[110px] text-right`}>Rate (₹) <span className="text-danger">*</span></th>
-              <th className={`${LINE_TH} w-[11%] min-w-[90px] text-right`}>Disc (%)</th>
-              <th className={`${LINE_TH} w-[8%] min-w-[70px] text-right`}>GST</th>
-              <th className={`${LINE_TH} w-[14%] min-w-[110px] text-right`}>Amount (₹)</th>
-              <th className={`${LINE_TH} w-[5%] min-w-[44px]`}><span className="sr-only">Remove</span></th>
-            </tr>
-            }
-          >
-            {viewLines.map((item, idx) => (
-              <LineRow key={idx} tone={isShort(item) ? 'warning' : undefined}>
-                <td className={LINE_TD}>
-                  <ProductSearchPicker
-                    value={item.productId}
-                    selectedLabel={item.productName}
-                    onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
-                    error={isSubmitted && !item.productId}
-                  />
-                  {isSubmitted && !item.productId && <div className="mt-1 text-xs text-danger">Product is required</div>}
-                  <LinePriceNote
-                    line={item}
-                    showBatch
-                    onChangeBatch={() => dated.changeBatch(idx)}
-                    onReason={(r) => dated.setReason(idx, r)}
-                    onReset={() => dated.resetPrice(idx)}
-                    submitted={isSubmitted}
-                  />
-                  {stockBadges(item)}
-                </td>
-                <td className={LINE_TD}>
+      {billFields.length > 0 && (
+        <Section title="Bill details">
+          <FormGrid cols={3}>
+            {billFields.map((f) => (
+              <Field key={f.key} label={f.label} required={f.required}>
+                {f.type === 'dropdown' ? (
+                  <Select options={f.options.map((o) => ({ value: o, label: o }))} value={billValue(f.key)} onChange={(v) => setBillEdits((prev) => ({ ...prev, [f.key]: v || '' }))} placeholder="Select" />
+                ) : (
                   <Input
-                    size="sm"
-                    type="number"
-                    min="1"
-                    value={item.qty}
-                    onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))}
-                    invalid={isSubmitted && Number(item.qty) <= 0}
-                    className="text-right tabular-nums"
+                    type={f.type === 'number' || f.type === 'date' ? f.type : 'text'}
+                    value={billValue(f.key)}
+                    onChange={(e) => setBillEdits((prev) => ({ ...prev, [f.key]: e.target.value }))}
                   />
-                  {isSubmitted && Number(item.qty) <= 0 && <div className="mt-1 text-right text-xs text-danger">Invalid Qty</div>}
-                </td>
-                <td className={LINE_TD}>
-                  <Input
-                    size="sm"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.rate}
-                    onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
-                    readOnly={lockRate}
-                    title={lockRate ? 'Price comes from the Price master' : undefined}
-                    invalid={isSubmitted && Number(item.rate) < 0}
-                    className="text-right tabular-nums"
-                  />
-                  {isSubmitted && Number(item.rate) < 0 && <div className="mt-1 text-right text-xs text-danger">Invalid Rate</div>}
-                </td>
-                <td className={LINE_TD}>
-                  <Input
-                    size="sm"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={item.discountPercent}
-                    onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
-                    readOnly={lockRate}
-                    className="text-right tabular-nums"
-                  />
-                </td>
-                <td className={`${LINE_TD} pt-5 text-right font-medium tabular-nums`}>
-                  {item.isGstApplicable ? `${item.taxPercent}%` : '—'}
-                </td>
-                <td className={`${LINE_TD} pt-5 text-right font-bold tabular-nums`}>
-                  {lineTotalOf(item).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td className={`${LINE_TD} pt-3.5 text-center`}>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Remove row ${idx + 1}`}
-                    onClick={() => removeLineItem(idx)}
-                    disabled={lineItems.length <= 1}
-                    className="hover:bg-danger-soft hover:text-danger"
-                  >
-                    <Trash2 />
-                  </Button>
-                </td>
-              </LineRow>
+                )}
+              </Field>
             ))}
-          </LineItemsTable>
+          </FormGrid>
+        </Section>
+      )}
 
-          {/* Phone: one card per line */}
-          <div className="flex flex-col gap-3 md:hidden">
-            {viewLines.map((item, idx) => (
-              <div key={idx} className={`flex flex-col gap-3 rounded-control p-4 ${isShort(item) ? 'bg-highlight-soft' : 'bg-surface ring-1 ring-line'}`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-ink-subtle">Item #{idx + 1}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Remove item ${idx + 1}`}
-                    onClick={() => removeLineItem(idx)}
-                    disabled={lineItems.length <= 1}
-                    className="hover:bg-danger-soft hover:text-danger"
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-
-                <div className="flex flex-col">
-                  <Label required>Product</Label>
-                  <ProductSearchPicker
-                    value={item.productId}
-                    selectedLabel={item.productName}
-                    onSelect={(product) => handleLineItemChange(idx, 'productId', product)}
-                    error={isSubmitted && !item.productId}
-                  />
-                  {isSubmitted && !item.productId && <div className="mt-1 text-xs text-danger">Product is required</div>}
-                  <LinePriceNote
-                    line={item}
-                    showBatch
-                    onChangeBatch={() => dated.changeBatch(idx)}
-                    onReason={(r) => dated.setReason(idx, r)}
-                    onReset={() => dated.resetPrice(idx)}
-                    submitted={isSubmitted}
-                  />
-                  {stockBadges(item)}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Qty" required error={isSubmitted && Number(item.qty) <= 0 ? 'Invalid Qty' : undefined}>
-                    <Input type="number" min="1" value={item.qty} onChange={(e) => handleLineItemChange(idx, 'qty', Number(e.target.value))} />
-                  </Field>
-                  <Field label="Rate (₹)" required error={isSubmitted && Number(item.rate) < 0 ? 'Invalid Rate' : undefined}>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.rate}
-                      onChange={(e) => handleLineItemChange(idx, 'rate', Number(e.target.value))}
-                      readOnly={lockRate}
-                      title={lockRate ? 'Price comes from the Price master' : undefined}
-                    />
-                  </Field>
-                  <Field label="Discount (%)">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={item.discountPercent}
-                      onChange={(e) => handleLineItemChange(idx, 'discountPercent', Number(e.target.value))}
-                      readOnly={lockRate}
-                    />
-                  </Field>
-                  <div className="flex flex-col">
-                    <Label>GST</Label>
-                    <div className="flex h-11 items-center justify-center rounded-control bg-surface text-sm font-medium text-ink">
-                      {item.isGstApplicable ? `${item.taxPercent}%` : '—'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-line pt-2 text-sm font-semibold">
-                  <span className="text-ink-muted">Line total</span>
-                  <span className="tabular-nums text-ink">{inr(lineTotalOf(item))}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <AddLineBar onAdd={addLineItem} addLabel="Add row">
-            <BarcodeScanInput onProduct={handleScannedProduct} />
-          </AddLineBar>
-
-          {isSubmitted && lineItems.some((item) => !item.productId || Number(item.qty) <= 0 || Number(item.rate) < 0) && (
-            <div role="alert" className="text-sm font-medium text-danger">
-              Please fill out all required line items with valid products, quantities, and rates.
-            </div>
-          )}
-        </div>
+      <Section title="Products" description={lockRate ? 'Rates come from the Price master.' : 'Rates are before GST.'} bodyClassName="px-3 sm:px-4">
+        {goodsSection()}
       </Section>
+
+      <Section title="Services" description="Fixed-price services are billed once. Products used with a service appear below it at their batch price, and can be removed." bodyClassName="px-3 sm:px-4">
+        {serviceSection()}
+      </Section>
+
+      {(noItems || (isSubmitted && hasBadLine)) && (
+        <div role="alert" className="text-sm font-medium text-danger">
+          {noItems ? 'Add at least one product or service.' : 'Please enter valid quantities and rates.'}
+        </div>
+      )}
 
       <BatchPickerModal picker={dated.picker} onPick={dated.pickBatch} onClose={dated.closePicker} />
 

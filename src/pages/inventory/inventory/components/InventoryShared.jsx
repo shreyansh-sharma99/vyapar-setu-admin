@@ -88,6 +88,7 @@ export const ProductSearchSelect = ({
           q: q?.trim() || undefined,
           limit: 20,
           includeInactive,
+          itemType: 'goods',
         });
         return (Array.isArray(res?.data) ? res.data : []).map(toOption);
       } catch {

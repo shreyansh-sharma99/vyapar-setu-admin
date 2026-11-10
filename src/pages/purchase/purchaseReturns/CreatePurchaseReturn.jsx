@@ -34,7 +34,7 @@ import { getPurchaseBillByIdApi, getPurchaseBillsApi } from '../purchaseBills/se
 import { confirmPurchaseReturn, createPurchaseReturn, fetchPurchaseReturn, updatePurchaseReturn } from './services/purchaseReturnSlice';
 
 const billLines = (bill) =>
-  (bill?.items || []).map((i) => ({ ...lineFromDoc(i), fromBucket: 'auto', reason: '' }));
+  (bill?.items || []).filter((i) => i.itemType !== 'service').map((i) => ({ ...lineFromDoc(i), fromBucket: 'auto', reason: '' })); // services cannot be returned
 
 function PurchaseReturnForm({ doc, init }) {
   const dispatch = useDispatch();

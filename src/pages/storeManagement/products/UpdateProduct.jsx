@@ -42,20 +42,21 @@ export default function UpdateProduct() {
     dispatch(clearProductToast());
     if (updateProduct.fulfilled.match(result)) {
       dispatch(resetProductStatus());
-      navigate('/products', { state: { message: 'Product updated successfully.', color: 'success' } });
+      navigate('/products', { state: { message: `${label} updated successfully.`, color: 'success' } });
     } else {
-      showToast(result.payload || 'Failed to update product.', 'danger');
+      showToast(result.payload || `Failed to update ${label.toLowerCase()}.`, 'danger');
     }
   };
 
   const productReady = !!currentProduct && String(currentProduct._id) === String(id);
+  const label = productReady && currentProduct.itemType === 'service' ? 'Service' : 'Product';
   const isFormLoading =
     categoriesLoading || brandsLoading || manufacturersLoading || (!!id && loadedId !== id && !productReady);
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Update Product"
+        title={`Update ${label}`}
         actions={
           <Button variant="secondary" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>
             Back

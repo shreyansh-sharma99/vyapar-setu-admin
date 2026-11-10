@@ -50,6 +50,7 @@ export const useStockInPricing = (productIds = []) => {
 
 /** Empty new-batch fields for a line of product `p` (a lookup row). */
 export const stockInFields = (p) => ({
+  itemType: p?.itemType || 'goods',
   expiryDate: '',
   mrp: '',
   mrpTouched: false,
@@ -88,7 +89,7 @@ export const stockInFromSaved = (item) => {
  */
 export const barcodeProblems = (lines) => {
   const out = {};
-  const used = lines.filter((l) => l.productId);
+  const used = lines.filter((l) => l.productId && l.itemType !== 'service');
   const codeOf = (l) => String(l.barcode || '').trim();
   used.forEach((l) => {
     const c = codeOf(l);
@@ -168,7 +169,7 @@ export const priceCheck = (line, info, costPerBase) => {
  */
 export const stockInCheck = (line, info, costPerBase) => {
   const out = { error: '', warning: '', hint: '' };
-  if (!line.productId) return out;
+  if (!line.productId || line.itemType === 'service') return out;
   const mrp = num(shownMrp(line, info));
   const sp = num(shownSp(line, info));
   if (!(mrp > 0)) out.error = `Enter the MRP for "${line.productName}".`;
@@ -179,7 +180,7 @@ export const stockInCheck = (line, info, costPerBase) => {
 };
 
 /** Payload fields for one stock-in line (barcode, expiry, MRP, changed SP; the batch no is automatic). */
-export const stockInPayload = (line, info) => ({
+export const stockInPayload = (line, info) => (line.itemType === 'service' ? {} : {
   barcode: String(line.barcode || '').trim(),
   expiryDate: line.expiryDate || null,
   mrp: num(shownMrp(line, info)),

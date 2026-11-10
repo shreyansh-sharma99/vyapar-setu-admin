@@ -109,7 +109,7 @@ export default function PurchaseBillDetails() {
             )}
             <div className="min-w-0">
               <div className="truncate font-semibold">{l.productName}</div>
-              {l.hsnCode && <div className="text-xs text-ink-subtle">HSN {l.hsnCode}</div>}
+              {(l.hsnCode || l.itemType === 'service') && <div className="text-xs text-ink-subtle">{[l.itemType === 'service' && 'Service', l.hsnCode && `${l.itemType === 'service' ? 'SAC' : 'HSN'} ${l.hsnCode}`].filter(Boolean).join(' · ')}</div>}
             </div>
           </div>
         );

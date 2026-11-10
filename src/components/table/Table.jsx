@@ -14,7 +14,7 @@ import { Button, DataTable, Switch } from '@/components/ui';
 
 const isActionsHeader = (h) => h.key === 'actions' || h.key === '__actions__' || (h.label || '').toLowerCase() === 'actions';
 
-function RowActions({ item, onEdit, onDelete, onView, onAudit, auditTitle = 'Stock Audit Report', onToggle, toggleField = 'isActive' }) {
+function RowActions({ item, onEdit, onDelete, onView, onAudit, auditTitle = 'Stock Audit Report', showAudit, onToggle, toggleField = 'isActive' }) {
   return (
     <div className="inline-flex items-center justify-end gap-0.5">
       {onToggle && (
@@ -41,7 +41,7 @@ function RowActions({ item, onEdit, onDelete, onView, onAudit, auditTitle = 'Sto
           <Trash2 />
         </Button>
       )}
-      {onAudit && (
+      {onAudit && (!showAudit || showAudit(item)) && (
         <Button variant="ghost" size="icon-sm" title={auditTitle} aria-label={auditTitle} onClick={() => onAudit(item)} className="text-info hover:bg-info-soft hover:text-info">
           <FaHistory />
         </Button>
@@ -68,6 +68,7 @@ export default function Table({
   onView,
   onAudit,
   auditTitle,
+  showAudit,
   onToggle,
   toggleField = 'isActive',
   showPagination = true,
@@ -116,6 +117,7 @@ export default function Table({
           onView={onView}
           onAudit={onAudit}
           auditTitle={auditTitle}
+          showAudit={showAudit}
           onToggle={onToggle}
           toggleField={toggleField}
         />

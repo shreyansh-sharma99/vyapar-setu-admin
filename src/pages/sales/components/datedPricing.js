@@ -249,7 +249,8 @@ export const useDatedSalesLines = ({ lineItems, setLineItems, date, productCache
   /** First problem with typed prices (missing reason), or ''. */
   const priceProblem = () => {
     if (!withPrices) return '';
-    const bad = lineItems.find((l) => l.productId && l.priceOverride && !String(l.priceOverrideReason || '').trim());
+    const freePrice = (l) => (l.priceAtBilling ?? productCache[String(l.productId)]?.priceAtBilling) === true;
+    const bad = lineItems.find((l) => l.productId && l.priceOverride && !freePrice(l) && !String(l.priceOverrideReason || '').trim());
     return bad ? `Give a reason for changing the price of "${bad.productName}".` : '';
   };
 

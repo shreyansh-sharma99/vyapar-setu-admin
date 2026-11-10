@@ -11,7 +11,8 @@ import ProductForm from './components/ProductForm';
 import ToastStack from './components/ToastStack';
 import { useToasts } from './utils/productUtils';
 
-export default function CreateProduct() {
+export default function CreateProduct({ itemType = 'goods' }) {
+  const label = itemType === 'service' ? 'Service' : 'Product';
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { toasts, showToast } = useToasts(4500);
@@ -33,9 +34,9 @@ export default function CreateProduct() {
     dispatch(clearProductToast());
     if (createProduct.fulfilled.match(result)) {
       dispatch(resetProductStatus());
-      navigate('/products', { state: { message: 'Product created successfully.', color: 'success' } });
+      navigate('/products', { state: { message: `${label} created successfully.`, color: 'success' } });
     } else {
-      showToast(result.payload || 'Failed to create product.', 'danger');
+      showToast(result.payload || `Failed to create ${label.toLowerCase()}.`, 'danger');
     }
   };
 
@@ -44,7 +45,7 @@ export default function CreateProduct() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Create Product"
+        title={`Create ${label}`}
         actions={
           <Button variant="secondary" startIcon={<ArrowLeft />} onClick={() => navigate(-1)}>
             Back
@@ -60,6 +61,7 @@ export default function CreateProduct() {
       ) : (
         <ProductForm
           mode="create"
+          itemType={itemType}
           categories={categories || []}
           brands={brands || []}
           manufacturers={manufacturers || []}

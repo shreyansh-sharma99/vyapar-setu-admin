@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Search, Barcode, QrCode, FileSpreadsheet, Printer, ScanBarcode, FilterX, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { formatDateWithTiming } from '@/utility/dateTiming';
-import { Badge, Button, Card, Field, Input, PageHeader, Select, StatusBadge } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, PageHeader, Segmented, Select, StatusBadge } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import Table from '@/components/table/Table';
 import {
@@ -24,6 +24,8 @@ import { encodeId, formatINR, formatQty, getStockState, toNumberOr, useToasts } 
 
 const STOCK_TEXT = { in: 'text-success', low: 'text-warning', out: 'text-danger' };
 const Dash = () => <span className="text-ink-subtle">—</span>;
+// Stock-side columns mean nothing on the Services tab.
+const SERVICE_HIDDEN_COLUMNS = ['images', 'barcode', 'brandId', 'mrp', 'currentStock', 'stockState', 'damagedStock', 'openBatches'];
 
 const DEFAULT_SORT = { sort: 'createdAt', order: 'desc' };
 const SORTABLE_FIELDS = ['name', 'sku', 'createdAt', 'updatedAt', 'basePrice', 'discountedPrice', 'finalPrice', 'mrp', 'costPrice', 'currentStock', 'status'];
@@ -43,6 +45,7 @@ const STOCK_OPTIONS = [
 ];
 
 const EMPTY_FILTERS = { categoryId: '', brandId: '', status: '', stockStatus: '' };
+const TYPE_TABS = [{ value: '', label: 'All' }, { value: 'goods', label: 'Goods' }, { value: 'service', label: 'Services' }];
 
 export default function ProductList() {
   const dispatch = useDispatch();
@@ -66,6 +69,7 @@ export default function ProductList() {
     limit: 10,
     ...DEFAULT_SORT,
     search: '',
+    itemType: '',
     ...EMPTY_FILTERS,
   });
 
@@ -195,6 +199,7 @@ export default function ProductList() {
       width: '80px',
       value: 'checked',
       render: (item) => {
+        if (item.itemType === 'service') return <Dash />;
         const first = item.images?.[0];
         const imageUrl = typeof first === 'string' ? first : first?.path || first?.url;
         return imageUrl ? (
@@ -278,6 +283,7 @@ export default function ProductList() {
       sortable: true,
       value: 'checked',
       render: (item) => {
+        if (item.itemType === 'service') return <Dash />;
         const stock = toNumberOr(item.currentStock, 0);
         const state = getStockState(stock, item.lowStockAlertThreshold);
         return (
@@ -292,6 +298,7 @@ export default function ProductList() {
       key: 'stockState',
       value: 'checked',
       render: (item) => {
+        if (item.itemType === 'service') return <Badge tone="info">Service</Badge>;
         const state = getStockState(toNumberOr(item.currentStock, 0), item.lowStockAlertThreshold);
         if (state === 'low') return <Badge tone="warning">Low stock</Badge>;
         if (state === 'out') return <Badge tone="danger">Out of stock</Badge>;
@@ -371,9 +378,14 @@ export default function ProductList() {
             <Button startIcon={<Plus />} onClick={() => navigate('/products/create')}>
               Add New Product
             </Button>
+            <Button startIcon={<Plus />} onClick={() => navigate('/products/create-service')}>
+              Add New Service
+            </Button>
           </>
         }
       />
+
+      <Segmented aria-label="Item type" value={params.itemType} onChange={(v) => setFilter('itemType', v)} options={TYPE_TABS} className="self-start" />
 
       {/* Barcode finder */}
       <Card padding="sm">
@@ -470,7 +482,7 @@ export default function ProductList() {
             <ChevronDown className={cn('transition-transform duration-300', showFilters && 'rotate-180')} />
           </Button>
         }
-        headers={headers}
+        headers={params.itemType === 'service' ? headers.filter((h) => !SERVICE_HIDDEN_COLUMNS.includes(h.key)) : headers}
         data={products}
         loading={loading}
         searchPlaceholder="Search by name, SKU, barcode or HSN..."
@@ -481,6 +493,7 @@ export default function ProductList() {
         toggleField="status"
         onView={handleViewClick}
         onAudit={handleAuditClick}
+        showAudit={(item) => item.itemType !== 'service'}
         pageSizeOptions={[10, 25, 50, 100]}
         currentPage={pagination?.page || params.page || 1}
         pageSize={pagination?.limit || params.limit || 10}

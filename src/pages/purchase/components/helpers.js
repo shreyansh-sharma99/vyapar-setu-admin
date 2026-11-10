@@ -215,6 +215,7 @@ export const lineFromDoc = (item) => {
     ...emptyLine(),
     productId: refId(item.productId),
     productName: item.productName || p?.name || '',
+    itemType: item.itemType || p?.itemType || 'goods',
     sku: item.sku || p?.sku || '',
     hsnCode: item.hsnCode || '',
     unit,

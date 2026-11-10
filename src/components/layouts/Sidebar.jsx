@@ -31,7 +31,7 @@ const menuGroups = [
           { name: 'Subcategories', href: '/subcategories' },
           { name: 'Brands', href: '/brands' },
           { name: 'Manufacturers', href: '/manufacturers' },
-          { name: 'Products', href: '/products' },
+          { name: 'Products & Services', href: '/products' },
           { name: 'Import / Export', href: '/products/import-export' },
           { name: 'Print Barcode Labels', href: '/products/labels' },
         ],
@@ -72,7 +72,7 @@ const menuGroups = [
         submenu: [
           { name: 'Sales Register', href: '/reports/sales-register' },
           { name: 'GSTR-1 Summary', href: '/reports/gstr1' },
-          { name: 'HSN Summary', href: '/reports/hsn-summary' },
+          { name: 'HSN / SAC Summary', href: '/reports/hsn-summary' },
           { name: 'Accounts Ageing', href: '/reports/ageing' },
           { name: 'Profit', href: '/reports/profit' },
           { name: 'Price Overrides', href: '/reports/price-overrides' },
@@ -83,6 +83,7 @@ const menuGroups = [
         icon: Settings,
         submenu: [
           { name: 'General Invoice Setting', href: '/sales/general-invoice-setting' },
+          { name: 'Bill Fields', href: '/sales/bill-fields' },
           { name: 'Invoice Settings', href: '/sales/invoice-setting' },
           { name: 'Invoice Layout', href: '/sales/invoice-layout' },
         ],

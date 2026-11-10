@@ -21,7 +21,10 @@ export default function AsyncSearchSelect({
   className = '',
 }) {
   const wrapperRef = useRef(null);
+  const listRef = useRef(null);
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState({ query: null, options: [], failed: false });
   const debouncedQuery = useDebouncedValue(query, 300);
@@ -53,9 +56,32 @@ export default function AsyncSearchSelect({
 
   const handleSelect = (option) => {
     onChange?.(option);
+    setNotice('');
+    setActiveIndex(-1);
     if (!keepOpenOnSelect) {
       setOpen(false);
       setQuery('');
+    }
+  };
+
+  // Enter picks from this list and never submits the form around it.
+  const handleKeyDown = async (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = e.key === 'ArrowDown' ? Math.min(results.options.length - 1, activeIndex + 1) : Math.max(0, activeIndex - 1);
+      setActiveIndex(next);
+      listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!open) return;
+      if (!loading && results.options[activeIndex]) {
+        handleSelect(results.options[activeIndex]);
+        return;
+      }
+      if (!query.trim()) return;
+      const options = loading ? await Promise.resolve(fetchOptions(query)).catch(() => []) : results.options;
+      if (options.length === 1) handleSelect(options[0]);
+      else if (options.length > 1) setNotice('Several matches. Use the arrow keys or click one.');
     }
   };
 
@@ -71,11 +97,16 @@ export default function AsyncSearchSelect({
         onFocus={() => {
           setOpen(true);
           setQuery('');
+          setActiveIndex(-1);
+          setNotice('');
         }}
         onChange={(e) => {
           setQuery(e.target.value);
+          setActiveIndex(-1);
+          setNotice('');
           if (!open) setOpen(true);
         }}
+        onKeyDown={handleKeyDown}
         startIcon={<Search />}
         endIcon={
           <span className="flex items-center gap-1">
@@ -101,6 +132,7 @@ export default function AsyncSearchSelect({
       {open && (
         <div
           role="listbox"
+          ref={listRef}
           className="absolute left-0 right-0 top-[calc(100%+4px)] z-[1000] max-h-64 overflow-auto rounded-control border border-line bg-surface p-1 shadow-[0_12px_32px_-8px_rgba(30,27,75,0.25)]"
         >
           {results.failed ? (
@@ -110,7 +142,7 @@ export default function AsyncSearchSelect({
               {loading ? 'Searching...' : emptyText}
             </div>
           ) : (
-            results.options.map((opt) => (
+            results.options.map((opt, i) => (
               <div
                 role="option"
                 aria-selected={opt.value === value}
@@ -119,7 +151,7 @@ export default function AsyncSearchSelect({
                   e.preventDefault();
                   handleSelect(opt);
                 }}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm cursor-pointer select-none flex flex-col ${opt.value === value ? 'bg-brand-soft' : 'hover:bg-fill'}`}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm cursor-pointer select-none flex flex-col ${opt.value === value ? 'bg-brand-soft' : i === activeIndex ? 'bg-fill' : 'hover:bg-fill'}`}
               >
                 <span className={`font-medium ${opt.value === value ? 'text-brand-ink' : 'text-ink'}`}>{opt.label}</span>
                 {opt.sublabel && <span className="text-xs text-ink-muted">{opt.sublabel}</span>}
@@ -128,6 +160,7 @@ export default function AsyncSearchSelect({
           )}
         </div>
       )}
+      {open && notice && <p className="m-0 mt-1 text-xs text-warning">{notice}</p>}
     </div>
   );
 }

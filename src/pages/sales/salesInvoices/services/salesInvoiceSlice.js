@@ -44,6 +44,11 @@ export const getSalesInvoiceSummary = createAsyncThunk(
   }
 );
 
+/** Toast when goods used inside a service could not be taken from stock. */
+const shortageToast = (warnings) => (warnings?.length
+  ? { message: `Invoice saved. Not enough stock of: ${warnings.map((w) => `${w.item} (${w.shortQty} ${w.unit} short)`).join(', ')}`, color: 'warning' }
+  : null);
+
 export const createSalesInvoice = createAsyncThunk(
   'salesInvoice/createSalesInvoice',
   async (payload, { rejectWithValue }) => {
@@ -281,7 +286,7 @@ const salesInvoiceSlice = createSlice({
         if (action.payload.data) {
           state.invoices.unshift(action.payload.data);
         }
-        state.toast = { message: action.payload?.message || 'Invoice created successfully.', color: 'success' };
+        state.toast = shortageToast(action.payload?.warnings) || { message: action.payload?.message || 'Invoice created successfully.', color: 'success' };
       })
       .addCase(createSalesInvoice.rejected, (state, action) => {
         state.loading = false;
@@ -337,7 +342,7 @@ const salesInvoiceSlice = createSlice({
         if (index !== -1 && updated) {
           state.invoices[index] = updated;
         }
-        state.toast = { message: 'Invoice confirmed successfully.', color: 'success' };
+        state.toast = shortageToast(action.payload.data?.warnings) || { message: 'Invoice confirmed successfully.', color: 'success' };
       })
       .addCase(confirmSalesInvoice.rejected, (state, action) => {
         state.loading = false;

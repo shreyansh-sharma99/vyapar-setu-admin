@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="An ecnbiz shop sends deliveries to homes while a truck brings new stock">
+  <!-- Widescreen version of login-scene-2.svg for the full-screen login background.
+       The street is drawn in 480x320 units and scaled 2.4x; the road runs the full width. -->
+  <style>
+    .road { animation: road .8s linear infinite; }
+    @keyframes road { to { stroke-dashoffset: -24; } }
+
+    .scooter { animation: scoot 10s linear infinite; }
+    .scooter.s2 { animation-delay: -5s; }
+    @keyframes scoot {
+      0%   { transform: translate(150px, 304px); opacity: 0; }
+      4%, 94% { opacity: 1; }
+      100% { transform: translate(700px, 304px); opacity: 0; }
+    }
+    .truck { animation: truck 13s linear infinite; }
+    @keyframes truck {
+      0%   { transform: translate(720px, 282px); opacity: 1; }
+      76%  { transform: translate(200px, 282px); opacity: 1; }
+      82%, 100% { transform: translate(180px, 282px); opacity: 0; }
+    }
+    .wheel { transform-box: fill-box; transform-origin: center; animation: spin .6s linear infinite; }
+    .truck .wheel { animation-direction: reverse; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .bounce { animation: bounce .3s ease-in-out infinite alternate; }
+    @keyframes bounce { to { transform: translateY(-1.5px); } }
+
+    .pin { transform-box: fill-box; transform-origin: 50% 100%; animation: pin 3.5s ease-out infinite; }
+    .pin.p2 { animation-delay: -1.75s; }
+    @keyframes pin {
+      0%, 55% { transform: scale(0); opacity: 0; }
+      65% { transform: scale(1.2); opacity: 1; }
+      75%, 90% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(1); opacity: 0; }
+    }
+
+    .mv { animation: 22s linear infinite; }
+    .w-r { animation-name: wR; }
+    .w-l { animation-name: wL; animation-delay: -11s; }
+    @keyframes wR { from { transform: translate(-30px, 258px); } to { transform: translate(700px, 258px); } }
+    @keyframes wL { from { transform: translate(700px, 258px); } to { transform: translate(-30px, 258px); } }
+    .leg, .arm { transform-box: fill-box; transform-origin: 50% 0; animation: swing .5s ease-in-out infinite alternate; }
+    .leg.b, .arm { animation-direction: alternate-reverse; }
+    @keyframes swing { from { transform: rotate(22deg); } to { transform: rotate(-22deg); } }
+    .bob { animation: bounce .25s ease-in-out infinite alternate; }
+
+    .cloud { animation: drift 60s linear infinite; }
+    .cloud.c2 { animation-duration: 80s; animation-delay: -35s; }
+    .cloud.c3 { animation-duration: 70s; animation-delay: -55s; }
+    @keyframes drift { from { transform: translateX(-300px); } to { transform: translateX(1900px); } }
+
+    @media (prefers-reduced-motion: reduce) { * { animation-play-state: paused !important; } }
+  </style>
+
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e0e7ff"/>
+    </linearGradient>
+    <pattern id="awning" width="32" height="22" patternUnits="userSpaceOnUse">
+      <rect width="16" height="22" fill="#f97316"/><rect x="16" width="16" height="22" fill="#fff"/>
+    </pattern>
+    <g id="pinShape">
+      <path d="M0 0C-8-10-10-14-10-18A10 10 0 1 1 10-18C10-14 8-10 0 0z" fill="#22c55e"/>
+      <path d="M-4.5-18l3 3 6-6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </defs>
+
+  <!-- sun and clouds (full-size units) -->
+  <circle cx="900" cy="250" r="56" fill="#fde68a" opacity=".55"/>
+  <g class="cloud"><ellipse cx="0" cy="190" rx="70" ry="22" fill="#c7d2fe" opacity=".75"/><ellipse cx="36" cy="172" rx="38" ry="26" fill="#c7d2fe" opacity=".75"/></g>
+  <g class="cloud c2"><ellipse cx="0" cy="120" rx="54" ry="18" fill="#c7d2fe" opacity=".6"/><ellipse cx="-20" cy="106" rx="30" ry="20" fill="#c7d2fe" opacity=".6"/></g>
+  <g class="cloud c3"><ellipse cx="0" cy="300" rx="44" ry="14" fill="#c7d2fe" opacity=".5"/><ellipse cx="18" cy="290" rx="24" ry="15" fill="#c7d2fe" opacity=".5"/></g>
+
+  <g transform="translate(0 132) scale(2.4)">
+    <!-- faint skyline across the whole width -->
+    <g fill="#a5b4fc" opacity=".28">
+      <rect x="150" y="150" width="34" height="94"/><rect x="190" y="176" width="28" height="68"/>
+      <rect x="278" y="168" width="20" height="76"/><rect x="460" y="140" width="40" height="104"/>
+      <rect x="506" y="172" width="30" height="72"/><rect x="544" y="128" width="26" height="116"/>
+      <rect x="576" y="160" width="42" height="84"/><rect x="624" y="146" width="30" height="98"/>
+      <rect x="660" y="176" width="40" height="68"/>
+    </g>
+
+    <!-- shop -->
+    <rect x="86" y="104" width="3" height="10" fill="#4338ca"/>
+    <rect x="40" y="76" width="96" height="30" rx="9" fill="url(#brand)"/>
+    <text x="88" y="97" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" font-weight="800" fill="#fff">ecn<tspan fill="#fdba74">biz</tspan></text>
+    <rect x="24" y="130" width="132" height="114" fill="url(#wall)" stroke="#c7d2fe" stroke-width="1.5"/>
+    <rect x="14" y="112" width="152" height="22" rx="3" fill="url(#awning)"/>
+    <rect x="12" y="108" width="156" height="8" rx="4" fill="#c2410c"/>
+    <g stroke="#6366f1" stroke-width="2">
+      <rect x="34" y="150" width="34" height="38" rx="3" fill="#e0f2fe"/>
+      <rect x="112" y="150" width="34" height="38" rx="3" fill="#e0f2fe"/>
+      <line x1="34" y1="169" x2="68" y2="169"/><line x1="112" y1="169" x2="146" y2="169"/>
+    </g>
+    <rect x="39" y="158" width="7" height="10" rx="1" fill="#f59e0b"/><rect x="50" y="160" width="6" height="8" rx="1" fill="#10b981"/><rect x="59" y="157" width="5" height="11" rx="1" fill="#f43f5e"/>
+    <rect x="117" y="159" width="8" height="9" rx="1" fill="#6366f1"/><rect x="129" y="157" width="6" height="11" rx="1" fill="#f97316"/><rect x="138" y="160" width="5" height="8" rx="1" fill="#10b981"/>
+    <rect x="73" y="186" width="34" height="58" rx="4" fill="#312e81"/>
+    <rect x="77" y="190" width="26" height="54" rx="2" fill="#fde68a" opacity=".55"/>
+
+    <!-- trees -->
+    <rect x="246" y="206" width="6" height="38" rx="2" fill="#92400e"/>
+    <circle cx="249" cy="196" r="20" fill="#86efac"/><circle cx="238" cy="206" r="12" fill="#4ade80"/><circle cx="261" cy="204" r="13" fill="#4ade80"/>
+    <rect x="606" y="214" width="5" height="30" rx="2" fill="#92400e"/>
+    <circle cx="608" cy="206" r="15" fill="#86efac"/><circle cx="600" cy="213" r="9" fill="#4ade80"/>
+
+    <!-- houses -->
+    <rect x="305" y="190" width="60" height="54" fill="url(#wall)" stroke="#c7d2fe" stroke-width="1.5"/>
+    <path d="M298 192L335 160L372 192z" fill="#f97316"/>
+    <rect x="328" y="216" width="14" height="28" rx="2" fill="#6366f1"/>
+    <rect x="312" y="202" width="12" height="10" rx="1" fill="#e0f2fe" stroke="#6366f1" stroke-width="1.5"/>
+    <rect x="346" y="202" width="12" height="10" rx="1" fill="#e0f2fe" stroke="#6366f1" stroke-width="1.5"/>
+    <rect x="390" y="176" width="60" height="68" fill="url(#wall)" stroke="#c7d2fe" stroke-width="1.5"/>
+    <path d="M383 178L420 144L457 178z" fill="#6366f1"/>
+    <rect x="413" y="216" width="14" height="28" rx="2" fill="#f97316"/>
+    <rect x="397" y="188" width="12" height="10" rx="1" fill="#e0f2fe" stroke="#6366f1" stroke-width="1.5"/>
+    <rect x="431" y="188" width="12" height="10" rx="1" fill="#e0f2fe" stroke="#6366f1" stroke-width="1.5"/>
+
+    <!-- delivered pins -->
+    <g transform="translate(335 152)"><use href="#pinShape" class="pin"/></g>
+    <g transform="translate(420 136)"><use href="#pinShape" class="pin p2"/></g>
+
+    <!-- sidewalk and road -->
+    <rect x="0" y="244" width="700" height="18" fill="#c7d2fe" opacity=".55"/>
+    <rect x="0" y="262" width="700" height="60" fill="#475569"/>
+    <line class="road" x1="0" y1="288" x2="700" y2="288" stroke="#e2e8f0" stroke-width="2.5" stroke-dasharray="14 10"/>
+
+    <!-- people on the sidewalk -->
+    <g class="mv w-r"><g class="bob">
+      <rect class="leg a" x="-5" y="-24" width="5" height="24" rx="2.5" fill="#1e293b"/>
+      <rect class="leg b" x="0" y="-24" width="5" height="24" rx="2.5" fill="#334155"/>
+      <rect x="-9" y="-50" width="18" height="29" rx="7" fill="#10b981"/>
+      <circle cx="0" cy="-58" r="8" fill="#c68642"/>
+      <path d="M-8-59a8 8 0 0 1 16 0z" fill="#111827"/>
+      <g class="arm"><rect x="-2" y="-47" width="5" height="22" rx="2.5" fill="#059669"/><rect x="-5" y="-26" width="11" height="12" rx="2" fill="#6366f1"/></g>
+    </g></g>
+    <g class="mv w-l"><g transform="scale(-1 1)"><g class="bob">
+      <rect class="leg a" x="-5" y="-24" width="5" height="24" rx="2.5" fill="#374151"/>
+      <rect class="leg b" x="0" y="-24" width="5" height="24" rx="2.5" fill="#4b5563"/>
+      <rect x="-9" y="-50" width="18" height="29" rx="7" fill="#ec4899"/>
+      <rect class="arm" x="-2" y="-47" width="5" height="22" rx="2.5" fill="#db2777"/>
+      <circle cx="0" cy="-58" r="8" fill="#e0ac69"/>
+      <path d="M-8-59a8 8 0 0 1 16 0v10h-3v-10h-10v10h-3z" fill="#6b3e26"/>
+    </g></g></g>
+
+    <!-- stock truck arriving (far lane, heading left) -->
+    <g class="truck"><g class="bounce">
+      <rect x="-15" y="-46" width="62" height="36" rx="3" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+      <text x="16" y="-23" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="11" font-weight="800" fill="#4f46e5">ecn<tspan fill="#f97316">biz</tspan></text>
+      <rect x="-42" y="-36" width="28" height="26" rx="5" fill="#6366f1"/>
+      <rect x="-38" y="-32" width="12" height="10" rx="2" fill="#e0f2fe"/>
+      <rect x="-44" y="-12" width="92" height="6" rx="3" fill="#1e293b"/>
+      <g class="wheel"><circle cx="-28" cy="-5" r="7" fill="#1e293b"/><circle cx="-28" cy="-5" r="3" fill="#94a3b8"/><rect x="-29" y="-11" width="2" height="12" fill="#94a3b8"/></g>
+      <g class="wheel"><circle cx="32" cy="-5" r="7" fill="#1e293b"/><circle cx="32" cy="-5" r="3" fill="#94a3b8"/><rect x="31" y="-11" width="2" height="12" fill="#94a3b8"/></g>
+    </g></g>
+
+    <!-- delivery scooters (near lane, heading right) -->
+    <g class="scooter"><g class="bounce">
+      <rect x="-28" y="-38" width="18" height="18" rx="2" fill="#f59e0b"/><rect x="-21" y="-38" width="4" height="8" fill="#fde68a"/>
+      <rect x="-24" y="-17" width="34" height="8" rx="4" fill="#f97316"/>
+      <rect x="9" y="-34" width="4" height="24" rx="2" fill="#ea580c"/>
+      <rect x="7" y="-36" width="11" height="3" rx="1.5" fill="#1e293b"/>
+      <rect x="-8" y="-22" width="12" height="5" rx="2" fill="#1e293b"/>
+      <rect x="-6" y="-42" width="12" height="22" rx="5" fill="#6366f1"/>
+      <path d="M2-36L12-33" stroke="#6366f1" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="0" cy="-48" r="6" fill="#f1c27d"/>
+      <path d="M-7-48a7 7 0 0 1 14 0z" fill="#4338ca"/>
+      <g class="wheel"><circle cx="-16" cy="-7" r="7" fill="#1e293b"/><circle cx="-16" cy="-7" r="3" fill="#94a3b8"/><rect x="-17" y="-13" width="2" height="12" fill="#94a3b8"/></g>
+      <g class="wheel"><circle cx="14" cy="-7" r="7" fill="#1e293b"/><circle cx="14" cy="-7" r="3" fill="#94a3b8"/><rect x="13" y="-13" width="2" height="12" fill="#94a3b8"/></g>
+    </g></g>
+    <g class="scooter s2"><g class="bounce">
+      <rect x="-28" y="-38" width="18" height="18" rx="2" fill="#6366f1"/><rect x="-21" y="-38" width="4" height="8" fill="#c7d2fe"/>
+      <rect x="-24" y="-17" width="34" height="8" rx="4" fill="#10b981"/>
+      <rect x="9" y="-34" width="4" height="24" rx="2" fill="#059669"/>
+      <rect x="7" y="-36" width="11" height="3" rx="1.5" fill="#1e293b"/>
+      <rect x="-8" y="-22" width="12" height="5" rx="2" fill="#1e293b"/>
+      <rect x="-6" y="-42" width="12" height="22" rx="5" fill="#f97316"/>
+      <path d="M2-36L12-33" stroke="#f97316" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="0" cy="-48" r="6" fill="#c68642"/>
+      <path d="M-7-48a7 7 0 0 1 14 0z" fill="#1e293b"/>
+      <g class="wheel"><circle cx="-16" cy="-7" r="7" fill="#1e293b"/><circle cx="-16" cy="-7" r="3" fill="#94a3b8"/><rect x="-17" y="-13" width="2" height="12" fill="#94a3b8"/></g>
+      <g class="wheel"><circle cx="14" cy="-7" r="7" fill="#1e293b"/><circle cx="14" cy="-7" r="3" fill="#94a3b8"/><rect x="13" y="-13" width="2" height="12" fill="#94a3b8"/></g>
+    </g></g>
+  </g>
+</svg>

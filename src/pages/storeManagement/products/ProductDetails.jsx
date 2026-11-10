@@ -162,6 +162,7 @@ export default function ProductDetails() {
   const tagsList = parseList(p.tags);
   const customizationFields = parseList(p.customizationFields, false);
   const unit = p.unit || 'pcs';
+  const isService = p.itemType === 'service';
   const isActive = p.status === 'active';
   const totalStock = toNumberOr(p.currentStock, 0);
   const totalDamaged = toNumberOr(p.damagedStock, 0);
@@ -196,12 +197,16 @@ export default function ProductDetails() {
         actions={
           <>
             {backButton}
-            <Button variant="secondary" size="sm" startIcon={<Printer />} onClick={() => navigate('/products/labels', { state: { productIds: [p._id] } })}>
-              Print Label
-            </Button>
-            <Button variant="secondary" size="sm" startIcon={<History />} onClick={() => navigate(`/products/audit/${encodeId(p._id)}`)}>
-              Audit History
-            </Button>
+            {!isService && (
+              <>
+                <Button variant="secondary" size="sm" startIcon={<Printer />} onClick={() => navigate('/products/labels', { state: { productIds: [p._id] } })}>
+                  Print Label
+                </Button>
+                <Button variant="secondary" size="sm" startIcon={<History />} onClick={() => navigate(`/products/audit/${encodeId(p._id)}`)}>
+                  Audit History
+                </Button>
+              </>
+            )}
             <Button size="sm" startIcon={<Edit />} onClick={() => navigate(`/products/edit/${encodeId(p._id)}`)}>
               Edit
             </Button>
@@ -210,44 +215,46 @@ export default function ProductDetails() {
       />
 
       {/* ── Summary: picture · what it is · the numbers that matter ── */}
-      <Card className="grid gap-5 md:grid-cols-[200px_minmax(0,1fr)]">
-        <div className="flex flex-col gap-2">
-          <div className="aspect-square w-full overflow-hidden rounded-control bg-fill">
-            {activeImage ? (
-              <img src={getImageUrl(activeImage)} alt={p.name} className="h-full w-full object-contain" />
-            ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center text-ink-subtle">
-                <ImageIcon className="mb-1 size-10 opacity-40" aria-hidden="true" />
-                <span className="text-xs font-semibold">No image</span>
+      <Card className={cn('grid gap-5', !isService && 'md:grid-cols-[200px_minmax(0,1fr)]')}>
+        {!isService && (
+          <div className="flex flex-col gap-2">
+            <div className="aspect-square w-full overflow-hidden rounded-control bg-fill">
+              {activeImage ? (
+                <img src={getImageUrl(activeImage)} alt={p.name} className="h-full w-full object-contain" />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center text-ink-subtle">
+                  <ImageIcon className="mb-1 size-10 opacity-40" aria-hidden="true" />
+                  <span className="text-xs font-semibold">No image</span>
+                </div>
+              )}
+            </div>
+            {p.images && p.images.length > 1 && (
+              <div className="flex gap-1.5 overflow-x-auto p-0.5">
+                {p.images.map((img, idx) => (
+                  <Button
+                    key={idx}
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Image ${idx + 1}`}
+                    onClick={() => setSelectedImage(img)}
+                    className={cn(
+                      'size-11 shrink-0 overflow-hidden rounded-lg p-0 ring-2',
+                      getImageUrl(activeImage) === getImageUrl(img) ? 'ring-brand' : 'ring-transparent hover:ring-line-strong'
+                    )}
+                  >
+                    <img src={getImageUrl(img)} alt="" className="h-full w-full object-cover" />
+                  </Button>
+                ))}
               </div>
             )}
           </div>
-          {p.images && p.images.length > 1 && (
-            <div className="flex gap-1.5 overflow-x-auto p-0.5">
-              {p.images.map((img, idx) => (
-                <Button
-                  key={idx}
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Image ${idx + 1}`}
-                  onClick={() => setSelectedImage(img)}
-                  className={cn(
-                    'size-11 shrink-0 overflow-hidden rounded-lg p-0 ring-2',
-                    getImageUrl(activeImage) === getImageUrl(img) ? 'ring-brand' : 'ring-transparent hover:ring-line-strong'
-                  )}
-                >
-                  <img src={getImageUrl(img)} alt="" className="h-full w-full object-cover" />
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
 
         <div className="flex min-w-0 flex-col gap-4">
           {/* what it is */}
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={isActive ? 'active' : 'inactive'} label={isActive ? 'Active' : 'Inactive'} />
-            <Badge tone={STOCK_TONE[stockState] || 'neutral'}>{STOCK_LABEL[stockState]}</Badge>
+            {isService ? <Badge tone="info">Service</Badge> : <Badge tone={STOCK_TONE[stockState] || 'neutral'}>{STOCK_LABEL[stockState]}</Badge>}
             {categoryPath && <Badge tone="neutral" icon={Layers}>{categoryPath}</Badge>}
             {p.brandId?.name && <Badge tone="neutral" icon={Tag}>{p.brandId.name}</Badge>}
             <Badge tone="neutral">{gstRate > 0 ? `GST ${gstRate}%` : 'No GST'}</Badge>
@@ -256,8 +263,9 @@ export default function ProductDetails() {
             cols={3}
             items={[
               { label: 'SKU', value: p.sku, mono: true },
-              { label: 'Barcode', value: p.barcode || (totalStock > 0 ? 'Not set — add it on the next purchase' : 'Set when stock comes in'), mono: !!p.barcode },
-              { label: 'HSN / SAC', value: p.hsnSacCode, mono: true },
+              ...(isService ? [] : [{ label: 'Barcode', value: p.barcode || (totalStock > 0 ? 'Not set — add it on the next purchase' : 'Set when stock comes in'), mono: !!p.barcode }]),
+              { label: isService ? 'SAC' : 'HSN / SAC', value: p.hsnSacCode, mono: true },
+              ...(isService ? [{ label: 'Charged', value: p.chargeBy === 'quantity' ? `Per ${unit}` : 'Fixed price' }] : []),
             ]}
           />
 
@@ -270,21 +278,21 @@ export default function ProductDetails() {
               tone={sellAt > 0 ? 'brand' : 'neutral'}
               note={customerPrice > 0 ? (gstRate > 0 ? 'Customer pays, incl. GST' : 'Customer pays') : mrp > 0 ? 'No SP set — bills use the MRP' : 'Set it in Prices & Offers'}
             />
-            <KeyFigure icon={Tag} label="MRP" value={mrp > 0 ? formatINR(mrp) : '—'} note="Printed on the pack" />
-            <KeyFigure
+            {!isService && <KeyFigure icon={Tag} label="MRP" value={mrp > 0 ? formatINR(mrp) : '—'} note="Printed on the pack" />}
+            {!isService && <KeyFigure
               icon={Package}
               label="In stock"
               value={`${formatQty(totalStock)} ${unit}`}
               tone={STOCK_TONE[stockState] || 'neutral'}
               note={totalDamaged > 0 ? `+ ${formatQty(totalDamaged)} damaged` : stockThreshold > 0 ? `Alert at ${formatQty(stockThreshold)}` : 'No low-stock alert set'}
-            />
-            <KeyFigure
+            />}
+            {!isService && <KeyFigure
               icon={TrendingUp}
               label="Profit per unit"
               value={profit === null ? '—' : formatINR(profit)}
               tone={profit === null ? 'neutral' : profit >= 0 ? 'success' : 'danger'}
               note={profit === null ? 'Needs a price and a purchase' : `${profitPct}% on cost incl. GST`}
-            />
+            />}
           </div>
         </div>
       </Card>
@@ -296,7 +304,7 @@ export default function ProductDetails() {
         onChange={setTab}
         options={[
           { value: 'overview', label: 'Overview', icon: Package },
-          { value: 'batches', label: 'Batches', icon: Boxes },
+          ...(isService ? [] : [{ value: 'batches', label: 'Batches', icon: Boxes }]),
           { value: 'prices', label: 'Prices & offers', icon: IndianRupee },
           { value: 'gst', label: 'GST history', icon: Percent },
         ]}
@@ -305,7 +313,16 @@ export default function ProductDetails() {
 
       {tab === 'overview' && (
         <div className="grid items-start gap-5 lg:grid-cols-2">
-          <Section title="Stock" description="Change stock in Inventory → Adjust Stock.">
+          {isService && (
+            <Section title="Products used" description="Added below this service on each bill. They can be removed from that bill.">
+              {(p.includedItems || []).length === 0 ? (
+                <p className="m-0 text-sm text-ink-muted">None</p>
+              ) : (
+                <DetailList cols={2} items={p.includedItems.map((i) => ({ label: i.productId?.name || 'Item', value: `${formatQty(i.qty)} ${i.unit || ''}` }))} />
+              )}
+            </Section>
+          )}
+          {!isService && <Section title="Stock" description="Change stock in Inventory → Adjust Stock.">
             <DetailList
               cols={2}
               items={[
@@ -317,9 +334,9 @@ export default function ProductDetails() {
                 { label: 'Base unit', value: unit },
               ]}
             />
-          </Section>
+          </Section>}
 
-          <Section title="Cost & profit" description="From the last purchase, per unit.">
+          {!isService && <Section title="Cost & profit" description="From the last purchase, per unit.">
             <DetailList
               cols={2}
               items={[
@@ -332,7 +349,7 @@ export default function ProductDetails() {
                 { label: 'Preferred supplier', value: preferredSupplier },
               ]}
             />
-          </Section>
+          </Section>}
 
           <Section title="Product info">
             <DetailList

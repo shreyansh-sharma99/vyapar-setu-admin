@@ -25,6 +25,7 @@ import {
   Label,
   Section,
   Select,
+  Switch,
   TagInput,
   Textarea,
 } from '@/components/ui';
@@ -38,9 +39,25 @@ import useGstRates from '@/pages/masterSettings/components/useGstRates';
 import { can } from '@/utility/shopPermissions';
 import dayjs from 'dayjs';
 import DuplicateWarning from './DuplicateWarning';
+import IncludedItemsEditor from './IncludedItemsEditor';
 import { toNumberOr } from '../utils/productUtils';
 
 const DEFAULT_THRESHOLD = '5';
+// From the GST Scheme of Classification of Services. A SAC does not set the GST rate.
+const COMMON_SAC = [
+  { value: '999312', label: 'Medical and dental services' },
+  { value: '998222', label: 'Accounting and bookkeeping' },
+  { value: '998231', label: 'Corporate tax consulting' },
+  { value: '998212', label: 'Legal advice' },
+  { value: '998714', label: 'Vehicle maintenance and repair' },
+  { value: '999721', label: 'Hairdressing and barber services' },
+];
+const CHARGE_OPTIONS = [
+  { value: 'fixed', label: 'Fixed price' },
+  { value: 'hour', label: 'Per hour' },
+  { value: 'session', label: 'Per session' },
+  { value: 'day', label: 'Per day' },
+];
 
 const formatGst = (gstRate, cessRate) => {
   const gst = `${Number(gstRate) || 0}%`;
@@ -77,6 +94,7 @@ const numText = (v, { zeroAsEmpty = false } = {}) => {
 };
 
 const buildDefaults = (p) => ({
+  sellingPrice: '',
   name: p?.name || '',
   sku: p?.sku || '',
   categoryId: refId(p?.categoryId),
@@ -97,7 +115,8 @@ const buildDefaults = (p) => ({
   // a new product: selling prices include GST (like the MRP); change later in Prices & Offers
   isGstIncludedInPrice: String(p ? p.isGstIncludedInPrice ?? false : true),
   isCustomizable: String(p?.isCustomizable ?? false),
-  unit: p?.unit || 'pcs',
+  chargeType: p?.chargeBy === 'quantity' ? p.unit : 'fixed',
+  priceAtBilling: !!p?.priceAtBilling,
   reorderQty: numText(p?.reorderQty, { zeroAsEmpty: true }),
   // single location: one low-stock alert for the product (empty on a new product = not set)
   lowStockAlertThreshold: p ? numText(p.lowStockAlertThreshold ?? DEFAULT_THRESHOLD) : '',
@@ -107,9 +126,11 @@ const buildDefaults = (p) => ({
  * Shared create / edit product form.
  * mode = 'create' → new product (stock comes from purchases / opening stock)
  * mode = 'edit'   → stock is read-only; the low-stock alert is sent.
+ * itemType = 'goods' | 'service' → which form a new item gets (an existing item keeps its own type).
  */
 export default function ProductForm({
   mode = 'create',
+  itemType = 'goods',
   product = null,
   categories = [],
   brands = [],
@@ -120,6 +141,8 @@ export default function ProductForm({
 }) {
   const navigate = useNavigate();
   const isEdit = mode === 'edit';
+  const currentType = product?.itemType || itemType;
+  const isService = currentType === 'service';
   // GST % choices: the platform's list (Admin Owner → Settings → GST Rates)
   const { options: gstOptions } = useGstRates();
   const productId = product?._id || null;
@@ -150,6 +173,12 @@ export default function ProductForm({
     return parsed.length ? parsed : [{ label: '', fieldType: 'TextInput', isRequired: false }];
   });
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
+  const [includedItems, setIncludedItems] = useState(() => (product?.includedItems || []).map((i) => ({
+    productId: refId(i.productId),
+    productName: i.productId?.name || '',
+    qty: String(i.qty),
+    unit: i.unit || i.productId?.unit || '',
+  })));
   const [subcats, setSubcats] = useState({ categoryId: null, list: [] });
   const [similar, setSimilar] = useState({ key: '', items: [] });
   const [dismissedKey, setDismissedKey] = useState(null);
@@ -181,6 +210,9 @@ export default function ProductForm({
   const selectedCategoryId = watch('categoryId');
   const isGstApplicable = watch('isGstApplicable');
   const isCustomizable = watch('isCustomizable');
+  const chargeType = watch('chargeType');
+  const sacCode = String(watch('hsnSacCode') || '').trim();
+  const sacWarning = isService && !!sacCode && !/^99\d{4}$/.test(sacCode);
 
   // ── subcategories for the selected category ──
   useEffect(() => {
@@ -247,7 +279,7 @@ export default function ProductForm({
   // ── submit ──
   const submit = (data) => {
     // Opening stock (optional): with a quantity, the MRP is required (like any new batch).
-    const openingQty = canAddOpening ? toNumberOr(opening.qty, 0) : 0;
+    const openingQty = canAddOpening && !isService ? toNumberOr(opening.qty, 0) : 0;
     if (openingQty > 0 && barcodeBlocked) {
       setOpening((prev) => ({ ...prev, open: true }));
       return;
@@ -266,6 +298,7 @@ export default function ProductForm({
     else if (typeof data.tags === 'string') tagList = data.tags.split(',').map((t) => t.trim()).filter(Boolean);
 
     const payload = {
+      itemType: currentType,
       categoryId: data.categoryId,
       subCategoryId: data.subCategoryId,
       name: data.name.trim(),
@@ -309,6 +342,15 @@ export default function ProductForm({
         cessRate: 0,
       };
     }
+    if (isService) {
+      payload.chargeBy = data.chargeType === 'fixed' ? 'fixed' : 'quantity';
+      payload.priceAtBilling = !!data.priceAtBilling;
+      if (payload.chargeBy === 'quantity') payload.unit = data.chargeType;
+      payload.includedItems = includedItems
+        .filter((i) => toNumberOr(i.qty, 0) > 0)
+        .map((i) => ({ productId: i.productId, qty: toNumberOr(i.qty, 0), unit: i.unit }));
+      if (initialPricingMode) payload.initialPricing.sellingPrice = toNumberOr(data.sellingPrice, 0);
+    }
     if (openingQty > 0) {
       payload.openingStock = {
         qty: openingQty,
@@ -343,13 +385,13 @@ export default function ProductForm({
       <Section title="Basic Information" description="Name, code and where it sits in your catalog">
         <div className="flex flex-col gap-4">
           <FormGrid cols={2}>
-            <Field label="Product Name" required error={errors.name?.message}>
+            <Field label={isService ? 'Service Name' : 'Product Name'} required error={errors.name?.message}>
               <Input
                 id="name"
                 type="text"
-                placeholder="Product Name"
+                placeholder={isService ? 'e.g. Root canal, GST filing, Oil change' : 'Product Name'}
                 {...register('name', {
-                  required: 'Product name is required',
+                  required: 'Name is required',
                   onBlur: (e) => runSimilarCheck(e.target.value),
                 })}
               />
@@ -358,7 +400,7 @@ export default function ProductForm({
             <Field
               label="SKU"
               error={errors.sku?.message}
-              hint="Unique code for this product in your shop. Saved in capitals."
+              hint={`Unique code for this ${isService ? 'service' : 'product'} in your shop. Saved in capitals.`}
             >
               <Input
                 id="sku"
@@ -372,7 +414,7 @@ export default function ProductForm({
               />
             </Field>
 
-            {isEdit && (
+            {isEdit && !isService && (
               <Field label="Barcode" hint="Set when stock comes in. It can change once the product has no stock.">
                 <Input id="barcode" type="text" value={product?.barcode || ''} placeholder="No barcode yet" readOnly disabled />
               </Field>
@@ -381,19 +423,18 @@ export default function ProductForm({
             <Controller
               name="categoryId"
               control={control}
-              rules={{ required: 'Category is required' }}
               render={({ field }) => (
-                <Field label="Category" required error={errors.categoryId?.message}>
+                <Field label="Category">
                   <Select
                     id="categoryId"
                     options={categories.map((cat) => ({ value: cat._id, label: cat.name }))}
                     placeholder="Select Category"
+                    clearable
                     value={field.value}
                     onChange={(val) => {
                       if (val !== field.value) setValue('subCategoryId', '');
                       field.onChange(val);
                     }}
-                    error={!!errors.categoryId}
                   />
                 </Field>
               )}
@@ -402,16 +443,14 @@ export default function ProductForm({
             <Controller
               name="subCategoryId"
               control={control}
-              rules={{ required: 'Subcategory is required' }}
               render={({ field }) => (
-                <Field label="Subcategory" required error={errors.subCategoryId?.message}>
+                <Field label="Subcategory">
                   <Select
                     id="subCategoryId"
                     options={subcategories.map((sub) => ({ value: sub._id, label: sub.name }))}
                     placeholder={selectedCategoryId ? 'Select Subcategory' : 'Select Category first'}
                     value={field.value}
                     onChange={field.onChange}
-                    error={!!errors.subCategoryId}
                     disabled={!selectedCategoryId || subcategoriesLoading}
                     loading={subcategoriesLoading}
                   />
@@ -419,7 +458,7 @@ export default function ProductForm({
               )}
             />
 
-            <Controller
+            {!isService && <Controller
               name="brandId"
               control={control}
               rules={{ required: 'Brand is required' }}
@@ -435,9 +474,9 @@ export default function ProductForm({
                   />
                 </Field>
               )}
-            />
+            />}
 
-            <Controller
+            {!isService && <Controller
               name="manufacturerId"
               control={control}
               rules={{ required: 'Manufacturer is required' }}
@@ -453,15 +492,54 @@ export default function ProductForm({
                   />
                 </Field>
               )}
-            />
+            />}
           </FormGrid>
 
           {showSimilar && <DuplicateWarning items={similar.items} onDismiss={() => setDismissedKey(similar.key)} />}
         </div>
       </Section>
 
+      {isService && (
+        <Section title="Price & Charge" description="What you charge for this service">
+          <div className="flex flex-col gap-4">
+            <FormGrid cols={3}>
+              <Controller
+                name="chargeType"
+                control={control}
+                render={({ field }) => (
+                  <Field label="How do you charge?" required>
+                    <Select id="chargeType" options={CHARGE_OPTIONS} value={field.value} onChange={field.onChange} />
+                  </Field>
+                )}
+              />
+              {!isEdit && (
+                <Field label={chargeType === 'fixed' ? 'Selling Price (₹)' : `Price per ${chargeType} (₹)`} required error={errors.sellingPrice?.message}>
+                  <Input id="sellingPrice" type="number" min="0" step="0.01" placeholder="e.g. 4000" {...register('sellingPrice', { validate: (v) => !isService || toNumberOr(v, 0) > 0 || 'Enter the price of this service' })} />
+                </Field>
+              )}
+            </FormGrid>
+            <Controller
+              name="priceAtBilling"
+              control={control}
+              render={({ field }) => (
+                <Field label="Price changes on every bill" hint="The usual price fills in. Staff can type a different price without a reason.">
+                  <Switch checked={field.value} onChange={field.onChange} aria-label="Price changes on every bill" />
+                </Field>
+              )}
+            />
+            {isEdit && <p className="m-0 text-xs text-ink-subtle">Change the price in Master Settings → Prices &amp; Offers.</p>}
+          </div>
+        </Section>
+      )}
+
+      {isService && (
+        <Section title="Products used (optional)" description="Goods used with this service, like gloves or engine oil. They appear below the service on the bill at their batch price, and can be removed from that bill.">
+          <IncludedItemsEditor items={includedItems} onChange={setIncludedItems} />
+        </Section>
+      )}
+
       {/* GST */}
-      <Section title="GST & HSN" description="Tax details used on bills">
+      <Section title={isService ? 'GST & SAC' : 'GST & HSN'} description="Tax details used on bills">
         <div className="flex flex-col gap-4">
           {gstLocked && productId && (
             <div className="flex flex-col justify-between gap-2 rounded-control bg-brand-soft p-3 text-xs text-brand-ink sm:flex-row sm:items-center">
@@ -513,14 +591,20 @@ export default function ProductForm({
             )}
           </FormGrid>
           <FormGrid cols={3}>
-            <Field label="HSN / SAC Code">
-              <Input id="hsnSacCode" type="text" placeholder="e.g. 85171200" {...register('hsnSacCode')} />
-            </Field>
-            <Field label="Min Order Qty">
-              <Input id="minOrderQty" type="number" min="1" placeholder="1" {...register('minOrderQty', { min: 1 })} />
-            </Field>
+            <div className="flex min-w-0 flex-col gap-1">
+              <Field label={isService ? 'SAC Code' : 'HSN / SAC Code'}>
+                <Input id="hsnSacCode" type="text" placeholder={isService ? 'e.g. 998221' : 'e.g. 85171200'} list={isService ? 'common-sac' : undefined} {...register('hsnSacCode')} />
+              </Field>
+              {sacWarning && <p className="m-0 text-xs text-warning">A SAC code usually has 6 digits and starts with 99.</p>}
+              {isService && <datalist id="common-sac">{COMMON_SAC.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</datalist>}
+            </div>
+            {!isService && (
+              <Field label="Min Order Qty">
+                <Input id="minOrderQty" type="number" min="1" placeholder="1" {...register('minOrderQty', { min: 1 })} />
+              </Field>
+            )}
           </FormGrid>
-          {!isEdit && (
+          {!isEdit && !isService && (
             <p className="m-0 text-xs text-ink-subtle">
               Selling price, MRP, cost and stock are entered on the purchase (order / bill) or the opening stock below, and shown on the product page.
             </p>
@@ -529,7 +613,7 @@ export default function ProductForm({
       </Section>
 
       {/* Stock settings (one location) */}
-      <Section title="Stock Settings" description="When to warn you about low stock">
+      {!isService && <Section title="Stock Settings" description="When to warn you about low stock">
         <div className="flex flex-col gap-4">
           <FormGrid cols={3}>
             <Field label="Low Stock Alert">
@@ -545,10 +629,10 @@ export default function ProductForm({
             </div>
           )}
         </div>
-      </Section>
+      </Section>}
 
       {/* Opening stock (create only, optional) */}
-      {canAddOpening && (
+      {canAddOpening && !isService && (
         <Section title="Opening Stock (optional)" description="Stock that is already on your shelf">
           <div className="flex flex-col gap-4">
             <Button
@@ -622,14 +706,14 @@ export default function ProductForm({
       )}
 
       {/* Descriptions & tags */}
-      <Section title="Descriptions & Tags" description="Text and search tags for this product">
+      <Section title="Descriptions & Tags" description={`Text and search tags for this ${isService ? 'service' : 'product'}`}>
         <FormGrid cols={1}>
-          <Field label="Short Description" required error={errors.shortDescription?.message}>
+          <Field label="Short Description" required={!isService} error={errors.shortDescription?.message}>
             <Input
               id="shortDescription"
               type="text"
-              placeholder="Short summary of the product..."
-              {...register('shortDescription', { required: 'Short description is required' })}
+              placeholder="Short summary..."
+              {...register('shortDescription', { required: isService ? false : 'Short description is required' })}
             />
           </Field>
 
@@ -655,7 +739,7 @@ export default function ProductForm({
       </Section>
 
       {/* Customization */}
-      <Section title="Product Customization" description="Extra details a buyer fills in for this product">
+      {!isService && <Section title="Product Customization" description="Extra details a buyer fills in for this product">
         <div className="flex flex-col gap-4">
           <FormGrid cols={2}>
             <Controller
@@ -723,10 +807,10 @@ export default function ProductForm({
             </div>
           )}
         </div>
-      </Section>
+      </Section>}
 
       {/* Images */}
-      <Section title="Product Images" description="Upload one or more photos">
+      {!isService && <Section title="Product Images" description="Upload one or more photos">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="flex min-w-0 flex-col">
             <Label>Upload Image</Label>
@@ -766,7 +850,7 @@ export default function ProductForm({
             )}
           </div>
         </div>
-      </Section>
+      </Section>}
 
       {error && (
         <div role="alert" className="rounded-control bg-danger-soft px-4 py-3 text-sm text-danger">
@@ -793,7 +877,7 @@ export default function ProductForm({
           loading={submitting}
           disabled={submitting || (toNumberOr(opening.qty, 0) > 0 && barcodeBlocked)}
         >
-          {isEdit ? 'Update Product' : 'Create Product'}
+          {isEdit ? (isService ? 'Update Service' : 'Update Product') : (isService ? 'Create Service' : 'Create Product')}
         </Button>
       </FormActions>
     </form>

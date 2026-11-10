@@ -79,6 +79,16 @@ function Signature({ signature, businessName, align = 'right', imgClass = 'max-h
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. CLASSIC (bordered grid — accountant standard)
 // ─────────────────────────────────────────────────────────────────────────────
+/** Bill Fields marked "Print on bill" (vehicle number, patient age...). */
+function BillDetails({ d, className = 'text-[10px] text-gray-700 mb-2' }) {
+  if (!d.details?.length) return null;
+  return (
+    <div className={`flex flex-wrap gap-x-4 gap-y-0.5 ${className}`}>
+      {d.details.map((f) => <span key={f.key}><b>{f.label}:</b> {f.value}</span>)}
+    </div>
+  );
+}
+
 function ClassicTemplate({ d, accentColor, logo, signature, showHsn, showDiscount, showTaxBreakup, showUpiQr, showSignature, bankDetails, terms, notes }) {
   const t = d.totals;
   return (
@@ -120,6 +130,7 @@ function ClassicTemplate({ d, accentColor, logo, signature, showHsn, showDiscoun
       </div>
 
       <div className="mt-3 overflow-x-auto">
+        <BillDetails d={d} className="text-[10px] text-gray-700 p-1.5" />
         <table className="w-full border-collapse border border-gray-400 text-[11px]">
           <thead>
             <tr className="bg-gray-100 text-gray-900 font-bold border-b border-gray-400 text-center">
@@ -270,12 +281,13 @@ function ModernTemplate({ d, accentColor, logo, signature, showHsn, showDiscount
         </div>
 
         <div className="overflow-x-auto my-4">
+          <BillDetails d={d} className="text-[11px] text-slate-600 mb-2" />
           <table className="w-full text-left border-collapse border border-slate-200">
             <thead>
               <tr className="text-[11px] uppercase font-bold tracking-wider text-slate-500 bg-slate-50">
                 <th className="py-2.5 px-2 border border-slate-200 w-6">#</th>
                 <th className="py-2.5 px-2 border border-slate-200">Item Description</th>
-                {showHsn && <th className="py-2.5 px-2 border border-slate-200">HSN</th>}
+                {showHsn && <th className="py-2.5 px-2 border border-slate-200">HSN/SAC</th>}
                 <th className="py-2.5 px-2 border border-slate-200">Qty</th>
                 <th className="py-2.5 px-2 border border-slate-200">Rate</th>
                 {showDiscount && <th className="py-2.5 px-2 border border-slate-200 text-center">Discount</th>}
@@ -403,12 +415,13 @@ function MinimalTemplate({ d, accentColor, logo, signature, showHsn, showDiscoun
       </div>
 
       <div className="mt-5 overflow-x-auto">
+        <BillDetails d={d} className="text-[10px] text-gray-600 mb-2" />
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-gray-200 text-[10px] text-gray-500 font-semibold tracking-wider">
               <th className="py-2 px-1 w-6">#</th>
               <th className="py-2 px-2">Item</th>
-              {showHsn && <th className="py-2 px-2">HSN</th>}
+              {showHsn && <th className="py-2 px-2">HSN/SAC</th>}
               <th className="py-2 px-2 text-right">Qty</th>
               <th className="py-2 px-2 text-right">Rate</th>
               {showDiscount && <th className="py-2 px-2 text-right">Discount</th>}
@@ -553,6 +566,7 @@ function GstDetailedTemplate({ d, logo, signature, showSignature, showUpiQr, ban
       </div>
 
       <div className="overflow-x-auto">
+        <BillDetails d={d} className="text-[9px] text-gray-800 p-1" />
         <table className="w-full border-collapse text-[10px]">
           <thead>
             <tr className="bg-gray-100 font-bold border-b border-black text-center">
@@ -721,12 +735,13 @@ function ThermalTemplate({ d, logo, signature, showHsn, showDiscount, showTaxBre
 
       <div className="border-b border-dashed border-black my-1.5" />
 
+      <BillDetails d={d} className="text-[10px] mb-1" />
       <div className="space-y-1.5">
         {d.items.map((it) => (
           <div key={it.id}>
             <div className="font-semibold">{it.name}</div>
             <div className="flex justify-between text-[10px] text-gray-700">
-              <span>{it.qty} {it.unit} x {amt(it.rate)}{showHsn && it.hsn ? ` [HSN:${it.hsn}]` : ''}</span>
+              <span>{it.qty} {it.unit} x {amt(it.rate)}{showHsn && it.hsn ? ` [HSN/SAC:${it.hsn}]` : ''}</span>
               <span>{amt(it.taxable)}</span>
             </div>
             {showDiscount && it.discount > 0 && <div className="text-[9px] text-gray-500">Discount: -{amt(it.discount)}</div>}
