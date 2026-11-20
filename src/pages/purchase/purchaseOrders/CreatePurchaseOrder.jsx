@@ -101,6 +101,8 @@ function PurchaseOrderForm({ doc }) {
     // Receiving brings in new batches: MRP needed, SP checked.
     if (!problem && action === 'receive') problem = lines.filter((l) => l.productId).map((l) => stockInCheck(l, infoOf(l), baseCost(l)).error).find(Boolean) || '';
     if (!problem && action === 'receive') problem = firstBarcodeProblem(lines);
+    // a GST supplier's invoice no. is needed to match the purchase with GSTR-2B
+    if (!problem && action === 'receive' && supplierInfo?.gstin && !supplierInvoiceNo.trim()) problem = 'Enter the supplier invoice no. (needed to match GSTR-2B).';
     setFormError(problem);
     if (problem) {
       notifyError(problem);
@@ -250,7 +252,11 @@ function PurchaseOrderForm({ doc }) {
                 }}
               />
             </Field>
-            <Field label="Supplier invoice no." hint="From the supplier's bill. Helps catch the same bill entered twice.">
+            <Field
+              label="Supplier invoice no."
+              required={!!supplierInfo?.gstin}
+              hint={supplierInfo?.gstin ? "From the supplier's bill. Needed to match GSTR-2B (GST supplier)." : "From the supplier's bill. Helps catch the same bill entered twice."}
+            >
               <Input value={supplierInvoiceNo} maxLength={50} onChange={(e) => setSupplierInvoiceNo(e.target.value)} placeholder="e.g. INV/2026/0451" />
             </Field>
             <Field label="Supplier invoice date">

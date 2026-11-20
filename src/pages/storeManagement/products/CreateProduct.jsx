@@ -9,7 +9,7 @@ import { getManufacturers } from '../manufacturers/services/manufacturerSlice';
 import { createProduct, resetProductStatus, clearProductToast } from './services/productSlice';
 import ProductForm from './components/ProductForm';
 import ToastStack from './components/ToastStack';
-import { useToasts } from './utils/productUtils';
+import { catalogPath, useToasts } from './utils/productUtils';
 
 export default function CreateProduct({ itemType = 'goods' }) {
   const label = itemType === 'service' ? 'Service' : 'Product';
@@ -34,7 +34,7 @@ export default function CreateProduct({ itemType = 'goods' }) {
     dispatch(clearProductToast());
     if (createProduct.fulfilled.match(result)) {
       dispatch(resetProductStatus());
-      navigate('/products', { state: { message: `${label} created successfully.`, color: 'success' } });
+      navigate(catalogPath(itemType), { state: { message: `${label} created successfully.`, color: 'success' } });
     } else {
       showToast(result.payload || `Failed to create ${label.toLowerCase()}.`, 'danger');
     }

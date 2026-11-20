@@ -7,6 +7,7 @@ import { clearSettingsToast } from '../../pages/settings/services/settingsSlice'
 import { Avatar, Badge, Button, DropdownMenu, ToastStack } from '@/components/ui';
 import SettingsModal from '../../pages/settings/components/SettingsModal';
 import { isOwner } from '@/utility/shopPermissions';
+import BusinessSwitcher from '@/components/business/BusinessSwitcher';
 
 export default function Header({
   sidebarOpen, setSidebarOpen,
@@ -82,7 +83,7 @@ export default function Header({
         <Badge tone={owner ? 'primary' : 'warning'}>{roleLabel}</Badge>
         {designationLabel && <span className="truncate text-[11px] text-ink-subtle">{designationLabel}</span>}
       </div>
-      {!owner && user?.businessName && <span className="truncate text-[11px] text-ink-subtle">{user.businessName}</span>}
+      {user?.businessName && <span className="truncate text-[11px] text-ink-subtle">{owner ? (user.business?.name || user.businessName) : user.businessName}</span>}
     </div>
   );
 
@@ -90,44 +91,44 @@ export default function Header({
     <header className="sticky top-0 z-40 w-full shrink-0 bg-page/85 px-3 pb-2 pt-3 backdrop-blur-md transition-colors duration-300 print:hidden md:px-5">
       <div className="relative flex h-16 items-center gap-3 rounded-card bg-surface px-3 shadow-card">
 
-      {/* ── Left: menu ── */}
-      <div className="mr-auto flex items-center gap-2">
-        <Button variant="secondary" size="icon" onClick={handleHamburger} aria-label="Toggle sidebar">
-          <Menu />
-        </Button>
-      </div>
+        {/* ── Left: menu ── */}
+        <div className="flex items-center gap-2 md:mr-auto">
+          <Button variant="secondary" size="icon" onClick={handleHamburger} aria-label="Toggle sidebar">
+            <Menu />
+          </Button>
+        </div>
 
-      {/* ── Centre: wordmark, always ── */}
-      <a
-        href="/"
-        aria-label="ecnbiz home"
-        className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 select-none items-baseline leading-none"
-      >
-        <span className="text-2xl font-extrabold tracking-tight text-brand-ink md:text-[28px]">ecn</span>
-        <span className="text-2xl font-extrabold tracking-tight text-highlight md:text-[28px]">biz</span>
-      </a>
+        {/* ── Wordmark: next to the menu on phones (the right side is full), centre from md ── */}
+        <a
+          href="/"
+          aria-label="ecnbiz home"
+          className="mr-auto flex select-none items-baseline leading-none md:absolute md:left-1/2 md:top-1/2 md:z-10 md:mr-0 md:-translate-x-1/2 md:-translate-y-1/2"
+        >
+          <span className="text-2xl font-extrabold tracking-tight text-brand-ink md:text-[28px]">ecn</span>
+          <span className="text-2xl font-extrabold tracking-tight text-highlight md:text-[28px]">biz</span>
+        </a>
 
-      {/* ── Right: actions ── */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={handleToggleTheme} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
-          {isDark ? <Sun /> : <Moon />}
-        </Button>
-
-        <DropdownMenu
-          header={menuHeader}
-          items={menuItems}
-          trigger={
-            <Button variant="secondary" className="h-auto gap-2 py-1 pl-1 pr-2 md:pr-3">
-              <Avatar name={user?.name || 'U'} size="sm" tone="primary" />
-              <span className="hidden flex-col items-start leading-tight md:flex">
-                <span className="whitespace-nowrap text-sm font-semibold text-ink">{user?.name || 'Admin'}</span>
-                {!owner && <span className="whitespace-nowrap text-[10px] font-medium text-ink-muted">{staffLine}</span>}
-              </span>
-              <ChevronDown className="hidden size-4 shrink-0 text-ink-subtle md:block" />
-            </Button>
-          }
-        />
-      </div>
+        {/* ── Right: theme, business, user ── */}
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Button variant="ghost" size="icon" onClick={handleToggleTheme} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+            {isDark ? <Sun /> : <Moon />}
+          </Button>
+          <BusinessSwitcher />
+          <DropdownMenu
+            header={menuHeader}
+            items={menuItems}
+            trigger={
+              <Button variant="secondary" className="h-auto gap-2 py-1 pl-1 pr-2 md:pr-3">
+                <Avatar name={user?.name || 'U'} size="sm" tone="primary" />
+                <span className="hidden flex-col items-start leading-tight md:flex">
+                  <span className="whitespace-nowrap text-sm font-semibold text-ink">{user?.name || 'Admin'}</span>
+                  {!owner && <span className="whitespace-nowrap text-[10px] font-medium text-ink-muted">{staffLine}</span>}
+                </span>
+                <ChevronDown className="hidden size-4 shrink-0 text-ink-subtle md:block" />
+              </Button>
+            }
+          />
+        </div>
       </div>
       {owner && <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />}
 

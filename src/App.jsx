@@ -34,6 +34,7 @@ import SalesInvoiceList from './pages/sales/salesInvoices/SalesInvoiceList';
 import CreateSalesInvoice from './pages/sales/salesInvoices/CreateSalesInvoice';
 import SalesInvoiceDetails from './pages/sales/salesInvoices/SalesInvoiceDetails';
 import SalesReturnList from './pages/sales/salesReturn/SalesReturnList';
+import FollowUps from './pages/sales/followUps/FollowUps';
 import CreateSalesReturn from './pages/sales/salesReturn/CreateSalesReturn';
 import SalesReturnDetails from './pages/sales/salesReturn/SalesReturnDetails';
 import CreditNoteList from './pages/sales/creditNotes/CreditNoteList';
@@ -42,6 +43,7 @@ import CreditNoteDetails from './pages/sales/creditNotes/CreditNoteDetails';
 import CustomerLedger from './pages/sales/customerLedger/CustomerLedger';
 import PaymentAccount from './pages/sales/paymentAccout/PaymentAccount';
 import InvoiceSetting from './pages/Invoices/invoiceSetting/InvoiceSetting';
+import ManageBusinesses from './pages/business/ManageBusinesses';
 import GeneralInvoiceSetting from './pages/Invoices/generalInvoiceSetting/GeneralInvoiceSetting';
 import BillFields from './pages/Invoices/billFields/BillFields';
 import InvoiceLayout from './pages/Invoices/invoiceLayout/InvoiceLayout';
@@ -51,6 +53,11 @@ import HsnSummary from './pages/reports/HsnSummary';
 import AgeingReport from './pages/reports/AgeingReport';
 import Profit from './pages/reports/Profit';
 import PriceOverrides from './pages/reports/PriceOverrides';
+import GstReturnStatus from './pages/reports/GstReturnStatus';
+import Gstr2Report from './pages/reports/Gstr2Report';
+import Gstr2bMatch from './pages/reports/Gstr2bMatch';
+import Gstr3bSummary from './pages/reports/Gstr3bSummary';
+import Gstr9Summary from './pages/reports/Gstr9Summary';
 import DamagedStock from './pages/inventory/inventory/DamagedStock';
 import StockValuation from './pages/inventory/inventory/StockValuation';
 import ProductImportExport from './pages/storeManagement/products/ProductImportExport';
@@ -134,9 +141,13 @@ function App() {
           <Route path="manufacturers/create" element={<CreateManufacturer />} />
           <Route path="manufacturers/edit/:id" element={<UpdateManufacturer />} />
           <Route path="manufacturers/view/:id" element={<ManufacturerDetails />} />
-          <Route path="products" element={<ProductList />} />
+          <Route path="products" element={<ProductList key="goods" itemType="goods" />} />
           <Route path="products/create" element={<CreateProduct key="goods" />} />
-          <Route path="products/create-service" element={<CreateProduct key="service" itemType="service" />} />
+          <Route path="products/create-service" element={<Navigate to="/services/create" replace />} />
+          <Route path="services" element={<ProductList key="service" itemType="service" />} />
+          <Route path="services/create" element={<CreateProduct key="service" itemType="service" />} />
+          <Route path="services/edit/:id" element={<UpdateProduct />} />
+          <Route path="services/view/:id" element={<ProductDetails />} />
           <Route path="products/edit/:id" element={<UpdateProduct />} />
           <Route path="products/view/:id" element={<ProductDetails />} />
           <Route path="products/audit/:id" element={<ProductAuditReport />} />
@@ -185,6 +196,7 @@ function App() {
           <Route path="sales/invoices/edit/:id" element={<CreateSalesInvoice />} />
           <Route path="sales/invoices/view/:id" element={<SalesInvoiceDetails />} />
           <Route path="sales/return" element={<SalesReturnList />} />
+          <Route path="sales/follow-ups" element={<FollowUps />} />
           <Route path="sales/return/create" element={<CreateSalesReturn />} />
           <Route path="sales/return/edit/:id" element={<CreateSalesReturn />} />
           <Route path="sales/return/view/:id" element={<SalesReturnDetails />} />
@@ -195,6 +207,7 @@ function App() {
           <Route path="sales/payment-account" element={<PaymentAccount />} />
           <Route path="sales/general-invoice-setting" element={<GeneralInvoiceSetting />} />
           <Route path="sales/bill-fields" element={<BillFields />} />
+          <Route path="businesses" element={<ManageBusinesses />} />
           <Route path="sales/invoice-setting" element={<InvoiceSetting />} />
           <Route path="sales/invoice-settings" element={<InvoiceSetting />} />
           <Route path="sales/invoice-layout" element={<InvoiceLayout />} />
@@ -204,6 +217,11 @@ function App() {
           <Route path="reports/ageing" element={<AgeingReport />} />
           <Route path="reports/profit" element={<Profit />} />
           <Route path="reports/price-overrides" element={<PriceOverrides />} />
+          <Route path="reports/gst-status" element={<GstReturnStatus />} />
+          <Route path="reports/gstr2" element={<Gstr2Report />} />
+          <Route path="reports/gstr2b" element={<Gstr2bMatch />} />
+          <Route path="reports/gstr3b" element={<Gstr3bSummary />} />
+          <Route path="reports/gstr9" element={<Gstr9Summary />} />
           <Route path="reports" element={<Navigate to="/reports/sales-register" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

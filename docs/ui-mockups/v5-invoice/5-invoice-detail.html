@@ -1,0 +1,85 @@
+<!doctype html><html><head><meta charset="utf-8"><title>5 · Invoice detail</title><link rel="stylesheet" href="v5.css">
+<style>
+  .rail { width: 56px; flex: none; background: var(--rail); display: flex; flex-direction: column; align-items: center; padding-top: 10px; gap: 4px; }
+  .rail .m { width: 30px; height: 30px; border-radius: 6px; background: var(--acc); color: #fff; display: grid; place-items: center; font-weight: 700; margin-bottom: 10px; }
+  .rail a { width: 40px; height: 38px; border-radius: 6px; display: grid; place-items: center; color: var(--rail-ink); }
+  .rail a svg { width: 19px; height: 19px; }
+  .rail a.on { background: var(--rail-on); color: #fff; box-shadow: inset 2px 0 0 var(--acc); }
+  .rail .sp { flex: 1; }
+  .grid { display: grid; grid-template-columns: 1fr 380px; gap: 14px; align-items: start; }
+  .paper { background: #fff; border: 1px solid var(--line2); box-shadow: 0 1px 0 var(--line); padding: 24px 28px; color: #1d1d1d; font-size: 12px; }
+  .paper .top { display: flex; justify-content: space-between; border-bottom: 2px solid #1d1d1d; padding-bottom: 10px; }
+  .paper h3 { margin: 0; font-size: 17px; letter-spacing: .3px; }
+  .paper .ttl { text-align: right; } .paper .ttl b { font-size: 14px; letter-spacing: 2px; }
+  .paper .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 10px 0; border-bottom: 1px solid #ccc; }
+  .paper table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .paper th { text-align: left; font-size: 10.5px; border-bottom: 1px solid #1d1d1d; border-top: 1px solid #1d1d1d; padding: 5px 6px; }
+  .paper td { padding: 5px 6px; border-bottom: 1px solid #e5e5e5; }
+  .paper .tot { display: grid; grid-template-columns: 1fr 230px; margin-top: 10px; gap: 14px; }
+  .paper .tot div div { display: flex; justify-content: space-between; padding: 2px 0; }
+  .paper .gt { border-top: 1.5px solid #1d1d1d; margin-top: 4px; padding-top: 4px !important; font-weight: 700; font-size: 13.5px; }
+  .side2 { display: grid; gap: 12px; }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+  .box h4 { margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink3); display: flex; }
+  .box h4 span { margin-left: auto; text-transform: none; letter-spacing: 0; color: var(--acc-ink); font-weight: 600; }
+  .box .b { padding: 10px 12px; }
+  .kv { display: flex; justify-content: space-between; padding: 3px 0; }
+  .bar { height: 8px; border-radius: 2px; background: var(--line); overflow: hidden; margin: 8px 0 4px; } .bar i { display: block; height: 100%; background: var(--cr); }
+  .tl { list-style: none; margin: 0; padding: 0; }
+  .tl li { position: relative; padding: 0 0 12px 18px; }
+  .tl li::before { content: ''; position: absolute; left: 3px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--line2); }
+  .tl li::after { content: ''; position: absolute; left: 6px; top: 14px; bottom: 0; width: 1px; background: var(--line); }
+  .tl li:last-child::after { display: none; }
+  .tl li.g::before { background: var(--cr); } .tl li.o::before { background: var(--acc); }
+  .tl small { display: block; color: var(--ink3); }
+  .more { position: relative; }
+</style></head>
+<body>
+<nav class="rail" id="rail"></nav>
+<div class="col">
+  <div class="topbar"><span class="search">🔍 <span>Search invoice, party, item…</span><kbd>Ctrl K</kbd></span><span class="sp"></span><span class="chip">FY 2026-27</span><span class="av">RK</span></div>
+  <div class="page">
+    <div class="hd">
+      <div><div class="crumb">Sales › Sales Invoices › ← back to list</div><h1><span class="mono" style="font-size:18px">INV-2026-0413</span> <span class="st part" style="font-size:13px;margin-left:6px">Part paid</span> <span class="tag">B2B</span></h1></div>
+      <div class="act" id="acts"></div>
+    </div>
+    <div class="grid">
+      <div class="paper">
+        <div class="top"><div><h3>SHARMA GENERAL STORE</h3><div>Shop 7, Sadashiv Peth, Tilak Road, Pune 411030</div><div>GSTIN 27ABCPS4521K1Z8 · 98230 12345</div></div>
+          <div class="ttl"><b>TAX INVOICE</b><div>No. INV-2026-0413</div><div>Date 11-11-2026</div><div>Place of supply 27-Maharashtra</div></div></div>
+        <div class="two"><div><b>Bill to</b><div>Gupta Kirana &amp; General Stores</div><div>Shop 14, Market Yard, Gultekdi, Pune 411037</div><div>GSTIN 27AAGFG4410P1Z3</div></div><div><b>Ship to</b><div>Gupta Kirana — Godown 2</div><div>Lane 4, Bibwewadi, Pune 411037</div><div>Due 26-11-2026 (15 days)</div></div></div>
+        <table><tr><th>#</th><th>Item</th><th>HSN</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Disc</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">Amount</th></tr>
+          <tr><td>1</td><td>India Gate Basmati Rice 25 kg</td><td>1006</td><td class="num">2 bag</td><td class="num">2,450.00</td><td class="num">—</td><td class="num">4,900.00</td><td class="num">5%</td><td class="num">5,145.00</td></tr>
+          <tr><td>2</td><td>Fortune Sunflower Oil 15 L</td><td>1512</td><td class="num">1 tin</td><td class="num">2,590.00</td><td class="num">51.80</td><td class="num">2,538.20</td><td class="num">5%</td><td class="num">2,665.11</td></tr>
+          <tr><td>3</td><td>Amul Butter 500 g</td><td>0405</td><td class="num">6 pcs</td><td class="num">275.00</td><td class="num">—</td><td class="num">1,650.00</td><td class="num">12%</td><td class="num">1,848.00</td></tr></table>
+        <div class="tot"><div><b>Amount in words</b><div style="display:block">Nine Thousand Six Hundred Fifty-Eight Rupees Only</div><div style="display:block;margin-top:10px"><b>Bank</b> HDFC Bank · A/c 5020 0041 8722 63 · IFSC HDFC0001234</div></div>
+          <div><div><span>Taxable</span><span>9,088.20</span></div><div><span>CGST</span><span>284.96</span></div><div><span>SGST</span><span>284.95</span></div><div><span>Round off</span><span>− 0.11</span></div><div class="gt"><span>Grand total</span><span>₹ 9,658.00</span></div><div><span>Received</span><span>5,000.00</span></div><div><b>Balance due</b><b>₹ 4,658.00</b></div></div></div>
+      </div>
+      <div class="side2">
+        <div class="box"><h4>Payment <span>Due 26 Nov</span></h4><div class="b">
+          <div class="kv"><span>Invoice total</span><b>₹ 9,658.00</b></div><div class="kv"><span class="muted">Received · 1 receipt</span><span class="cr">₹ 5,000.00</span></div>
+          <div class="bar"><i style="width:52%"></i></div><div class="kv"><b>Balance</b><b class="dr">₹ 4,658.00</b></div>
+          <div style="display:flex;gap:6px;margin-top:10px"><span class="btn dk" style="flex:1;justify-content:center">Record payment <kbd>F6</kbd></span></div></div></div>
+        <div class="box"><h4>Receipts <span>+ Add</span></h4>
+          <table class="t"><tbody><tr><td class="mono">RCPT-0154</td><td>11 Nov · UPI</td><td class="num cr">5,000.00</td><td><span class="ico" id="rc"></span></td></tr></tbody></table></div>
+        <div class="box"><h4>Customer <span>Ledger →</span></h4><div class="b"><b>Gupta Kirana &amp; General Stores</b><div class="muted">98110 22000</div><div class="kv" style="margin-top:6px"><span class="muted">Total outstanding</span><b class="dr">₹ 6,888.00 Dr</b></div></div></div>
+        <div class="box"><h4>Activity</h4><div class="b"><ul class="tl">
+          <li class="g">Receipt RCPT-0154 · ₹ 5,000 by UPI<small>11 Nov, 5:06 pm · Ramesh</small></li>
+          <li>Printed (A4) and shared as PDF<small>11 Nov, 5:05 pm · Ramesh</small></li>
+          <li class="o">Invoice confirmed · stock reduced (3 batches)<small>11 Nov, 5:04 pm · Ramesh</small></li>
+          <li>Draft created<small>11 Nov, 4:58 pm · Sunita (counter 2)</small></li>
+        </ul></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="keys"><span><kbd>F6</kbd>record payment</span><span><kbd>P</kbd>print</span><span><kbd>Alt R</kbd>return</span><span><kbd>Ctrl D</kbd>duplicate</span><span><kbd>← →</kbd>previous / next invoice</span><span><kbd>Esc</kbd>back to list</span></div>
+</div>
+<script src="data.js"></script>
+<script>
+  const R = (k, on) => `<a class="${on ? 'on' : ''}">${ic(k)}</a>`;
+  document.getElementById('rail').innerHTML = `<span class="m">e</span>${R('home')}${R('people')}${R('box')}${R('stock')}${R('cart')}${R('sale', 1)}${R('rep')}${R('gst')}<span class="sp"></span>${R('set')}${R('team')}<span style="height:10px"></span>`;
+  const A = [['rcpt', 'Receipt', 'dk', 'F6'], ['ret', 'Return', '', 'Alt R'], ['print', 'Print', '', 'P'], ['pdf', 'PDF'], ['copy', 'Duplicate'], ['down', 'More']];
+  document.getElementById('acts').innerHTML = A.map(([k, t, c, kb]) => `<span class="btn ${c || ''}">${ic(k)}${t}${kb ? `<kbd>${kb}</kbd>` : ''}</span>`).join('');
+  document.getElementById('rc').innerHTML = `<span>${ic('print')}</span><span class="d">${ic('del')}</span>`;
+</script>
+</body></html>

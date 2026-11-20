@@ -54,7 +54,7 @@ const FINANCIAL_YEAR_OPTIONS = [
 const INITIAL_FORM_STATE = {
   prefix: 'INV-',
   suffix: '',
-  financialYearFormat: 'YYYY-YY',
+  financialYearFormat: 'YY-YY', // INV-26-27-00001 fits GSTR-1's 16 characters
   seriesStartsFrom: 1,
   currency: 'INR',
   dateFormat: 'DD/MM/YYYY',
@@ -70,7 +70,7 @@ const INITIAL_FORM_STATE = {
     branch: '',
   },
   numberingConfig: {
-    salesInvoice: { prefix: 'INV-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
+    salesInvoice: { prefix: 'INV-', suffix: '', financialYearFormat: 'YY-YY', seriesStartsFrom: 1, resetPerYear: true },
     salesReturn: { prefix: 'SR-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
     creditNote: { prefix: 'CN-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },
     paymentReceipt: { prefix: 'PR-', suffix: '', financialYearFormat: 'YYYY-YY', seriesStartsFrom: 1, resetPerYear: true },

@@ -23,6 +23,9 @@ export const formatQty = (value) => {
 /** Same id encoding the existing product routes use. */
 export const encodeId = (id) => encodeURIComponent(encryptData(String(id)));
 
+/** Catalog → Products or Catalog → Services. */
+export const catalogPath = (itemType) => (itemType === 'service' ? '/services' : '/products');
+
 /** Number parse that keeps 0 (unlike `Number(x) || fallback`). */
 export const toNumberOr = (value, fallback = 0) => {
   if (value === '' || value === null || value === undefined) return fallback;

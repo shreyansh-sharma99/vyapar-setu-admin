@@ -1,0 +1,87 @@
+<!doctype html><html><head><meta charset="utf-8"><title>2 · Icon rail + split view</title><link rel="stylesheet" href="v5.css">
+<style>
+  .rail { width: 72px; flex: none; background: var(--rail); display: flex; flex-direction: column; align-items: center; padding-top: 8px; gap: 2px; position: relative; z-index: 3; }
+  .rail .m { width: 30px; height: 30px; border-radius: 6px; background: var(--acc); color: #fff; display: grid; place-items: center; font-weight: 700; margin-bottom: 8px; }
+  .rail a { width: 62px; padding: 7px 0 5px; border-radius: 6px; color: var(--rail-ink); display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 500; }
+  .rail a svg { width: 19px; height: 19px; }
+  .rail a.on { background: var(--rail-on); color: #fff; box-shadow: inset 2px 0 0 var(--acc); }
+  .rail .sp { flex: 1; }
+  .fly { position: absolute; left: 72px; top: 0; bottom: 0; width: 224px; background: var(--surface); border-right: 1px solid var(--line); box-shadow: 8px 0 24px rgba(31, 29, 26, .12); z-index: 2; padding: 12px 10px; }
+  .fly h5 { margin: 2px 6px 8px; font-size: 13px; }
+  .fly a { display: flex; align-items: center; padding: 7px 8px; border-radius: 4px; color: var(--ink2); }
+  .fly a.on { background: var(--acc-soft); color: var(--acc-ink); font-weight: 600; }
+  .fly a span { margin-left: auto; font-size: 11px; color: var(--ink3); }
+  .fly a kbd { margin-left: auto; }
+  .fly hr { border: 0; border-top: 1px solid var(--line); margin: 8px 0; }
+  .split { flex: 1; display: grid; grid-template-columns: 440px 1fr; min-height: 0; }
+  .list { border-right: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
+  .list .tool { border-bottom: 1px solid var(--line); }
+  .rows { flex: 1; overflow: auto; }
+  .r { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+  .r.on { background: var(--cursor); box-shadow: inset 3px 0 0 var(--cursor-line); }
+  .r .n { font: 600 12px var(--mono); }
+  .r .a { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  .r .s { font-size: 11.5px; text-align: right; }
+  .r .c { font-size: 12.5px; color: var(--ink2); }
+  .view { overflow: auto; padding: 14px 18px; }
+  .vh { display: flex; align-items: center; gap: 10px; }
+  .vh h2 { margin: 0; font: 700 18px var(--mono); }
+  .acts { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+  .box h4 { margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink3); display: flex; }
+  .box h4 span { margin-left: auto; text-transform: none; letter-spacing: 0; }
+  .box .b { padding: 10px 12px; }
+  .kv { display: flex; justify-content: space-between; padding: 3px 0; }
+  .bar { height: 8px; border-radius: 2px; background: var(--line); overflow: hidden; margin: 8px 0 4px; }
+  .bar i { display: block; height: 100%; background: var(--cr); }
+</style></head>
+<body>
+<nav class="rail" id="rail"></nav>
+<div class="fly" id="fly"></div>
+<div class="col">
+  <div class="topbar"><span class="search">🔍 <span>Search invoice, party, item… </span><kbd>Ctrl K</kbd></span><span class="sp"></span><span class="chip">FY 2026-27</span><span class="av">RK</span></div>
+  <div class="split">
+    <div class="list">
+      <div class="tool"><div class="tabs"><span class="on">All<em>10</em></span><span>Draft<em>1</em></span><span>Unpaid<em>4</em></span><span>Paid<em>4</em></span><span>Void<em>1</em></span></div></div>
+      <div class="tool" style="justify-content:space-between"><span class="chip">📅 This month ▾</span><span class="muted">To collect <b class="dr">₹ 95,308</b></span><span class="btn acc" style="height:28px">+ New</span></div>
+      <div class="rows" id="rows"></div>
+    </div>
+    <div class="view">
+      <div class="vh"><h2>INV-2026-0413</h2><span class="st part">Part paid</span><span class="tag">B2B</span><span class="muted">11 Nov 2026, 5:04 pm · by Ramesh</span><span style="margin-left:auto" class="muted">↑↓ next invoice</span></div>
+      <div class="acts" id="acts"></div>
+      <div class="two">
+        <div class="box"><h4>Customer <span><a>Ledger →</a></span></h4><div class="b">
+          <b style="font-size:14px">Gupta Kirana &amp; General Stores</b><div class="muted">98110 22000 · GSTIN 27AAGFG4410P1Z3</div><div class="muted">Shop 14, Market Yard, Gultekdi, Pune 411037</div>
+          <div class="kv" style="margin-top:8px"><span class="muted">Total outstanding</span><b class="dr">₹ 6,888.00 Dr</b></div></div></div>
+        <div class="box"><h4>Payment <span class="muted">Due 26 Nov · 15 days</span></h4><div class="b">
+          <div class="kv"><span>Invoice total</span><b>₹ 9,658.00</b></div><div class="kv"><span class="muted">Paid</span><span class="cr">₹ 5,000.00</span></div>
+          <div class="bar"><i style="width:52%"></i></div>
+          <div class="kv"><b>Balance</b><b class="dr">₹ 4,658.00</b></div></div></div>
+      </div>
+      <div class="box" style="margin-top:12px"><h4>Items <span class="muted">3 lines · GST ₹ 569.91</span></h4>
+        <table class="t"><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Rate ₹</th><th class="num">Disc</th><th class="num">GST</th><th class="num">Amount ₹</th></tr></thead><tbody>
+          <tr><td><b>India Gate Basmati Rice 25 kg</b> <span class="muted">IG-2610</span></td><td class="num">2 bag</td><td class="num">2,450.00</td><td class="num muted">—</td><td class="num">5%</td><td class="num">5,145.00</td></tr>
+          <tr><td><b>Fortune Sunflower Oil 15 L</b> <span class="muted">FT-0925</span></td><td class="num">1 tin</td><td class="num">2,590.00</td><td class="num">2%</td><td class="num">5%</td><td class="num">2,665.11</td></tr>
+          <tr><td><b>Amul Butter 500 g</b> <span class="muted">AM-1102</span></td><td class="num">6 pcs</td><td class="num">275.00</td><td class="num muted">—</td><td class="num">12%</td><td class="num">1,848.00</td></tr>
+        </tbody><tfoot><tr><td colspan="5">Total (round off − 0.11)</td><td class="num">9,658.00</td></tr></tfoot></table></div>
+      <div class="box" style="margin-top:12px"><h4>Receipts <span><a>+ Add receipt (F6)</a></span></h4>
+        <table class="t"><thead><tr><th>Receipt</th><th>Date</th><th>Mode</th><th>Reference</th><th class="num">Amount ₹</th><th></th></tr></thead><tbody>
+          <tr><td class="mono">RCPT-0154</td><td>11 Nov, 5:06 pm</td><td>UPI</td><td class="muted">UPI 412398765510</td><td class="num cr">5,000.00</td><td><span class="ico" id="rc"></span></td></tr>
+        </tbody></table></div>
+    </div>
+  </div>
+</div>
+<script src="data.js"></script>
+<script>if (/fly=0/.test(location.search)) document.write('<style>.fly{display:none}</style>');</script>
+<script>
+  const R = (k, t, on) => `<a class="${on ? 'on' : ''}">${ic(k)}${t}</a>`;
+  document.getElementById('rail').innerHTML = `<span class="m">e</span>${R('home', 'Home')}${R('people', 'Parties')}${R('box', 'Catalog')}${R('stock', 'Stock')}${R('cart', 'Purchase')}${R('sale', 'Sales', 1)}${R('rep', 'Reports')}${R('gst', 'GST')}<span class="sp"></span>${R('set', 'Setup')}${R('team', 'Staff')}<span style="height:10px"></span>`;
+  document.getElementById('fly').innerHTML = `<h5>Sales Management</h5><a class="on">Sales Invoices<span>10</span></a><a>Payment Account</a><a>Sales Return</a><a>Follow-ups<span class="dr">4 due</span></a><a>Credit Note</a><hr><a>+ New invoice<kbd>Alt N</kbd></a><a>+ Receipt<kbd>F6</kbd></a><a>+ Sales return<kbd>Alt R</kbd></a>`;
+  document.getElementById('rows').innerHTML = INV.map((r, i) => `<div class="r ${i === 0 ? 'on' : ''}"><span class="n">INV-2026-${r[0]} <span class="tag">${r[10]}</span></span><span class="a">₹ ${inr(r[6])}</span>
+    <span class="c">${r[1]}<span class="muted"> · ${r[3]}</span></span><span class="s"><span class="st ${r[8]}">${ST[r[8]]}</span>${r[6] - r[7] > 0 && ['unpaid', 'part'].includes(r[8]) ? ` <span class="dr">· ₹ ${inr(r[6] - r[7])}</span>` : ''}</span></div>`).join('');
+  const A = [['pay', 'Record payment', 'dk', 'F6'], ['print', 'Print', '', 'P'], ['pdf', 'Download PDF'], ['ret', 'Return'], ['copy', 'Duplicate'], ['wa', 'Share on WhatsApp · new']];
+  document.getElementById('acts').innerHTML = A.map(([k, t, c, kb]) => `<span class="btn ${c || ''}">${ic(k)}${t}${kb ? `<kbd>${kb}</kbd>` : ''}</span>`).join('');
+  document.getElementById('rc').innerHTML = `<span>${ic('print')}</span><span class="d">${ic('del')}</span>`;
+</script>
+</body></html>

@@ -11,6 +11,7 @@ import ProductSearchPicker, { BarcodeScanInput } from '../components/ProductSear
 import { getProductForLineApi, lookupCustomersApi, createCustomerQuickApi } from '../services/productLookupService';
 import BatchPickerModal from '../components/BatchPickerModal';
 import { lookupBillFieldsApi } from '@/pages/Invoices/billFields/services/billFieldService';
+import { PastVisits } from '@/pages/customer/components/VisitHistory';
 import LinePriceNote from '../components/LinePriceNote';
 import ServiceLineCard from '../components/ServiceLineCard';
 import { NO_BATCH, datedFieldsFromSaved, useDatedSalesLines } from '../components/datedPricing';
@@ -42,6 +43,17 @@ const digits10 = (v) => String(v || '').replace(/\D/g, '').slice(-10);
 const isLinkedGoods = (item) => !!item.groupKey && item.itemType !== 'service';
 const lineKind = (item) => (item.itemType === 'service' || isLinkedGoods(item) ? 'service' : 'goods');
 const newGroupKey = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+// A saved service line's "Included" products, back as rows under it (not charged, only taken from stock).
+const includedRowsOf = (line) => (line.itemType === 'service' ? line.includedGoods || [] : []).map((g) => ({
+  ...blankLine('goods'),
+  productId: String(g.productId?._id || g.productId || ''),
+  productName: g.productName || '',
+  unit: g.unit || 'pcs',
+  qty: g.qty || 1,
+  baseQty: (g.qty || 1) / (line.qty || 1),
+  groupKey: line.groupKey || '',
+  inService: true,
+}));
 
 const blankLine = (itemType) => ({
   itemType,
@@ -75,6 +87,8 @@ export default function CreateSalesInvoice() {
   }, []);
 
   const { currentInvoice, loading: invoiceLoading, success, error } = useSelector((state) => state.salesInvoice);
+  // "Group history by" Bill Field (e.g. Vehicle number): Past visits of that one only
+  const groupField = billFields.find((f) => f.type === 'text' && f.groupHistory);
   const billValue = (key) => billEdits[key] ?? (isEditMode ? (currentInvoice?.customFields || []).find((f) => f.key === key)?.value : '') ?? '';
 
   // Products picked on this invoice (from the async lookup, or loaded for an edited draft),
@@ -192,7 +206,7 @@ export default function CreateSalesInvoice() {
       setPaymentMethod(currentInvoice.paymentMethod || 'none');
       if (currentInvoice.lineItems && currentInvoice.lineItems.length > 0) {
         setLineItems(
-          currentInvoice.lineItems.map((item) => ({
+          currentInvoice.lineItems.flatMap((item) => [{
             productId: item.productId?._id || item.productId || '',
             productName: item.productName || '',
             itemType: item.itemType || 'goods',
@@ -211,7 +225,7 @@ export default function CreateSalesInvoice() {
             taxPercent: item.taxPercent || 0,
             cessPercent: item.cessPercent || 0,
             ...datedFieldsFromSaved(item),
-          }))
+          }, ...includedRowsOf(item)])
         );
       }
     }
@@ -363,6 +377,7 @@ export default function CreateSalesInvoice() {
     itemType: product.itemType || 'goods',
     chargeBy: product.chargeBy || 'fixed',
     priceAtBilling: !!product.priceAtBilling,
+    askQtyOnBill: !!product.askQtyOnBill,
     ...(product.itemType === 'service' ? { qty: 1 } : {}),
     sku: product.sku || '',
     hsnCode: product.hsnSacCode || product.hsnCode || '',
@@ -409,6 +424,19 @@ export default function CreateSalesInvoice() {
     });
   };
 
+  // Past visits → "+" on a service: bill it again (on the empty service row, or a new one)
+  const addServiceFromHistory = async (productId) => {
+    try {
+      const product = await getProductForLineApi(productId);
+      if (!product || product.itemType !== 'service') throw new Error('not a service');
+      const emptyAt = lineItems.findIndex((l) => l.itemType === 'service' && !l.productId);
+      handleLineItemChange(emptyAt !== -1 ? emptyAt : lineItems.length, 'productId', product);
+      showToast(`${product.name} added to the bill.`, 'success');
+    } catch {
+      showToast('Could not add this service. It may be deleted or inactive.', 'danger');
+    }
+  };
+
   const handleLineItemChange = (index, field, value) => {
     // Dated pricing: a typed rate / discount is a manual price (needs a reason).
     if (field === 'rate' || field === 'discountPercent') {
@@ -420,6 +448,7 @@ export default function CreateSalesInvoice() {
     if (field === 'productId') {
       // `value` is the product object chosen in the picker (or '' to clear the line).
       const product = value && typeof value === 'object' ? value : null;
+      if (!updated[index]) updated[index] = blankLine(product?.itemType === 'service' ? 'service' : 'goods');
       const oldKey = updated[index].groupKey;
       if (oldKey) {
         const kept = updated.filter((item) => !(isLinkedGoods(item) && item.groupKey === oldKey));
@@ -486,6 +515,7 @@ export default function CreateSalesInvoice() {
     let taxAmount = 0;
 
     viewLines.forEach((item) => {
+      if (item.inService) return; // included in a service: not charged
       const qty = Number(item.qty || 0);
       const rate = Number(item.rate || 0);
       const discountPct = Number(item.discountPercent || 0);
@@ -526,13 +556,18 @@ export default function CreateSalesInvoice() {
       showToast(customerMode === 'ask' ? 'Enter the customer\'s mobile number first.' : 'No customer with this number — click "Add customer".', 'danger');
       return;
     }
-    if (customerMode === 'new' && !EMAIL_RE.test(customerSnapshot.email.trim())) {
-      showToast('Enter a valid email for the new customer.', 'danger');
+    // email is optional for a new customer; when typed it must be valid
+    if (customerMode === 'new' && customerSnapshot.email.trim() && !EMAIL_RE.test(customerSnapshot.email.trim())) {
+      showToast('Enter a valid email for the new customer, or leave it empty.', 'danger');
       return;
     }
     const hasInvalidCustomerFields = !customerSnapshot.name || !customerSnapshot.phone || !customerSnapshot.billingAddress.pincode;
     // Empty rows are ignored: a bill can be only products, only services, or both.
-    const filledLines = viewLines.filter((item) => item.productId);
+    // "Included" products go with their service line, not as bill lines.
+    const filledLines = viewLines.filter((item) => item.productId && !item.inService);
+    const includedGoodsOf = (groupKey) => viewLines
+      .filter((l) => l.inService && l.productId && l.groupKey === groupKey)
+      .map((l) => ({ productId: l.productId, productName: l.productName, qty: Number(l.qty), unit: l.unit }));
     const invalidItem = filledLines.find((item) => Number(item.qty) <= 0 || Number(item.rate) < 0);
     const gstin = customerSnapshot.gstin;
     const invalidGstin = gstin && !GSTIN_RE.test(gstin);
@@ -562,8 +597,9 @@ export default function CreateSalesInvoice() {
         showToast(`Enter ${missingField.label}`, 'danger');
         return;
       }
+      // An "Included" product short of stock does not stop the bill: what is there is used.
       const outOfStockItem = lineItems.find((item) => {
-        if (!item.productId) return false;
+        if (!item.productId || item.inService) return false;
         const stockInfo = getProductStock(item.productId);
         return stockInfo && stockInfo.available < Number(item.qty);
       });
@@ -614,7 +650,7 @@ export default function CreateSalesInvoice() {
         taxPercent: Number(item.taxPercent),
         cessPercent: Number(item.cessPercent),
         ...(item.groupKey ? { groupKey: item.groupKey } : {}),
-        ...(item.includedOnBill ? { includedOnBill: true } : {}),
+        ...(item.includedOnBill ? { includedOnBill: true, includedGoods: includedGoodsOf(item.groupKey) } : {}),
       })),
     };
 
@@ -685,6 +721,7 @@ export default function CreateSalesInvoice() {
   };
 
   const lineTotalOf = (item) => {
+    if (item.inService) return 0;
     const taxable = Number(item.qty || 0) * Number(item.rate || 0) * (1 - Number(item.discountPercent || 0) / 100);
     return taxable * (1 + Number(item.taxPercent || 0) / 100);
   };
@@ -897,7 +934,10 @@ export default function CreateSalesInvoice() {
       totalOf: lineTotalOf,
       onChange: handleLineItemChange,
       onRemove: removeLineItem,
-      chargedByQty: (item) => (item.chargeBy ?? productCache[item.productId]?.chargeBy) === 'quantity',
+      // Qty box: per hour / session / day, or a fixed service set to ask the quantity
+      chargedByQty: (item) => (item.chargeBy ?? productCache[item.productId]?.chargeBy) === 'quantity'
+        || (item.askQtyOnBill ?? productCache[item.productId]?.askQtyOnBill) === true,
+      qtyLabel: (item) => ((item.chargeBy ?? productCache[item.productId]?.chargeBy) === 'quantity' ? `Qty (${item.unit})` : 'Qty'),
       freePrice: (item) => (item.priceAtBilling ?? productCache[item.productId]?.priceAtBilling) === true,
     };
     return (
@@ -1024,8 +1064,7 @@ export default function CreateSalesInvoice() {
               </Field>
               <Field
                 label="Customer email"
-                required={customerMode === 'new'}
-                error={isSubmitted && customerMode === 'new' && !EMAIL_RE.test(customerSnapshot.email.trim()) ? 'A valid email is required for a new customer' : undefined}
+                error={isSubmitted && customerMode === 'new' && customerSnapshot.email.trim() && !EMAIL_RE.test(customerSnapshot.email.trim()) ? 'Enter a valid email, or leave it empty' : undefined}
               >
                 <Input
                   type="email"
@@ -1092,6 +1131,13 @@ export default function CreateSalesInvoice() {
                 />
               </Field>
             </FormGrid>
+          )}
+          {customerMode === 'found' && selectedCustomerId && (
+            <PastVisits
+              customerId={selectedCustomerId}
+              groupValue={groupField ? String(billValue(groupField.key) || '').trim() : ''}
+              onAddService={addServiceFromHistory}
+            />
           )}
         </div>
       </Section>

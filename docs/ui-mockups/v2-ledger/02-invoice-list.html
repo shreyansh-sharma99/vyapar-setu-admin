@@ -1,0 +1,71 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Sales invoices</title><link rel="stylesheet" href="ledger.css"></head>
+<body data-page="invoices">
+<div class="main-content">
+  <main class="body">
+    <div class="hd">
+      <div><div class="crumb">Sales</div><h1>Sales Invoices</h1></div>
+      <div class="act">
+        <span class="btn">Sales return</span>
+        <span class="btn">Export ▾</span>
+        <span class="btn pri">+ New invoice <kbd>Alt N</kbd></span>
+      </div>
+    </div>
+
+    <div class="strip" style="grid-template-columns:repeat(5,1fr)">
+      <div class="on"><div class="l">Total sales · last 45 days</div><div class="v">₹ 2,81,593.10</div><div class="s">14 invoices</div></div>
+      <div><div class="l">Received</div><div class="v cr">₹ 1,47,778.45</div><div class="s">52% of sales</div></div>
+      <div><div class="l">Unpaid</div><div class="v dr">₹ 1,33,814.65</div><div class="s">6 invoices</div></div>
+      <div><div class="l">Overdue</div><div class="v dr">₹ 42,900.00</div><div class="s">1 invoice · 17 days late</div></div>
+      <div><div class="l">Drafts</div><div class="v">₹ 11,780.00</div><div class="s">1 not issued</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <div class="tabs"><span class="on">All<em>14</em></span><span>Unpaid<em>6</em></span><span>Overdue<em>1</em></span><span>Paid<em>7</em></span><span>Drafts<em>1</em></span></div>
+        <span class="chip">📅 Last 45 days · 28 Sep – 11 Nov ▾</span>
+        <span class="chip">All parties ▾</span>
+        <span class="chip">All payment modes ▾</span>
+        <div class="search" style="margin-left:auto;max-width:300px;height:28px"><span>⌕</span><span>Invoice no., party, phone…</span><kbd>/</kbd></div>
+        <span class="btn ghost">Columns</span>
+      </div>
+      <table class="t">
+        <thead><tr><th style="width:108px">Actions</th><th>Date</th><th>Invoice no.</th><th>Party</th><th class="num">Items</th><th>Due</th><th class="num">Amount ₹</th><th class="num">Received ₹</th><th class="num">Balance ₹</th><th>Status</th></tr></thead>
+        <tbody id="rows"></tbody>
+        <tfoot><tr><td></td><td colspan="5">Total · 10 shown of 14</td><td class="num">2,15,379.00</td><td class="num cr">1,09,249.00</td><td class="num dr">94,350.00</td><td></td></tr></tfoot>
+      </table>
+      <div class="pager"><span>Rows 10 ▾</span><span class="sp"></span><span>1–10 of 14</span><span class="btn" style="height:26px">‹</span><span class="btn" style="height:26px">›</span></div>
+    </div>
+  </main>
+  <div class="keys"><span><kbd class="k">↑↓</kbd>move</span><span><kbd class="k">Enter</kbd>open</span><span><kbd class="k">P</kbd>print</span><span><kbd class="k">R</kbd>record payment</span><span><kbd class="k">W</kbd>send on WhatsApp</span><span><kbd class="k">/</kbd>search</span><span><kbd class="k">Alt N</kbd>new invoice</span></div>
+</div>
+<script>
+  const R = [
+    ['11 Nov', 'INV-2026-0412', 'Sharma General Store', '98201 55000', 6, 'Paid', '18,450.00', '18,450.00', '0.00', 'cr', 'Paid'],
+    ['11 Nov', 'INV-2026-0411', 'Gupta Kirana', '98110 22000', 4, '26 Nov', '6,230.00', '4,000.00', '2,230.00', 'warn', 'Part paid'],
+    ['10 Nov', 'INV-2026-0410', 'Walk-in customer', 'Cash', 2, 'Paid', '840.00', '840.00', '0.00', 'cr', 'Paid'],
+    ['09 Nov', 'INV-2026-0408', 'Priya Patel', '98989 89898', 3, 'Paid', '2,150.00', '2,150.00', '0.00', 'cr', 'Paid'],
+    ['09 Nov', 'INV-2026-0407', 'Krishna Traders', '98450 12000', 14, '24 Nov', '1,05,600.00', '60,000.00', '45,600.00', 'warn', 'Part paid'],
+    ['08 Nov', 'INV-2026-0406', 'Amit Sharma', '97000 12345', 1, 'Paid', '499.00', '499.00', '0.00', 'cr', 'Paid'],
+    ['08 Nov', 'INV-2026-0405', 'Fresh Mart', '91234 56780', 5, '—', '11,780.00', '—', '—', 'muted', 'Draft'],
+    ['07 Nov', 'INV-2026-0404', 'Sai Medicals', '90000 11111', 7, '22 Nov', '23,310.00', '23,310.00', '0.00', 'cr', 'Paid'],
+    ['06 Nov', 'INV-2026-0403', 'Raj Malhotra', '99887 76655', 2, '21 Nov', '3,620.00', '0.00', '3,620.00', 'dr', 'Unpaid'],
+    ['10 Oct', 'INV-2026-0371', 'Mehta Electricals', '98765 43210', 9, '25 Oct', '42,900.00', '0.00', '42,900.00', 'dr', 'Overdue 17 d'],
+  ];
+  const P = {
+    view: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    print: '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="1.5"/><path d="M7 14h10v7H7z"/>',
+    wa: '<path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.6-5.2A8.5 8.5 0 1 1 21 11.5z"/>',
+    pay: '<path d="M7 5h10M7 9h10M12 9c3 0 5 1.5 5 3.5S15 16 12 16H8l7 4"/>',
+  };
+  const ic = (k) => `<span title="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${P[k]}</svg></span>`;
+  document.getElementById('rows').innerHTML = R.map((r, i) => `<tr class="${i === 9 ? 'sel' : ''}">
+    <td><span class="ico">${ic('view')}${ic('print')}${ic('wa')}${r[9] === 'cr' || r[9] === 'muted' ? '' : ic('pay')}</span></td>
+    <td>${r[0]}</td><td class="mono">${r[1]}</td>
+    <td><b>${r[2]}</b> <span class="muted" style="font-size:11.5px">· ${r[3]}</span></td>
+    <td class="num">${r[4]}</td><td class="${r[10].startsWith('Overdue') ? 'dr' : 'muted'}">${r[5]}</td>
+    <td class="num b">${r[6]}</td><td class="num cr">${r[7]}</td><td class="num ${r[8] !== '0.00' && r[8] !== '—' ? 'dr b' : 'muted'}">${r[8]}</td>
+    <td><span class="dot ${r[9]}">${r[10]}</span></td></tr>`).join('');
+</script>
+<script src="shell.js"></script>
+</body></html>

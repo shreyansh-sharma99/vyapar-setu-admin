@@ -39,7 +39,7 @@ import {
 import { cn } from '@/lib/utils';
 import { decryptData } from '@/utility/crypto';
 import { formatDateWithTiming } from '@/utility/dateTiming';
-import { computeCustomerPrice, encodeId, formatINR, formatQty, getStockState, toNumberOr, useToasts } from './utils/productUtils';
+import { catalogPath, computeCustomerPrice, encodeId, formatINR, formatQty, getStockState, toNumberOr, useToasts } from './utils/productUtils';
 import TodayPriceCard from './components/TodayPriceCard';
 import BatchesCard from './components/BatchesCard';
 import ToastStack from './components/ToastStack';
@@ -207,7 +207,7 @@ export default function ProductDetails() {
                 </Button>
               </>
             )}
-            <Button size="sm" startIcon={<Edit />} onClick={() => navigate(`/products/edit/${encodeId(p._id)}`)}>
+            <Button size="sm" startIcon={<Edit />} onClick={() => navigate(`${catalogPath(p.itemType)}/edit/${encodeId(p._id)}`)}>
               Edit
             </Button>
           </>

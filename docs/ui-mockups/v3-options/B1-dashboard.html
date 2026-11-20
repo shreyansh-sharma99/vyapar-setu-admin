@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Option B · Dashboard</title><link rel="stylesheet" href="B.css">
+<style>
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+  .kpi { padding: 14px 16px; }
+  .kpi .l { display: flex; align-items: center; gap: 8px; color: var(--ink2); font-weight: 600; font-size: 12.5px; }
+  .kpi .l i { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font-style: normal; }
+  .kpi .v { font-size: 22px; font-weight: 700; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .kpi .s { font-size: 12px; color: var(--ink3); margin-top: 2px; }
+  .cols { display: grid; grid-template-columns: 1fr 340px; gap: 14px; }
+  .chart { display: flex; align-items: flex-end; gap: 10px; height: 150px; padding: 14px 16px 0; }
+  .chart div { flex: 1; background: var(--pri); border-radius: 5px 5px 0 0; opacity: .85; }
+  .chart div.t { background: #f26b1d; opacity: 1; }
+  .days { display: flex; gap: 10px; padding: 6px 16px 14px; font-size: 11.5px; color: var(--ink3); }
+  .days span { flex: 1; text-align: center; }
+  .qa { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
+  .qa span { padding: 10px; border-radius: 8px; background: var(--page); font-weight: 600; font-size: 12.5px; }
+</style></head>
+<body data-page="dash">
+<div class="main">
+  <div class="top"><h1>Dashboard</h1><span class="muted">Wed, 11 Nov 2026</span><span class="sp"></span><span class="btn">Last 7 days ▾</span><span class="btn">🔔</span><span class="btn">Help</span></div>
+  <div class="body">
+    <div class="kpis">
+      <div class="card kpi"><div class="l"><i style="background:var(--ok-soft);color:var(--ok)">↓</i>To Collect</div><div class="v">₹ 1,29,930</div><div class="s">from 5 parties · <span style="color:var(--bad)">₹ 42,900 overdue</span></div></div>
+      <div class="card kpi"><div class="l"><i style="background:var(--bad-soft);color:var(--bad)">↑</i>To Pay</div><div class="v">₹ 1,20,000</div><div class="s">to 3 suppliers · ₹ 33,400 due this week</div></div>
+      <div class="card kpi"><div class="l"><i style="background:var(--pri-soft);color:var(--pri)">▭</i>Total Cash + Bank</div><div class="v">₹ 2,84,615</div><div class="s">Cash ₹ 38,200 · HDFC ₹ 2,46,415</div></div>
+      <div class="card kpi"><div class="l"><i style="background:var(--warn-soft);color:var(--warn)">▦</i>Stock Value</div><div class="v">₹ 5,62,350</div><div class="s">2 low · 1 out of stock</div></div>
+    </div>
+    <div class="cols">
+      <div style="display:grid;gap:14px">
+        <div class="card">
+          <div class="h">Sales <span class="muted" style="font-weight:500">₹ 1,58,240 this week · +12% vs last week</span><span class="act"><span class="pill n">Daily</span></span></div>
+          <div class="chart"><div style="height:54%"></div><div style="height:38%"></div><div style="height:72%"></div><div style="height:46%"></div><div style="height:60%"></div><div style="height:83%"></div><div class="t" style="height:66%"></div></div>
+          <div class="days"><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span><span>Mon</span><span>Tue</span><span>Today</span></div>
+        </div>
+        <div class="card">
+          <div class="h">Latest Transactions <span class="act" style="color:var(--pri)">See all →</span></div>
+          <table>
+            <tr><th>Date</th><th>Type</th><th>Txn No</th><th>Party Name</th><th class="num">Amount</th><th>Status</th></tr>
+            <tr><td>11 Nov</td><td>Sales Invoice</td><td>412</td><td><b>Sharma General Store</b></td><td class="num">₹ 18,450</td><td><span class="pill ok">Paid</span></td></tr>
+            <tr><td>11 Nov</td><td>Payment In</td><td>153</td><td><b>Gupta Kirana</b></td><td class="num">₹ 4,000</td><td><span class="pill ok">Received</span></td></tr>
+            <tr><td>11 Nov</td><td>Purchase</td><td>61</td><td><b>Annapurna Wholesale</b></td><td class="num">₹ 97,872</td><td><span class="pill warn">Partially Paid</span></td></tr>
+            <tr><td>10 Nov</td><td>Sales Invoice</td><td>410</td><td><b>Walk-in customer</b></td><td class="num">₹ 840</td><td><span class="pill ok">Paid</span></td></tr>
+            <tr><td>10 Oct</td><td>Sales Invoice</td><td>371</td><td><b>Mehta Electricals</b></td><td class="num">₹ 42,900</td><td><span class="pill bad">Overdue</span></td></tr>
+          </table>
+        </div>
+      </div>
+      <div style="display:grid;gap:14px;align-content:start">
+        <div class="card"><div class="h">Quick Create</div>
+          <div class="qa"><span>＋ Sales Invoice</span><span>＋ Purchase</span><span>＋ Payment In</span><span>＋ Payment Out</span><span>＋ Quotation</span><span>＋ Expense</span></div></div>
+        <div class="card"><div class="h">Low Stock Items <span class="act" style="color:var(--pri)">View all</span></div>
+          <table>
+            <tr><td><b>Fortune Sunflower Oil 15 L</b></td><td class="num"><span class="pill warn">4 tin</span></td></tr>
+            <tr><td><b>Maggi Noodles 12-pack</b></td><td class="num"><span class="pill warn">5 pack</span></td></tr>
+            <tr><td style="border:0"><b>Aashirvaad Atta 10 kg</b></td><td class="num" style="border:0"><span class="pill bad">Out</span></td></tr>
+          </table></div>
+        <div class="card" style="padding:14px 16px"><b>Send payment reminders</b><div class="muted" style="margin:4px 0 10px">5 parties owe you ₹ 1,29,930. Remind them on WhatsApp in one click.</div><span class="btn lt">Send reminders</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="B-side.js"></script>
+</body></html>

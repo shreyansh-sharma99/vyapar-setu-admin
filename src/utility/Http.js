@@ -1,6 +1,7 @@
 import axios from 'axios';
 import CryptoJS from 'crypto-js';
 import { encryptData, decryptData } from './crypto';
+import { openUpgrade, showBusinessLocked } from './upgradeEvents';
 
 const IS_ENCRYPTION = import.meta.env.VITE_IS_ENCRYPTION === 'true';
 const HEX_KEY = import.meta.env.VITE_ENCRYPTION_KEY || '';
@@ -72,6 +73,22 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+/**
+ * Plan / business answers the whole app reacts to (403 + code):
+ *   PLAN_LIMIT_REACHED → upgrade pop-up · BUSINESS_LOCKED → lock screen · ACCOUNT_INACTIVE → back to login
+ * (BUSINESS_READ_ONLY needs nothing here: the banner explains it and each page shows the server's message.)
+ */
+const reactToPlanCodes = (error) => {
+  const data = error.response?.status === 403 ? error.response.data : null;
+  if (!data?.code) return;
+  if (data.code === 'PLAN_LIMIT_REACHED') openUpgrade(data);
+  else if (data.code === 'BUSINESS_LOCKED') showBusinessLocked(data);
+  else if (data.code === 'ACCOUNT_INACTIVE') {
+    localStorage.clear();
+    window.location.href = '/login';
+  }
+};
 
 let isRefreshing = false;
 let failedQueue = [];
@@ -188,6 +205,7 @@ apiClient.interceptors.response.use(
         // leave as-is if decryption fails
       }
     }
+    reactToPlanCodes(error);
     return Promise.reject(error);
   }
 );

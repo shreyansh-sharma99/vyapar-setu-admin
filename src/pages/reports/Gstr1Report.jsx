@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
-import { PieChart, IndianRupee, Landmark, Calculator, FileText, Download, FileSpreadsheet } from 'lucide-react';
+import { PieChart, IndianRupee, Landmark, Calculator, FileText, Download, FileSpreadsheet, FileJson, AlertTriangle } from 'lucide-react';
 import { Alert, Badge, Button, DataTable, PageHeader, Segmented, toast } from '@/components/ui';
-import { downloadGstr1Api, getGstr1TableApi } from './services/reportService';
+import { downloadGstr1Api, getGstChecksApi, getGstPeriodsApi, getGstr1TableApi } from './services/reportService';
 import { getGstr1 } from './services/reportSlice';
 import { DateFilterBar, StatRow } from './components/ReportBits';
 
@@ -17,6 +17,7 @@ const GSTR1_SUB_TABS = [
   { label: 'B2CS', value: 'b2cs' },
   { label: 'CDNR', value: 'cdnr' },
   { label: 'CDNUR', value: 'cdnur' },
+  { label: 'Nil / Exempt', value: 'nil' },
   { label: 'HSN B2B', value: 'hsnB2B' },
   { label: 'HSN B2C', value: 'hsnB2C' },
   { label: 'Documents', value: 'docs' },
@@ -28,6 +29,7 @@ const EMPTY = {
   b2cs: 'No B2C sales in these dates.',
   cdnr: 'No credit notes / returns to buyers with a GSTIN.',
   cdnur: 'No credit notes / returns against B2CL invoices. (Returns on ordinary B2C sales are taken off inside B2CS.)',
+  nil: 'No nil-rated, exempt or non-GST sales in these dates.',
 };
 
 const fmtDay = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -108,15 +110,33 @@ export default function Gstr1Report() {
   const download = async (format) => {
     setDownloading(format);
     try {
-      await downloadGstr1Api({ ...range, format, ...(format === 'csv' ? { name: activeSubTab } : {}) });
-    } catch {
-      toast.error('Could not download the GSTR-1 file');
+      await downloadGstr1Api({ ...range, format: format === 'iff' ? 'json' : format, ...(format === 'csv' ? { name: activeSubTab } : {}), ...(format === 'iff' ? { scope: 'iff' } : {}) });
+    } catch (e) {
+      // a blob error body: read the server's message
+      const text = e?.response?.data instanceof Blob ? await e.response.data.text().catch(() => '') : '';
+      let msg;
+      try { msg = JSON.parse(text).message; } catch { msg = ''; }
+      toast.error(msg || 'Could not download the GSTR-1 file');
     } finally {
       setDownloading('');
     }
   };
 
   const { gstr1 } = useSelector((state) => ({ gstr1: state.reports.gstr1 }));
+
+  // problems the portal would reject, for the same dates
+  const [checks, setChecks] = useState(null);
+  const [showChecks, setShowChecks] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    getGstChecksApi(range).then((d) => alive && setChecks(d)).catch(() => alive && setChecks(null));
+    return () => { alive = false; };
+  }, [range]);
+  // quarterly (QRMP) shops also file IFF for B2B in months 1–2
+  const [frequency, setFrequency] = useState('monthly');
+  useEffect(() => {
+    getGstPeriodsApi({}).then((d) => setFrequency(d?.frequency || 'monthly')).catch(() => {});
+  }, []);
 
   const fetchReport = (from = dateFrom, to = dateTo) => {
     const params = {};
@@ -178,6 +198,14 @@ export default function Gstr1Report() {
             <Button variant="secondary" size="sm" startIcon={<FileSpreadsheet />} loading={downloading === 'xlsx'} onClick={() => download('xlsx')}>
               Excel (all tables)
             </Button>
+            <Button size="sm" startIcon={<FileJson />} loading={downloading === 'json'} onClick={() => download('json')}>
+              Portal JSON
+            </Button>
+            {frequency === 'quarterly' && (
+              <Button variant="secondary" size="sm" startIcon={<FileJson />} loading={downloading === 'iff'} onClick={() => download('iff')}>
+                IFF JSON
+              </Button>
+            )}
           </>
         }
       />
@@ -194,6 +222,28 @@ export default function Gstr1Report() {
 
       {gstr1?.shopStateMissing && (
         <Alert tone="warning">Your shop state is not set in Invoice Settings, so the place of supply of some walk-in sales may be blank.</Alert>
+      )}
+
+      {checks && checks.rows.length > 0 && (
+        <Alert tone={checks.counts.errors ? 'danger' : 'warning'} title={`${checks.counts.errors} problem${checks.counts.errors === 1 ? '' : 's'} and ${checks.counts.warnings} warning${checks.counts.warnings === 1 ? '' : 's'} before filing`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span>The portal may reject these rows. Fix them, then download the JSON.</span>
+            <Button variant="link" size="xs" onClick={() => setShowChecks((v) => !v)}>{showChecks ? 'Hide' : 'Show'} the list</Button>
+          </div>
+        </Alert>
+      )}
+      {checks && showChecks && (
+        <DataTable
+          columns={[
+            { key: 'severity', header: 'Type', render: (r) => <Badge tone={r.severity === 'error' ? 'danger' : 'warning'}>{r.severity === 'error' ? 'Problem' : 'Warning'}</Badge> },
+            { key: 'document', header: 'Document', render: (r) => <span className="font-mono text-xs">{r.document}</span> },
+            { key: 'problem', header: 'Problem', render: (r) => <span className="text-xs">{r.problem}</span> },
+            { key: 'fix', header: 'How to fix', render: (r) => <span className="text-xs text-ink-muted">{r.fix}</span> },
+          ]}
+          rows={checks.rows}
+          rowKey={(r, i) => `${r.code}-${r.docId || ''}-${i}`}
+          empty={{ icon: AlertTriangle, title: 'No problems found.' }}
+        />
       )}
 
       <div className="max-w-full overflow-x-auto">

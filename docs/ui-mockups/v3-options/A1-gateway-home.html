@@ -1,0 +1,64 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Option A · Gateway</title><link rel="stylesheet" href="A.css">
+<style>
+  .grid { display: grid; grid-template-columns: 1fr 360px; gap: 18px; max-width: 1180px; }
+  .gw { width: 330px; }
+  .gw .grp { padding: 6px 10px 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink3); }
+  .cur-period { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); margin-bottom: 14px; }
+  .cur-period div { padding: 8px 12px; border-right: 1px solid var(--line); } .cur-period div:last-child { border-right: 0; }
+  .cur-period small { display: block; color: var(--ink3); font-size: 11.5px; }
+</style></head>
+<body>
+<div class="tb"><span class="logo">ecn<i>biz</i></span><b>Gateway</b><span class="muted" style="color:#cfe6ef">Sharma General Store · Pune</span><span class="sp"></span><span><kbd>Ctrl K</kbd>Go to</span><span><kbd>Alt H</kbd>Help</span><span>11-Nov-2026 · 5:02 pm</span></div>
+<div class="mb"><span><u>K</u>: Company</span><span><u>Y</u>: Data</span><span><u>Z</u>: Exchange</span><span><u>G</u>: Go To</span><span><u>O</u>: Import</span><span><u>E</u>: Export</span><span><u>M</u>: Share</span><span><u>P</u>: Print</span><span style="margin-left:auto"><u>F1</u>: Help</span></div>
+<div class="wrap">
+  <div class="area">
+    <div class="grid">
+      <div>
+        <div class="cur-period">
+          <div><small>Current period</small><b>1-Apr-26 to 31-Mar-27</b></div>
+          <div><small>Current date</small><b>Wednesday, 11-Nov-2026</b></div>
+        </div>
+        <div class="box">
+          <h3>Today at a glance</h3>
+          <table>
+            <tr><th>Head</th><th class="num">Today</th><th class="num">This month</th><th class="num">Closing balance</th></tr>
+            <tr><td>Sales accounts</td><td class="num">19,883.00</td><td class="num">2,81,593.10</td><td class="num">31,82,400.00 Cr</td></tr>
+            <tr><td>Purchase accounts</td><td class="num">97,872.00</td><td class="num">2,42,656.00</td><td class="num">24,61,050.00 Dr</td></tr>
+            <tr class="sel"><td><b>Sundry debtors</b> (to collect)</td><td class="num"></td><td class="num"></td><td class="num dr"><b>1,29,930.00 Dr</b></td></tr>
+            <tr><td>Sundry creditors (to pay)</td><td class="num"></td><td class="num"></td><td class="num cr">1,20,000.00 Cr</td></tr>
+            <tr><td>Cash-in-hand</td><td class="num">+ 4,000.00</td><td class="num"></td><td class="num">38,200.00 Dr</td></tr>
+            <tr><td>Bank accounts · HDFC</td><td class="num">− 20,000.00</td><td class="num"></td><td class="num">2,46,415.40 Dr</td></tr>
+            <tr><td>Stock-in-hand (cost)</td><td class="num"></td><td class="num"></td><td class="num">5,62,350.00 Dr</td></tr>
+          </table>
+        </div>
+        <div class="box" style="margin-top:14px">
+          <h3>Needs attention</h3>
+          <div class="row">Mehta Electricals · INV-2026-0371 overdue 17 days<span style="margin-left:auto" class="dr">42,900.00</span></div>
+          <div class="row">Annapurna Wholesale · PB-2026-0055 due in 2 days<span style="margin-left:auto">33,400.00</span></div>
+          <div class="row">Aashirvaad Atta 10 kg · out of stock<span style="margin-left:auto" class="dr">0 bag</span></div>
+          <div class="row">Fortune Sunflower Oil 15 L · below reorder level<span style="margin-left:auto">4 tin</span></div>
+        </div>
+      </div>
+      <div class="box gw">
+        <h3>Gateway of ecnbiz</h3>
+        <div class="grp">Masters</div>
+        <div class="row">C<u>r</u>eate</div><div class="row">A<u>l</u>ter</div><div class="row">C<u>h</u>art of accounts</div>
+        <div class="grp">Transactions</div>
+        <div class="row sel"><u>V</u>ouchers <span style="margin-left:auto;font-weight:400">sale · purchase · receipt · payment</span></div>
+        <div class="row">Da<u>y</u> book</div>
+        <div class="grp">Utilities</div>
+        <div class="row">Ba<u>n</u>king</div><div class="row">Stoc<u>k</u> adjustment</div>
+        <div class="grp">Reports</div>
+        <div class="row"><u>B</u>alance sheet</div><div class="row"><u>P</u>rofit &amp; loss A/c</div><div class="row"><u>S</u>tock summary</div><div class="row">Ou<u>t</u>standings</div><div class="row"><u>G</u>ST reports</div>
+        <div class="row" style="margin-top:6px;border-top:1px solid var(--line);padding-top:6px">Q<u>u</u>it</div>
+      </div>
+    </div>
+  </div>
+  <div class="fk">
+    <div><b>F2</b>Date</div><div><b>F3</b>Company</div><div class="off"><b>F4</b></div><div><b>F5</b>Payment</div><div><b>F6</b>Receipt</div><div><b>F7</b>Journal</div><div><b>F8</b>Sales</div><div><b>F9</b>Purchase</div><div><b>F10</b>Other vch</div>
+    <div class="gap"></div><div><b>Ctrl K</b>Go to</div><div><b>F12</b>Configure</div>
+  </div>
+</div>
+<div class="sl"><span><b>↑↓</b> move</span><span><b>Enter</b> open</span><span><b>Letter</b> jump (highlighted letter)</span><span><b>Esc</b> back</span><span style="margin-left:auto">Owner · last backup 2:00 am</span></div>
+<script>if (/theme=dark/.test(location.search)) document.documentElement.classList.add('dark');</script>
+</body></html>

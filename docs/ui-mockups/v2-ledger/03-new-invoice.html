@@ -1,0 +1,134 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>New sales invoice</title><link rel="stylesheet" href="ledger.css">
+<style>
+  .main-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .row { flex: 1; display: flex; min-height: 0; }
+  .doc { display: grid; grid-template-columns: 1.15fr 1fr 1.1fr; border-bottom: 1px solid var(--line); }
+  .doc > div { padding: 10px 12px; border-right: 1px solid var(--line); }
+  .doc > div:last-child { border-right: 0; }
+  .doc h5 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); display: flex; }
+  .doc h5 a { margin-left: auto; text-transform: none; letter-spacing: 0; color: var(--brand-ink); font-weight: 500; }
+  .party b { font-size: 14px; }
+  .party .bal { margin-top: 6px; display: inline-flex; gap: 6px; padding: 3px 8px; border-radius: 4px; background: var(--sunk); border: 1px solid var(--line); font-size: 12px; }
+  .kv .seg span { padding: 4px 7px; }
+  .kv { display: grid; grid-template-columns: 74px 1fr; gap: 6px 8px; align-items: center; }
+  .kv .inp { height: 27px; }
+  .grid td { padding: 0; }
+  .grid td > div { padding: 6px 9px; min-height: 34px; display: flex; align-items: center; }
+  .grid td.num > div { justify-content: flex-end; }
+  .grid td .sub { display: block; font-size: 11px; color: var(--ink-3); }
+  .grid tr.act td { background: var(--select); }
+  .grid tr.act td.cell { box-shadow: inset 0 0 0 2px var(--brand); background: var(--surface); }
+  .grid tr.add td { color: var(--brand-ink); font-weight: 500; }
+  .suggest { position: absolute; left: 34px; top: 34px; width: 470px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px; box-shadow: 0 10px 30px rgba(15, 23, 42, .18); z-index: 5; }
+  .suggest .h { display: grid; grid-template-columns: 1fr 70px 70px 80px; padding: 6px 10px; font-size: 10.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; border-bottom: 1px solid var(--line); }
+  .suggest .r { display: grid; grid-template-columns: 1fr 70px 70px 80px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  .suggest .r.on { background: var(--select); box-shadow: inset 3px 0 0 var(--select-line); }
+  .suggest .f { padding: 6px 10px; font-size: 11.5px; color: var(--ink-3); display: flex; gap: 12px; }
+  .bottom { display: grid; grid-template-columns: 1fr 340px; border-top: 1px solid var(--line); }
+  .bottom .l { padding: 10px 12px; border-right: 1px solid var(--line); display: grid; gap: 10px; align-content: start; }
+  .tot div { display: flex; justify-content: space-between; padding: 5px 12px; border-bottom: 1px solid var(--line); }
+  .tot div span:last-child { font-variant-numeric: tabular-nums; }
+  .tot .big { padding: 9px 12px; font-size: 16px; font-weight: 700; background: var(--sunk); }
+  .tot .recv { align-items: center; gap: 8px; }
+  .words { padding: 8px 10px; background: var(--sunk); border: 1px dashed var(--line-strong); border-radius: 4px; font-size: 12px; color: var(--ink-2); }
+</style></head>
+<body data-page="invoices">
+<div class="main-content">
+  <div class="row">
+    <main class="body">
+      <div class="hd">
+        <div><div class="crumb">Sales › Invoices</div><h1>New Sales Invoice <span class="mono muted" style="font-size:13px;font-weight:500">INV-2026-0413</span></h1></div>
+        <div class="act">
+          <span class="btn ghost danger">Cancel <kbd>Esc</kbd></span>
+          <span class="btn">Save draft <kbd>Ctrl S</kbd></span>
+          <span class="btn">Save &amp; Print <kbd>Ctrl P</kbd></span>
+          <span class="btn pri">Save &amp; New <kbd>Ctrl A</kbd></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="doc">
+          <div class="party">
+            <h5>Bill to <a>Change (F3)</a></h5>
+            <b>Gupta Kirana &amp; General Stores</b>
+            <div class="muted">GSTIN 27AAGFG4410P1Z3 · 98110 22000</div>
+            <div class="muted">Shop 14, Market Yard, Gultekdi, Pune 411037</div>
+            <div class="bal"><span class="muted">Balance</span><b class="dr">₹ 2,230.00 Dr</b><span class="muted">· limit ₹ 50,000</span></div>
+          </div>
+          <div>
+            <h5>Ship to <a>Same as billing</a></h5>
+            <div class="muted" style="margin-top:2px">Gupta Kirana — Godown 2<br>Lane 4, Bibwewadi, Pune 411037</div>
+            <div style="margin-top:8px" class="muted">Place of supply <b style="color:var(--ink)">27 — Maharashtra</b></div>
+          </div>
+          <div class="kv">
+            <span class="muted">Invoice no.</span><span class="inp mono">INV-2026-0413</span>
+            <span class="muted">Date <kbd class="k" style="margin-left:2px">F2</kbd></span><span class="inp">11-11-2026</span>
+            <span class="muted">Terms</span><span class="inp">15 days · due 26-11-2026</span>
+            <span class="muted">Type</span><span class="seg" style="font-size:12px"><span class="on">Tax invoice</span><span>Bill of supply</span><span>Cash memo</span></span>
+            <span class="muted">Salesman</span><span class="inp ph">Optional</span>
+          </div>
+        </div>
+
+        <div style="position:relative">
+          <table class="t grid">
+            <thead><tr><th style="width:34px">#</th><th>Item</th><th>HSN</th><th class="num">Qty</th><th>Unit</th><th class="num">Rate ₹</th><th class="num">Disc %</th><th class="num">GST</th><th class="num">Amount ₹</th><th style="width:30px"></th></tr></thead>
+            <tbody>
+              <tr><td><div class="muted">1</div></td><td><div><span><b>India Gate Basmati Rice 25 kg</b><span class="sub">Batch IG-2610 · 18 in stock</span></span></div></td><td><div class="mono">1006</div></td><td class="num"><div>2</div></td><td><div>bag</div></td><td class="num"><div>2,450.00</div></td><td class="num"><div class="muted">—</div></td><td class="num"><div>5%</div></td><td class="num"><div><b>5,145.00</b></div></td><td><div class="muted">✕</div></td></tr>
+              <tr><td><div class="muted">2</div></td><td><div><span><b>Fortune Sunflower Oil 15 L</b><span class="sub">Batch FT-0925 · 4 in stock</span></span></div></td><td><div class="mono">1512</div></td><td class="num"><div>1</div></td><td><div>tin</div></td><td class="num"><div>2,590.00</div></td><td class="num"><div>2</div></td><td class="num"><div>5%</div></td><td class="num"><div><b>2,665.11</b></div></td><td><div class="muted">✕</div></td></tr>
+              <tr><td><div class="muted">3</div></td><td><div><span><b>Amul Butter 500 g</b><span class="sub">Batch AM-1102 · 60 in stock</span></span></div></td><td><div class="mono">0405</div></td><td class="num"><div>6</div></td><td><div>pcs</div></td><td class="num"><div>275.00</div></td><td class="num"><div class="muted">—</div></td><td class="num"><div>12%</div></td><td class="num"><div><b>1,848.00</b></div></td><td><div class="muted">✕</div></td></tr>
+              <tr class="act"><td><div class="muted">4</div></td><td class="cell"><div>magg<span style="border-left:1.5px solid var(--brand);height:15px;margin-left:1px"></span></div></td><td><div></div></td><td class="num"><div></div></td><td><div></div></td><td class="num"><div></div></td><td class="num"><div></div></td><td class="num"><div></div></td><td class="num"><div></div></td><td><div></div></td></tr>
+              <tr class="add"><td colspan="10"><div>+ Add item <span class="muted" style="margin-left:8px;font-weight:400">Enter on the last cell adds a row · F4 opens the item list · scan a barcode anywhere</span></div></td></tr>
+            </tbody>
+          </table>
+          <div class="suggest" style="top:244px">
+            <div class="h"><span>Item</span><span class="num">Stock</span><span class="num">MRP</span><span class="num">Rate</span></div>
+            <div class="r on"><span><b>Maggi Noodles 12-pack</b> <span class="muted mono">MAG-12</span></span><span class="num warn">5 pack</span><span class="num">180</span><span class="num">168.00</span></div>
+            <div class="r"><span>Maggi Masala 70 g</span><span class="num">120 pcs</span><span class="num">14</span><span class="num">13.00</span></div>
+            <div class="r"><span>Maggi Hot &amp; Sweet Sauce 1 kg</span><span class="num">22 btl</span><span class="num">199</span><span class="num">182.00</span></div>
+            <div class="f"><span><kbd class="k">↑↓</kbd> move</span><span><kbd class="k">Enter</kbd> pick</span><span><kbd class="k">Alt C</kbd> create new item</span></div>
+          </div>
+        </div>
+
+        <div class="bottom">
+          <div class="l">
+            <div class="words"><b>Amount in words:</b> Nine Thousand Six Hundred Fifty-Eight Rupees Only</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="field"><label>Notes for customer</label><div class="inp ph" style="height:44px;align-items:flex-start;padding-top:6px">Thank you for your business!</div></div>
+              <div class="field"><label>Terms</label><div class="inp ph" style="height:44px;align-items:flex-start;padding-top:6px">Goods once sold will not be taken back.</div></div>
+            </div>
+            <div class="muted" style="font-size:11.5px">Bank on bill: HDFC Bank · A/c 5020 0041 8722 63 · IFSC HDFC0001234 · UPI sharmastore@hdfc</div>
+          </div>
+          <div class="tot">
+            <div><span class="muted">Taxable value</span><span>9,088.20</span></div>
+            <div><span class="muted">CGST</span><span>284.96</span></div>
+            <div><span class="muted">SGST</span><span>284.95</span></div>
+            <div><span class="muted">Round off</span><span>− 0.11</span></div>
+            <div class="big"><span>Total</span><span>₹ 9,658.00</span></div>
+            <div class="recv"><span class="muted">Received</span><span class="inp" style="height:26px;width:86px">UPI ▾</span><span class="inp" style="height:26px;width:96px;justify-content:flex-end">5,000.00</span></div>
+            <div style="border-bottom:0"><span class="b">Balance due</span><span class="b dr">₹ 4,658.00</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <aside class="fbar">
+      <h6>Keys</h6>
+      <div><b>F2</b>Date</div>
+      <div><b>F3</b>Party</div>
+      <div><b>F4</b>Item list</div>
+      <div><b>F6</b>Receipt</div>
+      <div><b>F7</b>Discount</div>
+      <div><b>F8</b>Sales</div>
+      <div><b>F9</b>Purchase</div>
+      <div><b>Alt C</b>New master</div>
+      <div><b>Alt D</b>Delete row</div>
+      <div><b>Alt 2</b>Duplicate</div>
+      <div class="off"><b>Ctrl R</b>Repeat last</div>
+      <div><b>Ctrl A</b>Save</div>
+      <div><b>Esc</b>Quit</div>
+    </aside>
+  </div>
+  <div class="keys"><span><kbd class="k">Enter</kbd>next field</span><span><kbd class="k">Shift Enter</kbd>back</span><span><kbd class="k">Ctrl K</kbd>go to anything</span><span style="margin-left:auto">Draft auto-saved 2 s ago</span></div>
+</div>
+<script src="shell.js"></script>
+</body></html>

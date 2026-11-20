@@ -1,0 +1,56 @@
+/* Option A — "Gateway": Tally-style, keyboard first, text over boxes. Mockup only. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+:root { --bg: #fbfaf6; --ink: #1d232c; --ink2: #56606e; --ink3: #8a929e; --line: #d9dde3; --bar: #1c5f7a; --bar2: #2a7899; --hl: #ffd34d; --hl2: #fff3c4; --dr: #b3261e; --cr: #13795b; --key: #1c5f7a; }
+.dark { --bg: #10151b; --ink: #e6e9ee; --ink2: #b0b8c4; --ink3: #7c8592; --line: #2a323d; --bar: #0f3d50; --bar2: #155069; --hl: #c99a12; --hl2: #2c2610; --dr: #ff8a7a; --cr: #4fd1a1; --key: #6cc3e6; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 13.5px/1.45 Inter, 'Segoe UI', sans-serif; color: var(--ink); background: var(--bg); display: flex; flex-direction: column; }
+.mono { font-family: 'JetBrains Mono', Consolas, monospace; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--ink3); }
+.dr { color: var(--dr); } .cr { color: var(--cr); }
+/* title bar */
+.tb { display: flex; align-items: center; gap: 18px; height: 34px; padding: 0 14px; background: var(--bar); color: #fff; font-size: 12.5px; }
+.tb b { font-weight: 700; letter-spacing: .3px; }
+.tb .logo { font-weight: 800; } .tb .logo i { font-style: normal; color: #ffb27a; }
+.tb .sp { flex: 1; }
+.tb kbd { font: 600 10.5px 'JetBrains Mono', monospace; background: #ffffff22; border-radius: 3px; padding: 1px 5px; margin-right: 4px; }
+/* menu bar of top hotkeys (Tally's K:Company, Y:Data …) */
+.mb { display: flex; gap: 22px; padding: 6px 14px; border-bottom: 1px solid var(--line); background: var(--bar2); color: #e6f3f8; font-size: 12.5px; }
+.mb u { text-decoration: none; font-weight: 700; color: #fff; border-bottom: 1.5px solid #ffd34d; }
+.wrap { flex: 1; display: flex; min-height: 0; }
+.area { flex: 1; overflow: auto; padding: 14px 18px; }
+/* right F-key button bar */
+.fk { width: 150px; border-left: 1px solid var(--line); display: flex; flex-direction: column; font-size: 12.5px; }
+.fk div { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); color: var(--ink2); }
+.fk div b { font: 600 11.5px 'JetBrains Mono', monospace; color: var(--key); min-width: 38px; }
+.fk div.off { opacity: .45; }
+.fk .gap { flex: 1; border-bottom: 1px solid var(--line); }
+/* status line */
+.sl { display: flex; gap: 18px; padding: 5px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink3); }
+.sl b { color: var(--ink2); }
+/* boxed sections with a title line, Tally style */
+.box { border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 70%, #fff); }
+.dark .box { background: #141a21; }
+.box > h3 { margin: 0; padding: 5px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: #fff; background: var(--bar2); font-weight: 600; }
+.row { display: flex; padding: 3px 10px; }
+.row.sel { background: var(--hl); color: #1d232c; font-weight: 600; }
+.dark .row.sel { color: #fff; }
+.row u { text-decoration: none; color: var(--key); font-weight: 700; }
+.row.sel u { color: #1d232c; }
+.dark .row.sel u { color: #fff; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--ink2); padding: 5px 8px; border-bottom: 1px solid var(--ink3); border-top: 1px solid var(--ink3); }
+td { padding: 4px 8px; }
+tr.sel td { background: var(--hl2); }
+.fld { display: grid; grid-template-columns: 150px 10px 1fr; padding: 2px 0; align-items: baseline; }
+.fld span:nth-child(2) { color: var(--ink3); }
+.fld .v { font-weight: 600; }
+.cur { background: var(--hl); color: #1d232c; padding: 0 4px; }
+/* rows are text lines: keep spaces around the hotkey letter; right-hand values float */
+.row { display: block; }
+.row > span[style*="margin-left:auto"] { float: right; }
+.row u { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; color: #c4410c; }
+.dark .row u { color: #ff9b5c; }
+.fk { width: 164px; }
+.fk div { white-space: nowrap; }

@@ -28,6 +28,7 @@ export const MENU_PERMISSIONS = {
   '/reports': 'reports',
   // Owner only
   '/staff': null,
+  '/businesses': null,
   '/sales/general-invoice-setting': null,
   '/sales/bill-fields': null,
   '/sales/invoice-setting': null,

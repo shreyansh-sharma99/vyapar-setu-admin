@@ -40,7 +40,7 @@ import { can } from '@/utility/shopPermissions';
 import dayjs from 'dayjs';
 import DuplicateWarning from './DuplicateWarning';
 import IncludedItemsEditor from './IncludedItemsEditor';
-import { toNumberOr } from '../utils/productUtils';
+import { catalogPath, toNumberOr } from '../utils/productUtils';
 
 const DEFAULT_THRESHOLD = '5';
 // From the GST Scheme of Classification of Services. A SAC does not set the GST rate.
@@ -117,6 +117,7 @@ const buildDefaults = (p) => ({
   isCustomizable: String(p?.isCustomizable ?? false),
   chargeType: p?.chargeBy === 'quantity' ? p.unit : 'fixed',
   priceAtBilling: !!p?.priceAtBilling,
+  askQtyOnBill: !!p?.askQtyOnBill,
   reorderQty: numText(p?.reorderQty, { zeroAsEmpty: true }),
   // single location: one low-stock alert for the product (empty on a new product = not set)
   lowStockAlertThreshold: p ? numText(p.lowStockAlertThreshold ?? DEFAULT_THRESHOLD) : '',
@@ -345,6 +346,7 @@ export default function ProductForm({
     if (isService) {
       payload.chargeBy = data.chargeType === 'fixed' ? 'fixed' : 'quantity';
       payload.priceAtBilling = !!data.priceAtBilling;
+      payload.askQtyOnBill = data.chargeType === 'fixed' && !!data.askQtyOnBill;
       if (payload.chargeBy === 'quantity') payload.unit = data.chargeType;
       payload.includedItems = includedItems
         .filter((i) => toNumberOr(i.qty, 0) > 0)
@@ -527,6 +529,17 @@ export default function ProductForm({
                 </Field>
               )}
             />
+            {chargeType === 'fixed' && (
+              <Controller
+                name="askQtyOnBill"
+                control={control}
+                render={({ field }) => (
+                  <Field label="Ask quantity on bill" hint="For a service done more than once in a visit, like fillings. Off: billed once.">
+                    <Switch checked={field.value} onChange={field.onChange} aria-label="Ask quantity on bill" />
+                  </Field>
+                )}
+              />
+            )}
             {isEdit && <p className="m-0 text-xs text-ink-subtle">Change the price in Master Settings → Prices &amp; Offers.</p>}
           </div>
         </Section>
@@ -589,6 +602,7 @@ export default function ProductForm({
                 }}
               />
             )}
+
           </FormGrid>
           <FormGrid cols={3}>
             <div className="flex min-w-0 flex-col gap-1">
@@ -869,7 +883,7 @@ export default function ProductForm({
       />
 
       <FormActions>
-        <Button variant="secondary" onClick={() => navigate('/products')} disabled={submitting}>
+        <Button variant="secondary" onClick={() => navigate(catalogPath(isService ? 'service' : 'goods'))} disabled={submitting}>
           Cancel
         </Button>
         <Button

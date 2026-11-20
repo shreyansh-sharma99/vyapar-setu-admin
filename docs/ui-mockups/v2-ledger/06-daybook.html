@@ -1,0 +1,51 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Day book</title><link rel="stylesheet" href="ledger.css">
+<style>
+  .cols { display: grid; grid-template-columns: 220px 1fr; gap: 10px; align-items: start; }
+  .rep h6 { margin: 0; padding: 7px 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); background: var(--sunk); border-bottom: 1px solid var(--line); }
+  .rep div { padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  .rep div.on { background: var(--brand-soft); color: var(--brand-ink); font-weight: 600; box-shadow: inset 2px 0 0 var(--brand); }
+  .vt { display: inline-block; min-width: 74px; font-weight: 600; }
+</style></head>
+<body data-page="daybook">
+<div class="main-content">
+  <main class="body">
+    <div class="hd">
+      <div><div class="crumb">Books › Reports</div><h1>Day Book</h1></div>
+      <span class="seg" style="margin-left:14px"><span>Today</span><span class="on">This week</span><span>This month</span><span>FY</span><span>Custom…</span></span>
+      <span class="chip">05 Nov – 11 Nov 2026</span>
+      <div class="act"><span class="btn">All voucher types ▾</span><span class="btn">Excel</span><span class="btn">Print <kbd>Alt P</kbd></span></div>
+    </div>
+    <div class="cols">
+      <div class="panel rep">
+        <h6>Daily</h6><div class="on">Day Book</div><div>Cash &amp; bank book</div><div>Outstanding (to collect / pay)</div>
+        <h6>GST</h6><div>GSTR-1</div><div>GSTR-3B summary</div><div>HSN summary</div>
+        <h6>Stock</h6><div>Stock summary</div><div>Batch-wise sales</div><div>Price history</div>
+        <h6>Profit</h6><div>Profit &amp; loss</div><div style="border-bottom:0">Item-wise profit</div>
+      </div>
+      <div class="panel">
+        <table class="t">
+          <thead><tr><th>Date</th><th>Particulars</th><th>Vch type</th><th>Vch no.</th><th class="num">Debit (inward) ₹</th><th class="num">Credit (outward) ₹</th></tr></thead>
+          <tbody>
+            <tr class="grp"><td colspan="4">Wed, 11 Nov 2026</td><td class="num">22,450.00</td><td class="num">1,17,872.00</td></tr>
+            <tr><td></td><td>Sharma General Store</td><td><span class="vt cr">Sale</span></td><td class="mono">INV-2026-0412</td><td class="num">18,450.00</td><td class="num"></td></tr>
+            <tr class="sel"><td></td><td>Gupta Kirana · by Cash</td><td><span class="vt cr">Receipt</span></td><td class="mono">RCPT-0153</td><td class="num">4,000.00</td><td class="num"></td></tr>
+            <tr><td></td><td>Annapurna Wholesale</td><td><span class="vt dr">Purchase</span></td><td class="mono">PB-2026-0061</td><td class="num"></td><td class="num">97,872.00</td></tr>
+            <tr><td></td><td>Annapurna Wholesale · by Bank</td><td><span class="vt dr">Payment</span></td><td class="mono">PAY-0151</td><td class="num"></td><td class="num">20,000.00</td></tr>
+            <tr class="grp"><td colspan="4">Tue, 10 Nov 2026</td><td class="num">12,840.00</td><td class="num">0.00</td></tr>
+            <tr><td></td><td>Walk-in customer</td><td><span class="vt cr">Sale</span></td><td class="mono">INV-2026-0410</td><td class="num">840.00</td><td class="num"></td></tr>
+            <tr><td></td><td>Mehta Electricals · by Cash</td><td><span class="vt cr">Receipt</span></td><td class="mono">RCPT-0150</td><td class="num">12,000.00</td><td class="num"></td></tr>
+            <tr class="grp"><td colspan="4">Mon, 09 Nov 2026</td><td class="num">62,150.00</td><td class="num">616.00</td></tr>
+            <tr><td></td><td>Priya Patel</td><td><span class="vt cr">Sale</span></td><td class="mono">INV-2026-0408</td><td class="num">2,150.00</td><td class="num"></td></tr>
+            <tr><td></td><td>Krishna Traders · part paid</td><td><span class="vt cr">Receipt</span></td><td class="mono">RCPT-0149</td><td class="num">60,000.00</td><td class="num"></td></tr>
+            <tr><td></td><td>Mehta Electricals · damaged</td><td><span class="vt warn">Credit note</span></td><td class="mono">SR-0023</td><td class="num"></td><td class="num">616.00</td></tr>
+          </tbody>
+          <tfoot><tr><td colspan="4">Total · 05 Nov – 11 Nov · 31 vouchers</td><td class="num">1,84,320.00</td><td class="num">1,52,488.00</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </main>
+  <div class="keys"><span><kbd class="k">↑↓</kbd>move</span><span><kbd class="k">Enter</kbd>open voucher</span><span><kbd class="k">F2</kbd>change period</span><span><kbd class="k">Alt F1</kbd>detailed / condensed</span><span><kbd class="k">Ctrl F</kbd>find</span></div>
+</div>
+<script src="shell.js"></script>
+</body></html>

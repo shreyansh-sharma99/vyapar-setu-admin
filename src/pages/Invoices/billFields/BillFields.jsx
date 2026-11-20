@@ -28,6 +28,8 @@ export default function BillFields() {
   }, []);
 
   const change = (index, patch) => setFields((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)));
+  // One next-visit field and one group-history field: ticking one clears the others
+  const only = (index, flag, on) => setFields((prev) => prev.map((f, i) => ({ ...f, [flag]: i === index ? on : on ? false : !!f[flag] })));
   const remove = (index) => setFields((prev) => prev.filter((_, i) => i !== index));
   const move = (index, delta) => setFields((prev) => {
     const next = [...prev];
@@ -48,8 +50,9 @@ export default function BillFields() {
     }
     setSaving(true);
     try {
-      const saved = await saveBillFieldsApi(fields.map(({ key, label, type, options, required, printOnBill, isActive }) => ({
+      const saved = await saveBillFieldsApi(fields.map(({ key, label, type, options, required, printOnBill, isActive, nextVisit, groupHistory }) => ({
         key: key || '', label: label.trim(), type, options: type === 'dropdown' ? options : [], required: !!required, printOnBill: printOnBill !== false, isActive: isActive !== false,
+        nextVisit: type === 'date' && !!nextVisit, groupHistory: type === 'text' && !!groupHistory,
       })));
       setFields(saved);
       setNotice({ tone: 'success', text: 'Bill fields saved.' });
@@ -101,6 +104,12 @@ export default function BillFields() {
                   <Checkbox id={`req-${i}`} label="Required" checked={!!f.required} onChange={(v) => change(i, { required: v })} />
                   <Checkbox id={`print-${i}`} label="Print on bill" checked={f.printOnBill !== false} onChange={(v) => change(i, { printOnBill: v })} />
                   <Checkbox id={`active-${i}`} label="Show on invoice" checked={f.isActive !== false} onChange={(v) => change(i, { isActive: v })} />
+                  {f.type === 'date' && (
+                    <Checkbox id={`next-${i}`} label="Use as next visit (reminder)" checked={!!f.nextVisit} onChange={(v) => only(i, 'nextVisit', v)} />
+                  )}
+                  {f.type === 'text' && (
+                    <Checkbox id={`group-${i}`} label="Group history by this" checked={!!f.groupHistory} onChange={(v) => only(i, 'groupHistory', v)} />
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="icon-sm" title="Move up" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp /></Button>

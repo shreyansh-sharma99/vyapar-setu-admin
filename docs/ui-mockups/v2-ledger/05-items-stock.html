@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Items and stock</title><link rel="stylesheet" href="ledger.css">
+<style>
+  .cols { display: grid; grid-template-columns: 190px minmax(0, 1fr) 280px; gap: 10px; align-items: start; }
+  .tree div { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  .tree div.on { background: var(--brand-soft); color: var(--brand-ink); font-weight: 600; box-shadow: inset 2px 0 0 var(--brand); }
+  .tree div.sub { padding-left: 24px; color: var(--ink-2); }
+  .tree div span:last-child { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .t tr.low td { background: color-mix(in srgb, var(--warn) 7%, transparent); }
+  .t tr.out td { background: color-mix(in srgb, var(--dr) 7%, transparent); }
+  .det .kv2 div { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  .det .kv2 div span:first-child { color: var(--ink-3); }
+</style></head>
+<body data-page="items">
+<div class="main-content">
+  <main class="body">
+    <div class="hd">
+      <div><div class="crumb">Masters</div><h1>Items &amp; Stock</h1></div>
+      <div class="act"><span class="btn">Import / Export</span><span class="btn">Print labels</span><span class="btn">Adjust stock</span><span class="btn pri">+ New item <kbd>Alt C</kbd></span></div>
+    </div>
+    <div class="strip" style="grid-template-columns:repeat(4,1fr)">
+      <div><div class="l">Items</div><div class="v">412</div><div class="s">398 active</div></div>
+      <div><div class="l">Stock value (cost)</div><div class="v">₹ 5,62,350.00</div><div class="s">at weighted average</div></div>
+      <div class="on"><div class="l">Low stock</div><div class="v warn">2</div><div class="s">below reorder level</div></div>
+      <div><div class="l">Out of stock</div><div class="v dr">1</div><div class="s">0 qty, still active</div></div>
+    </div>
+    <div class="cols">
+      <div class="panel tree">
+        <div class="on"><span>All items</span><span>412</span></div>
+        <div><span>Rice &amp; Grains</span><span>64</span></div>
+        <div class="sub"><span>Basmati</span><span>18</span></div>
+        <div class="sub"><span>Atta</span><span>12</span></div>
+        <div><span>Edible Oils</span><span>38</span></div>
+        <div><span>Dairy</span><span>27</span></div>
+        <div><span>Packaged Food</span><span>91</span></div>
+        <div><span>Beverages</span><span>44</span></div>
+        <div><span>Personal Care</span><span>73</span></div>
+        <div style="border-bottom:0"><span>Household</span><span>75</span></div>
+      </div>
+      <div class="panel">
+        <div class="toolbar">
+          <div class="tabs"><span class="on">All</span><span>Low<em>2</em></span><span>Out<em>1</em></span><span>No barcode<em>6</em></span></div>
+          <div class="search" style="margin-left:auto;max-width:260px;height:28px"><span>⌕</span><span>Name, SKU, barcode, HSN</span><kbd>/</kbd></div>
+        </div>
+        <table class="t">
+          <thead><tr><th>Item</th><th>SKU</th><th class="num">Stock</th><th class="num">Reorder</th><th class="num">Cost ₹</th><th class="num">Sale ₹</th><th class="num">Value ₹</th></tr></thead>
+          <tbody>
+            <tr><td><b>India Gate Basmati Rice 25 kg</b></td><td class="mono">RICE-IG25</td><td class="num b">18 bag</td><td class="num muted">5</td><td class="num">2,150.00</td><td class="num">2,450.00</td><td class="num">38,700.00</td></tr>
+            <tr class="low sel"><td><b>Fortune Sunflower Oil 15 L</b> <span class="dot warn" style="font-size:11px">Low</span></td><td class="mono">OIL-FT15</td><td class="num b warn">4 tin</td><td class="num muted">6</td><td class="num">2,280.00</td><td class="num">2,590.00</td><td class="num">9,120.00</td></tr>
+            <tr class="low"><td><b>Maggi Noodles 12-pack</b> <span class="dot warn" style="font-size:11px">Low</span></td><td class="mono">MAG-12</td><td class="num b warn">5 pack</td><td class="num muted">10</td><td class="num">150.00</td><td class="num">168.00</td><td class="num">750.00</td></tr>
+            <tr><td><b>Amul Butter 500 g</b></td><td class="mono">BUT-AM500</td><td class="num b">60 pcs</td><td class="num muted">12</td><td class="num">245.00</td><td class="num">275.00</td><td class="num">14,700.00</td></tr>
+            <tr class="out"><td><b>Aashirvaad Atta 10 kg</b> <span class="dot dr" style="font-size:11px">Out</span></td><td class="mono">ATTA-AS10</td><td class="num b dr">0 bag</td><td class="num muted">4</td><td class="num">420.00</td><td class="num">485.00</td><td class="num">0.00</td></tr>
+            <tr><td><b>Tata Tea Gold 1 kg</b></td><td class="mono">TEA-TG1</td><td class="num b">18 pack</td><td class="num muted">6</td><td class="num">520.00</td><td class="num">590.00</td><td class="num">9,360.00</td></tr>
+            <tr><td><b>Madhur Sugar 5 kg</b></td><td class="mono">SUG-MD5</td><td class="num b">22 bag</td><td class="num muted">8</td><td class="num">210.00</td><td class="num">235.00</td><td class="num">4,620.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel det">
+        <div class="ph">Fortune Sunflower Oil 15 L <div class="act"><span class="muted">Enter ↵</span></div></div>
+        <div class="kv2">
+          <div><span>In stock</span><span class="warn b">4 tin · 2 batches</span></div>
+          <div><span>Sold, last 30 d</span><span>11 tin</span></div>
+          <div><span>Lasts about</span><span class="warn">11 days</span></div>
+          <div><span>Last bought</span><span>17 Oct · Annapurna · ₹ 2,280</span></div>
+        </div>
+        <table class="t" style="font-size:12px">
+          <thead><tr><th>Batch</th><th>Expiry</th><th class="num">Qty</th><th class="num">Sale ₹</th></tr></thead>
+          <tbody><tr><td class="mono">FT2409A</td><td>14 Mar 27</td><td class="num">1</td><td class="num">2,590</td></tr><tr><td class="mono">FT2410C</td><td>13 May 27</td><td class="num">3</td><td class="num">2,590</td></tr></tbody>
+        </table>
+        <div class="pb" style="display:flex;gap:6px"><span class="btn pri" style="flex:1;justify-content:center">Reorder (purchase)</span><span class="btn">History</span></div>
+      </div>
+    </div>
+  </main>
+  <div class="keys"><span><kbd class="k">↑↓</kbd>move</span><span><kbd class="k">Enter</kbd>open item</span><span><kbd class="k">A</kbd>adjust stock</span><span><kbd class="k">L</kbd>print label</span><span><kbd class="k">Alt C</kbd>new item</span></div>
+</div>
+<script src="shell.js"></script>
+</body></html>

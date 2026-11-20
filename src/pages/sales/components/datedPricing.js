@@ -250,7 +250,7 @@ export const useDatedSalesLines = ({ lineItems, setLineItems, date, productCache
   const priceProblem = () => {
     if (!withPrices) return '';
     const freePrice = (l) => (l.priceAtBilling ?? productCache[String(l.productId)]?.priceAtBilling) === true;
-    const bad = lineItems.find((l) => l.productId && l.priceOverride && !freePrice(l) && !String(l.priceOverrideReason || '').trim());
+    const bad = lineItems.find((l) => l.productId && !l.inService && l.priceOverride && !freePrice(l) && !String(l.priceOverrideReason || '').trim());
     return bad ? `Give a reason for changing the price of "${bad.productName}".` : '';
   };
 

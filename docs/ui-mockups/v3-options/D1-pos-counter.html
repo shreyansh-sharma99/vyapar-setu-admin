@@ -1,0 +1,93 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Option D · Counter billing</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+  :root { --page: #eef1f5; --card: #fff; --line: #dde2ea; --ink: #172031; --ink2: #556074; --ink3: #8a93a5; --pri: #2b45d4; --pri-soft: #e9edff; --ok: #0f9d58; --bad: #d93025; --warn: #c77700; --acc: #f26b1d; }
+  .dark { --page: #0d1016; --card: #161a23; --line: #272d3a; --ink: #e8ebf2; --ink2: #b0b8c6; --ink3: #7e8798; --pri: #6c82ff; --pri-soft: #1c2342; --ok: #39cf86; --bad: #ff7b72; --warn: #f2b34a; }
+  * { box-sizing: border-box; } html, body { margin: 0; height: 100%; }
+  body { font: 14px/1.4 Inter, 'Segoe UI', sans-serif; color: var(--ink); background: var(--page); display: flex; flex-direction: column; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .muted { color: var(--ink3); }
+  kbd { font: 600 11px Consolas, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; background: var(--card); color: var(--ink2); }
+  .bar { display: flex; align-items: center; gap: 14px; height: 48px; padding: 0 16px; background: #121826; color: #c9d0de; }
+  .bar .lg { font-weight: 800; color: #fff; } .bar .lg i { font-style: normal; color: var(--acc); }
+  .bills { display: flex; gap: 4px; margin-left: 18px; }
+  .bills span { padding: 6px 12px; border-radius: 6px 6px 0 0; background: #1f2738; font-weight: 600; font-size: 13px; }
+  .bills span.on { background: var(--page); color: var(--ink); }
+  .bar .sp { flex: 1; }
+  .wrap { flex: 1; display: grid; grid-template-columns: 1fr 440px; min-height: 0; }
+  .left { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .scan { display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 16px; background: var(--card); border: 2px solid var(--pri); border-radius: 10px; font-size: 17px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--pri) 15%, transparent); }
+  .scan .c { border-left: 2px solid var(--pri); height: 22px; }
+  .cats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cats span { padding: 7px 14px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-weight: 600; font-size: 13px; color: var(--ink2); }
+  .cats span.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; overflow: auto; }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 4px; min-height: 104px; position: relative; }
+  .tile b { font-size: 13.5px; }
+  .tile .p { margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; }
+  .tile .p strong { font-size: 16px; }
+  .tile kbd { position: absolute; top: 8px; right: 8px; }
+  .tile.low { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+  .tile.out { opacity: .5; }
+  .cart { background: var(--card); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .cust { display: flex; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .cust .i { flex: 1; height: 38px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; padding: 0 10px; color: var(--ink3); }
+  .lines { flex: 1; overflow: auto; }
+  .ln { display: grid; grid-template-columns: 1fr 104px 84px; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .ln.sel { background: color-mix(in srgb, var(--pri) 8%, transparent); box-shadow: inset 3px 0 0 var(--pri); }
+  .ln small { display: block; color: var(--ink3); font-size: 12px; }
+  .step { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; height: 32px; }
+  .step span { width: 30px; text-align: center; color: var(--ink2); font-weight: 700; }
+  .step b { flex: 1; text-align: center; border-left: 1px solid var(--line); border-right: 1px solid var(--line); line-height: 30px; }
+  .tot { padding: 12px 14px; border-top: 1px solid var(--line); display: grid; gap: 5px; }
+  .tot div { display: flex; justify-content: space-between; color: var(--ink2); }
+  .tot .big { color: var(--ink); font-size: 26px; font-weight: 800; margin-top: 4px; }
+  .pay { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 14px 14px; }
+  .pay span { height: 52px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; border: 1px solid var(--line); }
+  .pay .cash { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .pay .upi { background: var(--pri); color: #fff; border-color: var(--pri); }
+  .pay .cash kbd, .pay .upi kbd { background: #ffffff26; color: #fff; border-color: #ffffff40; }
+  .keys { display: flex; gap: 16px; padding: 7px 16px; background: var(--card); border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink3); }
+</style></head>
+<body>
+<div class="bar"><span class="lg">ecn<i>biz</i></span><span>Counter 1 · Ramesh</span>
+  <div class="bills"><span class="on">Bill #1 · 4 items</span><span>Bill #2 · held</span><span>＋ New <kbd style="background:#2a3346;color:#c9d0de;border-color:#3a4458">F1</kbd></span></div>
+  <span class="sp"></span><span>Today ₹ 19,883 · 7 bills</span><span>5:02 pm</span></div>
+<div class="wrap">
+  <div class="left">
+    <div class="scan">▥ <span>maggi</span><span class="c"></span><span class="muted" style="margin-left:auto;font-size:13px">Scan barcode or type name / SKU · <kbd>F2</kbd></span></div>
+    <div class="cats"><span>All</span><span class="on">Packaged Food</span><span>Rice &amp; Grains</span><span>Edible Oils</span><span>Dairy</span><span>Beverages</span><span>Personal Care</span><span>★ Favourites</span></div>
+    <div class="tiles">
+      <div class="tile low"><kbd>1</kbd><b>Maggi Noodles 12-pack</b><span class="muted">MAG-12 · <span style="color:var(--warn)">5 left</span></span><div class="p"><strong>₹ 168</strong><span class="muted">MRP 180</span></div></div>
+      <div class="tile"><kbd>2</kbd><b>Maggi Masala 70 g</b><span class="muted">MAG-70 · 120 left</span><div class="p"><strong>₹ 13</strong><span class="muted">MRP 14</span></div></div>
+      <div class="tile"><kbd>3</kbd><b>Maggi Hot &amp; Sweet 1 kg</b><span class="muted">MAG-HS1 · 22 left</span><div class="p"><strong>₹ 182</strong><span class="muted">MRP 199</span></div></div>
+      <div class="tile"><kbd>4</kbd><b>Maggi Atta Noodles</b><span class="muted">MAG-AT · 40 left</span><div class="p"><strong>₹ 54</strong><span class="muted">MRP 58</span></div></div>
+      <div class="tile"><b>Haldiram's Bhujia 400 g</b><span class="muted">NAM-HB · 36 left</span><div class="p"><strong>₹ 105</strong><span class="muted">MRP 110</span></div></div>
+      <div class="tile"><b>Parle-G 800 g</b><span class="muted">BIS-PG8 · 60 left</span><div class="p"><strong>₹ 92</strong><span class="muted">MRP 95</span></div></div>
+      <div class="tile"><b>Kissan Ketchup 1 kg</b><span class="muted">KT-1 · 18 left</span><div class="p"><strong>₹ 142</strong><span class="muted">MRP 150</span></div></div>
+      <div class="tile out"><b>Yippee Noodles 6-pack</b><span class="muted">YP-6 · out of stock</span><div class="p"><strong>₹ 84</strong><span class="muted">MRP 90</span></div></div>
+    </div>
+  </div>
+  <div class="cart">
+    <div class="cust"><span class="i">📱 Customer mobile (optional) · F3</span><span class="i" style="flex:none;width:118px">Walk-in ▾</span></div>
+    <div class="lines">
+      <div class="ln"><span><b>India Gate Basmati 25 kg</b><small>₹ 2,450 × 1 · GST 5%</small></span><span class="step"><span>−</span><b>1</b><span>＋</span></span><span class="num"><b>2,450.00</b></span></div>
+      <div class="ln"><span><b>Amul Butter 500 g</b><small>₹ 275 × 2 · GST 12%</small></span><span class="step"><span>−</span><b>2</b><span>＋</span></span><span class="num"><b>550.00</b></span></div>
+      <div class="ln"><span><b>Tata Tea Gold 1 kg</b><small>₹ 590 × 1 · GST 5%</small></span><span class="step"><span>−</span><b>1</b><span>＋</span></span><span class="num"><b>590.00</b></span></div>
+      <div class="ln sel"><span><b>Maggi Noodles 12-pack</b><small>₹ 168 × 3 · GST 18% · <span style="color:var(--warn)">2 left after this</span></small></span><span class="step"><span>−</span><b>3</b><span>＋</span></span><span class="num"><b>504.00</b></span></div>
+    </div>
+    <div class="tot">
+      <div><span>Items · 7 qty</span><span class="num">4,094.00</span></div>
+      <div><span>Discount <kbd>F7</kbd></span><span class="num">− 0.00</span></div>
+      <div><span>GST included</span><span class="num">280.58</span></div>
+      <div class="big"><span>Total</span><span class="num">₹ 4,094</span></div>
+    </div>
+    <div class="pay">
+      <span class="cash">Cash <kbd>F5</kbd></span><span class="upi">UPI · QR <kbd>F6</kbd></span>
+      <span>Card <kbd>F8</kbd></span><span>Credit (udhaar) <kbd>F9</kbd></span>
+    </div>
+  </div>
+</div>
+<div class="keys"><span><kbd>Enter</kbd> add item</span><span><kbd>+ / −</kbd> qty</span><span><kbd>Del</kbd> remove line</span><span><kbd>F4</kbd> hold bill</span><span><kbd>Ctrl P</kbd> reprint last</span><span style="margin-left:auto">Prices include GST · Printer: TVS RP-3160 ready</span></div>
+<script>if (/theme=dark/.test(location.search)) document.documentElement.classList.add('dark');</script>
+</body></html>

@@ -5,6 +5,12 @@ export const getCustomersApi = async (page = 1, limit = 10) => {
   return response.data;
 };
 
+/** GET /customers/:id/history?limit&page&groupValue → { items, total, groupLabel, nextVisitLabel } */
+export const getCustomerHistoryApi = async (customerId, params) => {
+  const response = await apiClient.get(`/customers/${customerId}/history`, { params });
+  return response.data?.data || { items: [], total: 0 };
+};
+
 export const getCustomerByIdApi = async (customerId) => {
   const response = await apiClient.get(`/customers/${customerId}`);
   return response.data;

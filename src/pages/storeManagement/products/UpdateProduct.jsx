@@ -10,7 +10,7 @@ import { getProductById, updateProduct, resetProductStatus, clearProductToast } 
 import { decryptData } from '@/utility/crypto';
 import ProductForm from './components/ProductForm';
 import ToastStack from './components/ToastStack';
-import { useToasts } from './utils/productUtils';
+import { catalogPath, useToasts } from './utils/productUtils';
 
 export default function UpdateProduct() {
   const { id: encryptedId } = useParams();
@@ -42,7 +42,7 @@ export default function UpdateProduct() {
     dispatch(clearProductToast());
     if (updateProduct.fulfilled.match(result)) {
       dispatch(resetProductStatus());
-      navigate('/products', { state: { message: `${label} updated successfully.`, color: 'success' } });
+      navigate(catalogPath(currentProduct?.itemType), { state: { message: `${label} updated successfully.`, color: 'success' } });
     } else {
       showToast(result.payload || `Failed to update ${label.toLowerCase()}.`, 'danger');
     }
@@ -76,8 +76,8 @@ export default function UpdateProduct() {
             title="Product Not Found"
             text={!id ? 'Invalid product ID.' : 'The product you are trying to edit does not exist or has been deleted.'}
             action={
-              <Button variant="secondary" onClick={() => navigate('/products')}>
-                Back to Products
+              <Button variant="secondary" onClick={() => navigate(catalogPath(currentProduct?.itemType))}>
+                Back to list
               </Button>
             }
           />

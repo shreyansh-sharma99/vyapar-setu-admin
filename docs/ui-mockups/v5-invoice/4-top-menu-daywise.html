@@ -1,0 +1,71 @@
+<!doctype html><html><head><meta charset="utf-8"><title>4 · Top menu + day-wise register</title><link rel="stylesheet" href="v5.css">
+<style>
+  body { flex-direction: column; }
+  .mbar { display: flex; align-items: center; height: 44px; padding: 0 12px; background: var(--rail); color: var(--rail-ink); gap: 2px; flex: none; position: relative; }
+  .mbar .m { display: flex; align-items: center; gap: 8px; margin-right: 14px; color: #fff; font-weight: 700; font-size: 15px; }
+  .mbar .m span { width: 26px; height: 26px; border-radius: 5px; background: var(--acc); display: grid; place-items: center; }
+  .mbar .m i { font-style: normal; color: var(--acc); }
+  .mbar a { padding: 6px 11px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+  .mbar a u { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--acc); text-decoration-thickness: 2px; }
+  .mbar a.on { background: var(--rail-on); color: #fff; }
+  .mbar .sp { flex: 1; }
+  .mbar .s { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 4px; background: #2d2a25; color: #9d968a; min-width: 240px; }
+  .drop { position: absolute; top: 40px; left: 418px; width: 268px; background: var(--surface); border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 14px 34px rgba(31, 29, 26, .22); padding: 6px; z-index: 5; color: var(--ink); }
+  .drop a { display: flex; padding: 7px 10px; border-radius: 3px; color: var(--ink2); font-weight: 500; }
+  .drop a.on { background: var(--cursor); color: var(--ink); box-shadow: inset 3px 0 0 var(--cursor-line); }
+  .drop a kbd { margin-left: auto; }
+  .drop hr { border: 0; border-top: 1px solid var(--line); margin: 5px 0; }
+  .drop h6 { margin: 6px 10px 3px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--ink3); }
+  .sub2 { display: flex; align-items: center; gap: 0; height: 38px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); flex: none; }
+  .sub2 a { padding: 0 12px; height: 38px; display: flex; align-items: center; color: var(--ink2); font-weight: 500; border-bottom: 2px solid transparent; }
+  .sub2 a.on { color: var(--ink); font-weight: 600; border-color: var(--acc); }
+  .sub2 .sp { flex: 1; }
+  .t tr.day td { background: var(--sunk); font-weight: 600; border-top: 1px solid var(--line2); }
+  .t tr.day td:first-child { color: var(--ink); }
+  .t tr.mon td { background: #efe8da; font-weight: 700; }
+</style></head>
+<body>
+<div class="mbar">
+  <span class="m"><span>e</span><b>ecn<i>biz</i></b></span>
+  <a><u>D</u>ashboard</a><a>Pa<u>r</u>ties</a><a><u>C</u>atalog</a><a><u>I</u>nventory</a><a><u>P</u>urchases</a><a class="on"><u>S</u>ales ▾</a><a>Rep<u>o</u>rts</a><a><u>G</u>ST</a><a>Se<u>t</u>up</a>
+  <span class="sp"></span><span class="s">🔍 <span>Go to… </span><kbd style="margin-left:auto;background:#3a362f;color:#c9c2b5;border-color:#4a453c">Ctrl K</kbd></span>
+  <span class="chip" style="background:#2d2a25;border-color:#3a362f;color:#c9c2b5;margin-left:8px">FY 2026-27</span><span class="av" style="margin-left:8px">RK</span>
+  <div class="drop">
+    <h6>Sales</h6>
+    <a class="on">Sales Invoices<kbd>Alt S</kbd></a><a>Payment Account<kbd>F6</kbd></a><a>Sales Return<kbd>Alt R</kbd></a><a>Follow-ups<span class="dr" style="margin-left:auto;font-size:11.5px">4 due</span></a><a>Credit Note</a>
+    <hr><h6>Create</h6><a>+ New sales invoice<kbd>Alt N</kbd></a><a>+ Receipt<kbd>F6</kbd></a>
+  </div>
+</div>
+<div class="sub2"><a class="on">Sales Invoices</a><a>Payment Account</a><a>Sales Return</a><a>Follow-ups</a><a>Credit Note</a><span class="sp"></span><span class="btn acc">+ New invoice <kbd>Alt N</kbd></span></div>
+<div class="page">
+  <div class="hd"><div><div class="crumb">Sales › Sales Invoices</div><h1>Sales Register · day-wise</h1></div>
+    <span class="seg" style="margin-left:16px;display:inline-flex;border:1px solid var(--line2);border-radius:4px;overflow:hidden"><span style="padding:5px 12px">Register</span><span style="padding:5px 12px;border-left:1px solid var(--line)">By customer</span><span style="padding:5px 12px;background:var(--act);color:#fff">Day-wise</span></span>
+    <div class="act"><span class="chip">📅 07 Nov – 11 Nov ▾</span><span class="btn">Excel</span><span class="btn">Print <kbd>Alt P</kbd></span></div></div>
+  <div class="panel">
+    <table class="t">
+      <thead><tr><th>Date / party</th><th>Invoice</th><th>Type</th><th>GSTIN</th><th class="num">Taxable ₹</th><th class="num">GST ₹</th><th class="num">Total ₹</th><th class="num">Received ₹</th><th class="num">Balance ₹</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+<div class="keys"><span><kbd>Alt + letter</kbd>open menu</span><span><kbd>↑↓</kbd>move</span><span><kbd>Enter</kbd>open invoice</span><span><kbd>Alt F1</kbd>detailed / condensed</span><span><kbd>F2</kbd>change period</span></div>
+<script src="data.js"></script>
+<script>if (/menu=0/.test(location.search)) document.write('<style>.drop{display:none}</style>');</script>
+<script>
+  // taxable / GST split (sample) per invoice no.
+  const TX = { '0413': [9088.20, 569.91, 'B2B', '27AAGFG4410P1Z3'], '0412': [17571.43, 878.57, 'B2B', '27AABCS1429B1Z5'], '0411': [800.00, 40.00, 'B2C', '—'], '0410': [1919.64, 230.36, 'B2C', '—'], '0409': [10517.86, 1262.14, 'B2B', '27AAKFF7781M1Z2'], '0408': [100571.43, 5028.57, 'B2B', '27AAGFP7731K1Z2'], '0407': [445.54, 53.46, 'B2C', '—'], '0406': [22200.00, 1110.00, 'B2B', '27AACCS9921L1Z4'], '0405': [3232.14, 387.86, 'B2C', '—'] };
+  const days = [['11 Nov 2026 · Wednesday', ['0413', '0412', '0411']], ['10 Nov 2026 · Tuesday', ['0410', '0409']], ['09 Nov 2026 · Monday', ['0408', '0407']], ['08 Nov 2026 · Sunday', ['0406']], ['07 Nov 2026 · Saturday', ['0405']]];
+  const by = Object.fromEntries(INV.map((r) => [r[0], r]));
+  let gT = 0, gG = 0, gA = 0, gP = 0;
+  document.getElementById('rows').innerHTML = days.map(([d, nos]) => {
+    const live = nos.filter((n) => !['draft', 'void'].includes(by[n][8]));
+    const sum = (f) => live.reduce((s, n) => s + f(n), 0);
+    const t = sum((n) => TX[n][0]), g = sum((n) => TX[n][1]), a = sum((n) => by[n][6]), p = sum((n) => by[n][7]);
+    gT += t; gG += g; gA += a; gP += p;
+    return `<tr class="day"><td colspan="4">${d} <span class="muted" style="font-weight:400">· ${nos.length} invoice${nos.length > 1 ? 's' : ''}</span></td><td class="num">${inr(t)}</td><td class="num">${inr(g)}</td><td class="num">${inr(a)}</td><td class="num cr">${inr(p)}</td><td class="num dr">${inr(a - p)}</td><td></td><td></td></tr>` +
+      nos.map((n) => { const r = by[n], x = TX[n], off = ['draft', 'void'].includes(r[8]);
+        return `<tr${n === '0408' ? ' class="cur"' : ''}><td style="padding-left:24px"><b>${r[1]}</b> <span class="muted">${r[4]}</span></td><td class="mono">INV-2026-${n}</td><td><span class="tag">${x[2]}</span></td><td class="mono muted">${x[3]}</td>
+          <td class="num ${off ? 'muted' : ''}">${inr(x[0])}</td><td class="num ${off ? 'muted' : ''}">${inr(x[1])}</td><td class="num ${off ? 'muted' : ''}"><b>${inr(r[6])}</b></td><td class="num cr">${off ? '—' : inr(r[7])}</td><td class="num ${r[6] - r[7] > 0 && !off ? 'dr' : 'muted'}">${off ? '—' : inr(r[6] - r[7])}</td><td><span class="st ${r[8]}">${ST[r[8]]}</span></td><td>${icons(r[8])}</td></tr>`; }).join('');
+  }).join('') + `<tr class="mon"><td colspan="4">Total · 07 – 11 Nov · drafts and voided not counted</td><td class="num">${inr(gT)}</td><td class="num">${inr(gG)}</td><td class="num">${inr(gA)}</td><td class="num cr">${inr(gP)}</td><td class="num dr">${inr(gA - gP)}</td><td></td><td></td></tr>`;
+</script>
+</body></html>

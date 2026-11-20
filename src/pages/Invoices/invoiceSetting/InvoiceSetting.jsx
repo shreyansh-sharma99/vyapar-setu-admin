@@ -29,6 +29,7 @@ import {
   Input,
   Modal,
   PageHeader,
+  Select,
   SettingRow,
   SkeletonRows,
   Spinner,
@@ -57,6 +58,7 @@ const INITIAL_FORM_STATE = {
   pincode: '',
   isGSTRegistered: true,
   gstin: '',
+  gstFilingFrequency: 'monthly',
   panNumber: '',
   enableTDS: false,
   enableTCS: false,
@@ -177,6 +179,7 @@ export default function InvoiceSetting() {
               pincode: fetchedProfile.pincode || '',
               isGSTRegistered: fetchedProfile.isGSTRegistered !== false,
               gstin: fetchedProfile.gstin || '',
+              gstFilingFrequency: fetchedProfile.gstFilingFrequency || 'monthly',
               panNumber: fetchedProfile.panNumber || '',
               enableTDS: !!fetchedProfile.enableTDS,
               enableTCS: !!fetchedProfile.enableTCS,
@@ -296,6 +299,10 @@ export default function InvoiceSetting() {
     }
     if (formData.isGSTRegistered && !formData.gstin.trim()) {
       errors.gstin = 'GSTIN is required when GST registered';
+    }
+    // the state decides CGST/SGST vs IGST and the GSTR-1 place of supply
+    if (formData.gstin.trim() && !formData.state.trim()) {
+      errors.state = 'State is required with a GSTIN (it must match the GSTIN\'s first 2 digits)';
     }
 
     setFormErrors(errors);
@@ -638,7 +645,7 @@ export default function InvoiceSetting() {
                   />
                 </Field>
 
-                <Field label="State">
+                <Field label="State" required={!!formData.gstin.trim()} error={formErrors.state}>
                   <Input
                     id="state"
                     name="state"
@@ -646,6 +653,7 @@ export default function InvoiceSetting() {
                     onChange={handleInputChange}
                     disabled={saving}
                     placeholder="State"
+                    error={!!formErrors.state}
                   />
                 </Field>
 
@@ -711,6 +719,18 @@ export default function InvoiceSetting() {
                     disabled={saving}
                     placeholder="AAQCP3629R"
                     className="font-mono uppercase"
+                  />
+                </Field>
+
+                <Field label="GST return filing" hint="Quarterly = QRMP scheme (turnover up to ₹5 crore). Sets the periods and due dates in GST Return Status.">
+                  <Select
+                    options={[
+                      { value: 'monthly', label: 'Monthly' },
+                      { value: 'quarterly', label: 'Quarterly (QRMP)' },
+                    ]}
+                    value={formData.gstFilingFrequency}
+                    onChange={(v) => setFormData((p) => ({ ...p, gstFilingFrequency: v || 'monthly' }))}
+                    disabled={saving}
                   />
                 </Field>
               </FormGrid>

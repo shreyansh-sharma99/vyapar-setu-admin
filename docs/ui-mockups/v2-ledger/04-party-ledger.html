@@ -1,0 +1,68 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Party ledger</title><link rel="stylesheet" href="ledger.css">
+<style>
+  .cols { display: grid; grid-template-columns: 290px 1fr; gap: 10px; align-items: start; }
+  .kv2 div { display: flex; justify-content: space-between; gap: 10px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  .kv2 div span:first-child { color: var(--ink-3); }
+  .age { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 8px 0 6px; }
+  .age i:nth-child(1) { background: var(--cr); } .age i:nth-child(2) { background: var(--warn); } .age i:nth-child(3) { background: var(--dr); } .age i:nth-child(4) { background: #7a1d0e; }
+  .agl { display: grid; grid-template-columns: repeat(4, 1fr); font-size: 11px; }
+  .agl b { display: block; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .t .ob td { background: var(--sunk); font-style: italic; color: var(--ink-2); }
+</style></head>
+<body data-page="parties">
+<div class="main-content">
+  <main class="body">
+    <div class="hd">
+      <div><div class="crumb">Parties › Customers</div><h1>Mehta Electricals <span class="muted" style="font-weight:500;font-size:13px">· Ledger</span></h1></div>
+      <div class="act">
+        <span class="btn">Statement PDF</span><span class="btn">✆ Send reminder</span><span class="btn">Edit party <kbd>Ctrl E</kbd></span>
+        <span class="btn">+ Invoice <kbd>F8</kbd></span><span class="btn pri">Receive payment <kbd>F6</kbd></span>
+      </div>
+    </div>
+    <div class="cols">
+      <div style="display:grid;gap:10px">
+        <div class="panel">
+          <div class="pb">
+            <div class="muted" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Closing balance</div>
+            <div style="font-size:24px;font-weight:700;letter-spacing:-.4px" class="dr">₹ 42,900.00 Dr</div>
+            <div class="muted">They owe you · credit limit ₹ 50,000 (86% used)</div>
+            <div class="age"><i style="width:0%"></i><i style="width:100%"></i><i style="width:0%"></i><i style="width:0%"></i></div>
+            <div class="agl"><span>0–30 d<b>0</b></span><span>31–45 d<b class="warn">42,900</b></span><span>46–90 d<b>0</b></span><span>90+ d<b>0</b></span></div>
+          </div>
+        </div>
+        <div class="panel kv2">
+          <div><span>Phone</span><span>98765 43210 · WhatsApp</span></div>
+          <div><span>GSTIN</span><span class="mono">27AAFFH2210Q1Z8</span></div>
+          <div><span>State</span><span>27 — Maharashtra</span></div>
+          <div><span>Credit days</span><span>15 days</span></div>
+          <div><span>Price list</span><span>Wholesale</span></div>
+          <div style="border-bottom:0"><span>Address</span><span style="text-align:right">Shop 3, Laxmi Road,<br>Pune 411002</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="toolbar">
+          <div class="tabs"><span class="on">Ledger</span><span>Invoices<em>9</em></span><span>Receipts<em>4</em></span><span>Returns<em>1</em></span></div>
+          <span class="chip">📅 01 Apr 2026 – 11 Nov 2026 ▾</span>
+          <span class="seg" style="margin-left:auto"><span class="on">Detailed</span><span>Condensed</span></span>
+        </div>
+        <table class="t">
+          <thead><tr><th>Date</th><th>Particulars</th><th>Vch type</th><th>Vch no.</th><th class="num">Debit ₹</th><th class="num">Credit ₹</th><th class="num">Balance ₹</th></tr></thead>
+          <tbody>
+            <tr class="ob"><td>01 Apr</td><td colspan="3">Opening balance</td><td class="num">8,500.00</td><td class="num"></td><td class="num">8,500.00 Dr</td></tr>
+            <tr><td>14 Jun</td><td>Sales · 6 items</td><td>Sale</td><td class="mono">INV-2026-0188</td><td class="num">24,300.00</td><td class="num"></td><td class="num">32,800.00 Dr</td></tr>
+            <tr><td>02 Jul</td><td>By UPI · ref 4123 9876</td><td>Receipt</td><td class="mono">RCPT-0091</td><td class="num"></td><td class="num cr">32,800.00</td><td class="num">0.00</td></tr>
+            <tr><td>19 Sep</td><td>Sales · 4 items</td><td>Sale</td><td class="mono">INV-2026-0311</td><td class="num">12,616.00</td><td class="num"></td><td class="num">12,616.00 Dr</td></tr>
+            <tr><td>26 Sep</td><td>Sales return · damaged</td><td>Credit note</td><td class="mono">SR-0023</td><td class="num"></td><td class="num cr">616.00</td><td class="num">12,000.00 Dr</td></tr>
+            <tr class="sel"><td>10 Oct</td><td><b>Sales · 9 items</b> <span class="dr">· due 25 Oct, 17 days late</span></td><td>Sale</td><td class="mono">INV-2026-0371</td><td class="num b">42,900.00</td><td class="num"></td><td class="num b">54,900.00 Dr</td></tr>
+            <tr><td>10 Nov</td><td>By Cash</td><td>Receipt</td><td class="mono">RCPT-0150</td><td class="num"></td><td class="num cr">12,000.00</td><td class="num">42,900.00 Dr</td></tr>
+          </tbody>
+          <tfoot><tr><td colspan="4">Closing balance</td><td class="num">88,316.00</td><td class="num cr">45,416.00</td><td class="num dr">42,900.00 Dr</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </main>
+  <div class="keys"><span><kbd class="k">Enter</kbd>open voucher</span><span><kbd class="k">F6</kbd>receive payment</span><span><kbd class="k">Alt P</kbd>print statement</span><span><kbd class="k">Ctrl ←/→</kbd>previous / next party</span></div>
+</div>
+<script src="shell.js"></script>
+</body></html>

@@ -18,6 +18,7 @@ const defaults = (s) => ({
   phone: s?.phone || '',
   email: s?.email || '',
   gstin: s?.gstin || '',
+  isComposition: !!s?.isComposition,
   stateCode: s?.stateCode || '',
   pan: s?.pan || '',
   address: {
@@ -60,6 +61,7 @@ function SupplierFormBody({ initial }) {
   const stateCode = useWatch({ control, name: 'stateCode' });
   const notes = useWatch({ control, name: 'notes' });
   const isActive = useWatch({ control, name: 'isActive' });
+  const isComposition = useWatch({ control, name: 'isComposition' });
   const gstinValid = !!gstin && GSTIN_REGEX.test(gstin);
 
   const onGstinChange = (e) => {
@@ -213,6 +215,15 @@ function SupplierFormBody({ initial }) {
               />
             </Field>
           </FormGrid>
+          {gstinValid && (
+            <div className="mt-4">
+              <Checkbox
+                checked={!!isComposition}
+                onChange={(checked) => setValue('isComposition', checked, { shouldDirty: true })}
+                label="Composition dealer (charges no GST — no input tax credit on their bills)"
+              />
+            </div>
+          )}
         </Section>
 
         <Section title="Address">

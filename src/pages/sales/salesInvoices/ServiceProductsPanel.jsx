@@ -24,6 +24,9 @@ const payloadFromSaved = (item) => {
     ...(dated.priceOverride ? { priceOverride: true, priceOverrideReason: dated.priceOverrideReason } : {}),
     ...(item.groupKey ? { groupKey: item.groupKey } : {}),
     ...(item.includedOnBill ? { includedOnBill: true } : {}),
+    ...(item.includedGoods?.length
+      ? { includedGoods: item.includedGoods.map((g) => ({ productId: g.productId?._id || g.productId, productName: g.productName || '', qty: g.qty, unit: g.unit || '' })) }
+      : {}),
   };
 };
 
@@ -47,6 +50,8 @@ const draftPayload = (invoice, lineItems) => ({
 });
 
 const isLinkedProduct = (line) => !!line.groupKey && line.itemType !== 'service';
+/** Products included in a service's price: what was used (confirmed) or what will be used (draft). */
+const includedOf = (service) => (service.consumedItems?.length ? service.consumedItems : service.includedGoods || []);
 
 /**
  * Invoice page: the products billed with each service.
@@ -56,8 +61,8 @@ export default function ServiceProductsPanel({ invoice, canEdit, canReturn, onRe
   const lines = invoice.lineItems || [];
   const groups = lines
     .filter((l) => l.itemType === 'service' && l.includedOnBill && l.groupKey)
-    .map((service) => ({ service, products: lines.filter((l) => isLinkedProduct(l) && l.groupKey === service.groupKey) }))
-    .filter((g) => g.products.length > 0);
+    .map((service) => ({ service, products: lines.filter((l) => isLinkedProduct(l) && l.groupKey === service.groupKey), included: includedOf(service) }))
+    .filter((g) => g.products.length > 0 || g.included.length > 0);
 
   const isDraft = invoice.status === 'draft';
   const [busy, setBusy] = useState(false);
@@ -135,7 +140,7 @@ export default function ServiceProductsPanel({ invoice, canEdit, canReturn, onRe
           : 'This bill is confirmed. To take a product off it, make a sales return.'}
       >
         <div className="flex flex-col gap-3">
-          {groups.map(({ service, products }) => {
+          {groups.map(({ service, products, included }) => {
             const productsTotal = products.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
             return (
               <div key={service.groupKey} className="rounded-control bg-surface ring-1 ring-line">
@@ -164,9 +169,21 @@ export default function ServiceProductsPanel({ invoice, canEdit, canReturn, onRe
                       <span className="text-sm font-bold tabular-nums text-ink">{inr(line.total)}</span>
                     </li>
                   ))}
+                  {included.map((g, i) => (
+                    <li key={`inc-${i}`} className="flex items-start justify-between gap-4 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-ink">{g.productName}</div>
+                        <div className="text-xs text-ink-muted">
+                          Qty {g.qty} {g.unit} · Included in the service, not charged
+                          {Number(g.shortQty) > 0 && <span className="font-semibold text-warning"> · {g.shortQty} short in stock</span>}
+                        </div>
+                      </div>
+                      <span className="text-sm font-semibold text-ink-muted">Included</span>
+                    </li>
+                  ))}
                 </ul>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-line px-4 py-2.5">
-                  <span className="text-xs tabular-nums text-ink-muted">Service {inr(service.total)} + Products {inr(productsTotal)}</span>
+                  <span className="text-xs tabular-nums text-ink-muted">Service {inr(service.total)} + Products {inr(productsTotal)}{included.length > 0 && ` · ${included.length} included`}</span>
                   <span className="text-sm font-semibold text-ink">
                     Total <span className="font-bold tabular-nums text-brand-ink">{inr((Number(service.total) || 0) + productsTotal)}</span>
                   </span>

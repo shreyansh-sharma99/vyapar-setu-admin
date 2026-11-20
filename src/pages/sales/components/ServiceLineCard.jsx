@@ -1,5 +1,5 @@
 import { Trash2, X } from 'lucide-react';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, Segmented } from '@/components/ui';
 import ProductSearchPicker from './ProductSearchPicker';
 import LinePriceNote from './LinePriceNote';
 
@@ -9,6 +9,7 @@ const NAME = 'col-span-6 min-w-0 pr-9 @xl:col-span-1 @xl:pr-0';
 const REMOVE = 'absolute right-2 top-2.5 sm:right-3 @xl:static';
 const LABEL = 'mb-1 block text-right text-[11px] font-semibold text-ink-muted @xl:hidden';
 const HEAD = 'whitespace-nowrap text-right text-[11px] font-semibold text-brand-ink';
+const BILLING = [{ value: 'charge', label: 'Charge' }, { value: 'included', label: 'Included' }];
 const money = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Qty, rate, discount and amount of one line: one cell per column. */
@@ -37,6 +38,10 @@ function Figures({ item, idx, qtyOn, qtyLabel, ctx }) {
       ) : (
         <div className="hidden @xl:block" />
       )}
+      {item.inService ? (
+        <div className="col-span-4 flex items-end pb-2 text-xs text-ink-muted @xl:col-span-2 @xl:h-9 @xl:items-center @xl:pb-0">Part of the service price</div>
+      ) : (
+      <>
       <div className={cell}>
         <span className={LABEL}>Rate (₹)</span>
         <Input
@@ -68,11 +73,22 @@ function Figures({ item, idx, qtyOn, qtyLabel, ctx }) {
           className="text-right tabular-nums"
         />
       </div>
+      </>
+      )}
       <div className="col-span-6 flex items-baseline justify-between @xl:col-span-1 @xl:block">
         <span className="text-[11px] font-semibold text-ink-muted @xl:hidden">Amount</span>
         <div className="text-right">
-          <div className="text-sm font-bold tabular-nums text-ink @xl:leading-9">₹{money(totalOf(item))}</div>
-          <div className="text-[11px] text-ink-muted">{item.isGstApplicable ? `GST ${item.taxPercent}%` : 'No GST'}</div>
+          {item.inService ? (
+            <>
+              <div className="text-sm font-semibold text-ink-muted @xl:leading-9">Included</div>
+              <div className="text-[11px] text-ink-muted">Not charged</div>
+            </>
+          ) : (
+            <>
+              <div className="text-sm font-bold tabular-nums text-ink @xl:leading-9">₹{money(totalOf(item))}</div>
+              <div className="text-[11px] text-ink-muted">{item.isGstApplicable ? `GST ${item.taxPercent}%` : 'No GST'}</div>
+            </>
+          )}
         </div>
       </div>
     </>
@@ -98,11 +114,15 @@ export default function ServiceLineCard({ row, products, removable, ctx }) {
   const shortNote = (line) => {
     const info = stockOf(line);
     if (!info || Number(line.qty || 0) <= info.available) return null;
-    return <div className="mt-1 text-[11px] font-semibold text-danger">{info.available <= 0 ? 'Out of stock' : `Only ${info.available} ${line.unit || 'units'} in stock`}</div>;
+    const text = info.available <= 0 ? 'Out of stock' : `Only ${info.available} ${line.unit || 'units'} in stock`;
+    // An included product never stops the bill: what is in stock is used.
+    if (line.inService) return <div className="mt-1 text-[11px] font-semibold text-warning">{text}. The bill still saves.</div>;
+    return <div className="mt-1 text-[11px] font-semibold text-danger">{text}</div>;
   };
   const qtyOn = chargedByQty(item);
   const hasProducts = products.length > 0;
   const productsTotal = products.reduce((sum, p) => sum + totalOf(p.item), 0);
+  const includedCount = products.filter((p) => p.item.inService).length;
 
   return (
     <div className="@container rounded-control bg-surface ring-1 ring-line">
@@ -110,7 +130,7 @@ export default function ServiceLineCard({ row, products, removable, ctx }) {
         {item.productId && (
           <div className="hidden grid-cols-[minmax(0,1fr)_3.75rem_5.5rem_3.75rem_6rem_2rem] gap-x-2 px-4 pt-2.5 @xl:grid">
             <span className="text-[11px] font-semibold text-brand-ink">Service</span>
-            <span className={HEAD}>{qtyOn ? `Qty (${item.unit})` : hasProducts ? 'Qty' : ''}</span>
+            <span className={HEAD}>{qtyOn ? ctx.qtyLabel(item) : hasProducts ? 'Qty' : ''}</span>
             <span className={HEAD}>Rate (₹)</span>
             <span className={HEAD}>Disc (%)</span>
             <span className={HEAD}>Amount</span>
@@ -129,7 +149,7 @@ export default function ServiceLineCard({ row, products, removable, ctx }) {
             {note(item, idx)}
             {stock(item)}
           </div>
-          {item.productId && <Figures item={item} idx={idx} qtyOn={qtyOn} qtyLabel={`Qty (${item.unit})`} ctx={ctx} />}
+          {item.productId && <Figures item={item} idx={idx} qtyOn={qtyOn} qtyLabel={ctx.qtyLabel(item)} ctx={ctx} />}
           <div className={`${REMOVE} ${item.productId ? '' : '@xl:col-start-6'}`}>
             <Button
               variant="ghost"
@@ -150,14 +170,22 @@ export default function ServiceLineCard({ row, products, removable, ctx }) {
         <>
           <div className="px-3 pt-3 sm:px-4">
             <p className="m-0 text-sm font-semibold text-ink">Products used ({products.length})</p>
-            <p className="m-0 text-xs text-ink-muted">Billed at the batch price and taken from stock. Remove any you did not use.</p>
+            <p className="m-0 text-xs text-ink-muted">Charge: added to the bill at the batch price. Included: part of the service price, only taken from stock.</p>
           </div>
           <ul className="m-0 list-none divide-y divide-line p-0">
             {products.map(({ item: line, idx: i }) => (
-              <li key={i} className={`${ROW} ${isShort(line) ? 'bg-highlight-soft' : ''}`}>
+              <li key={i} className={`${ROW} ${isShort(line) && !line.inService ? 'bg-highlight-soft' : ''}`}>
                 <div className={NAME}>
                   <div className="text-sm font-semibold text-ink @xl:leading-9">{line.productName}</div>
-                  <div className="-mt-1 @xl:-mt-1.5">{note(line, i)}</div>
+                  <Segmented
+                    size="sm"
+                    aria-label={`How to bill ${line.productName}`}
+                    options={BILLING}
+                    value={line.inService ? 'included' : 'charge'}
+                    onChange={(v) => onChange(i, 'inService', v === 'included')}
+                    className="mt-1"
+                  />
+                  {!line.inService && <div className="mt-1">{note(line, i)}</div>}
                   {shortNote(line)}
                 </div>
                 <Figures item={line} idx={i} qtyOn qtyLabel="Qty" ctx={ctx} />
@@ -177,7 +205,10 @@ export default function ServiceLineCard({ row, products, removable, ctx }) {
             ))}
           </ul>
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-line px-3 py-2.5 sm:px-4">
-            <span className="text-xs tabular-nums text-ink-muted">Service ₹{money(totalOf(item))} + Products ₹{money(productsTotal)}</span>
+            <span className="text-xs tabular-nums text-ink-muted">
+              Service ₹{money(totalOf(item))} + Products ₹{money(productsTotal)}
+              {includedCount > 0 && ` · ${includedCount} included`}
+            </span>
             <span className="text-sm font-semibold text-ink">
               Total <span className="font-bold tabular-nums text-brand-ink">₹{money(totalOf(item) + productsTotal)}</span>
             </span>

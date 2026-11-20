@@ -1,0 +1,79 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Option A · Sales voucher</title><link rel="stylesheet" href="A.css">
+<style>
+  .v { max-width: 1120px; border: 1px solid var(--line); }
+  .vh { display: flex; align-items: center; gap: 14px; padding: 6px 10px; background: var(--bar2); color: #fff; font-weight: 600; }
+  .vh .tag { background: var(--hl); color: #1d232c; padding: 1px 8px; font-weight: 700; }
+  .vh .sp { flex: 1; }
+  .top { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .items td { border-bottom: 1px dotted var(--line); }
+  .items tr.ldg td { color: var(--ink2); font-style: italic; }
+  .foot { display: grid; grid-template-columns: 1fr 300px; border-top: 1px solid var(--ink3); }
+  .foot > div { padding: 8px 12px; }
+  .tot { border-left: 1px solid var(--line); }
+  .tot .fld { grid-template-columns: 1fr 10px 120px; }
+  .bigt { font-size: 16px; font-weight: 700; border-top: 1px solid var(--ink3); margin-top: 4px; padding-top: 4px; }
+  .pop { position: absolute; left: 330px; top: 268px; width: 420px; border: 1px solid var(--ink3); background: var(--bg); box-shadow: 0 8px 22px rgba(0,0,0,.18); }
+  .pop h4 { margin: 0; padding: 5px 10px; background: var(--bar2); color: #fff; font-size: 12px; font-weight: 600; display: flex; }
+  .pop h4 span { margin-left: auto; font-weight: 400; }
+  .pop .row { display: grid; grid-template-columns: 1fr 80px 80px; }
+</style></head>
+<body>
+<div class="tb"><span class="logo">ecn<i>biz</i></span><b>Accounting voucher creation</b><span style="color:#cfe6ef">Sharma General Store</span><span class="sp"></span><span><kbd>Ctrl A</kbd>Accept</span><span><kbd>Esc</kbd>Quit</span><span>11-Nov-2026</span></div>
+<div class="wrap" style="position:relative">
+  <div class="area">
+    <div class="v">
+      <div class="vh"><span class="tag">Sales</span><span>No. <span class="mono">INV-2026-0413</span></span><span class="sp"></span><span>Wednesday, 11-Nov-2026</span></div>
+      <div class="top">
+        <div>
+          <div class="fld"><span>Reference no.</span><span>:</span><span class="v muted">—</span></div>
+          <div class="fld"><span>Party A/c name</span><span>:</span><span class="v">Gupta Kirana &amp; General Stores</span></div>
+          <div class="fld"><span class="muted">Current balance</span><span>:</span><span class="v dr">2,230.00 Dr</span></div>
+          <div class="fld"><span>Sales ledger</span><span>:</span><span class="v">Sales — GST (Local)</span></div>
+        </div>
+        <div>
+          <div class="fld"><span>Dispatch to</span><span>:</span><span class="v">Godown 2, Bibwewadi, Pune</span></div>
+          <div class="fld"><span>Place of supply</span><span>:</span><span class="v">Maharashtra (27)</span></div>
+          <div class="fld"><span>GSTIN</span><span>:</span><span class="v mono">27AAGFG4410P1Z3</span></div>
+          <div class="fld"><span>Terms</span><span>:</span><span class="v">15 days · due 26-Nov-26</span></div>
+        </div>
+      </div>
+      <table class="items">
+        <tr><th>Name of item</th><th class="num">Quantity</th><th class="num">Rate</th><th>per</th><th class="num">Disc %</th><th class="num">Amount</th></tr>
+        <tr><td><b>India Gate Basmati Rice 25 kg</b> <span class="muted">· IG-2610</span></td><td class="num">2 bag</td><td class="num">2,450.00</td><td>bag</td><td class="num"></td><td class="num">4,900.00</td></tr>
+        <tr><td><b>Fortune Sunflower Oil 15 L</b> <span class="muted">· FT-0925</span></td><td class="num">1 tin</td><td class="num">2,590.00</td><td>tin</td><td class="num">2</td><td class="num">2,538.20</td></tr>
+        <tr><td><b>Amul Butter 500 g</b> <span class="muted">· AM-1102</span></td><td class="num">6 pcs</td><td class="num">275.00</td><td>pcs</td><td class="num"></td><td class="num">1,650.00</td></tr>
+        <tr class="sel"><td><span class="cur">magg</span></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td colspan="5" class="num muted" style="padding-top:10px"></td><td class="num" style="border-top:1px solid var(--ink3)"><b>9,088.20</b></td></tr>
+        <tr class="ldg"><td>CGST output</td><td></td><td></td><td></td><td></td><td class="num">284.96</td></tr>
+        <tr class="ldg"><td>SGST output</td><td></td><td></td><td></td><td></td><td class="num">284.95</td></tr>
+        <tr class="ldg"><td>Round off</td><td></td><td></td><td></td><td></td><td class="num">(−) 0.11</td></tr>
+      </table>
+      <div class="foot">
+        <div>
+          <div class="fld"><span>Narration</span><span>:</span><span class="v muted">Delivered to godown 2</span></div>
+          <div class="fld"><span>Received</span><span>:</span><span class="v">UPI · 5,000.00</span></div>
+          <div class="muted" style="margin-top:6px">Nine Thousand Six Hundred Fifty-Eight Rupees Only</div>
+        </div>
+        <div class="tot">
+          <div class="fld bigt"><span>Total</span><span>:</span><span class="num">₹ 9,658.00</span></div>
+          <div class="fld"><span>Balance due</span><span>:</span><span class="num dr"><b>4,658.00</b></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pop">
+    <h4>List of stock items<span>Alt C: Create</span></h4>
+    <div class="row" style="color:var(--ink3);font-size:11.5px"><span>Name</span><span class="num">Stock</span><span class="num">Rate</span></div>
+    <div class="row sel"><span>Maggi Noodles 12-pack</span><span class="num">5 pack</span><span class="num">168.00</span></div>
+    <div class="row"><span>Maggi Masala 70 g</span><span class="num">120 pcs</span><span class="num">13.00</span></div>
+    <div class="row"><span>Maggi Hot &amp; Sweet Sauce 1 kg</span><span class="num">22 btl</span><span class="num">182.00</span></div>
+  </div>
+  <div class="fk">
+    <div><b>F2</b>Date</div><div><b>F3</b>Party</div><div><b>F4</b>Contra</div><div><b>F5</b>Payment</div><div><b>F6</b>Receipt</div><div><b>F7</b>Journal</div><div style="background:var(--hl2)"><b>F8</b>Sales</div><div><b>F9</b>Purchase</div><div><b>F10</b>Other vch</div>
+    <div><b>Alt C</b>Create master</div><div><b>Alt D</b>Delete line</div><div><b>Alt 2</b>Duplicate</div><div><b>Ctrl R</b>Repeat narr.</div>
+    <div class="gap"></div><div><b>Ctrl A</b>Accept</div><div><b>Ctrl P</b>Accept + print</div>
+  </div>
+</div>
+<div class="sl"><span><b>Enter</b> next field</span><span><b>Backspace</b> previous field</span><span><b>Ctrl A</b> save voucher</span><span style="margin-left:auto">Voucher 413 of FY 2026-27</span></div>
+<script>if (/theme=dark/.test(location.search)) document.documentElement.classList.add('dark');</script>
+</body></html>

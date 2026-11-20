@@ -22,7 +22,7 @@ export const normalizeUser = (raw) => {
   };
 };
 
-const persistUser = (user) => {
+export const persistUser = (user) => {
   localStorage.setItem('ecnbiz', encryptData(JSON.stringify(user)));
   if (user?.userType) localStorage.setItem('userType', user.userType);
 };

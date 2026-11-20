@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import {
-  AlertTriangle, ArrowRight, Boxes, FileText, HandCoins, IndianRupee, PackagePlus, Plus, RotateCcw,
+  AlertTriangle, ArrowRight, Boxes, CalendarClock, FileText, HandCoins, IndianRupee, PackagePlus, Plus, RotateCcw,
   ShoppingCart, SlidersHorizontal, Truck, UserPlus, Wallet, BarChart3, LayoutDashboard,
 } from 'lucide-react';
 import {
@@ -12,6 +12,7 @@ import {
 import { encryptData } from '@/utility/crypto';
 import { can } from '@/utility/shopPermissions';
 import { getSalesInvoiceSummaryApi, getSalesInvoicesApi } from '@/pages/sales/salesInvoices/services/salesInvoiceService';
+import { getFollowUpSummaryApi } from '@/pages/sales/followUps/services/followUpService';
 import { getPurchaseBillsApi } from '@/pages/purchase/purchaseBills/services/purchaseBillService';
 import { getInventoryApi } from '@/pages/inventory/inventory/services/inventoryService';
 
@@ -22,6 +23,8 @@ const NOT_A_SALE = ['draft', 'void', 'voided', 'cancelled'];
 const OPEN_STATUSES = ['unpaid', 'partially_paid'];
 
 /** GET /sales-invoices/summary → [{ _id: status, count, totalAmount, paidAmount }] */
+const loadFollowUps = () => getFollowUpSummaryApi();
+
 const loadSummary = async () => {
   const body = await getSalesInvoiceSummaryApi();
   const open = (body?.data || []).filter((s) => OPEN_STATUSES.includes(s._id));
@@ -132,6 +135,9 @@ export default function Dashboard() {
   const recent = useBlock(loadRecent, canSales);
   const stock = useBlock(loadStock, canInventory);
   const bills = useBlock(loadBills, canPurchase);
+  const followUps = useBlock(loadFollowUps, canSales);
+  const dueToday = Number(followUps.data?.today || 0);
+  const lateCount = Number(followUps.data?.overdue || 0);
 
   const openInvoice = (inv) => navigate(`/sales/invoices/view/${encodeURIComponent(encryptData(inv._id))}`);
   const links = QUICK_LINKS.filter((l) => can(user, l.module, l.level));
@@ -249,6 +255,22 @@ export default function Dashboard() {
             />
           ))}
         </div>
+      )}
+
+      {/* Next visits due: only when there is something to do */}
+      {(dueToday > 0 || lateCount > 0) && (
+        <Alert
+          tone="info"
+          icon={CalendarClock}
+          title={`Follow-ups: ${dueToday} today${lateCount ? `, ${lateCount} overdue` : ''}`}
+          action={
+            <Button size="sm" variant="secondary" endIcon={<ArrowRight />} onClick={() => navigate('/sales/follow-ups')}>
+              Open
+            </Button>
+          }
+        >
+          Customers due for their next visit. Call or WhatsApp them from the list.
+        </Alert>
       )}
 
       {failed.map((c) => (

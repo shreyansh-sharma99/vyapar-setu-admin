@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+  ArrowLeft,
   Download,
+  FileText,
   CreditCard,
   Ban,
   Mail,
@@ -38,6 +40,7 @@ import { downloadInvoiceLayoutPdf, printInvoiceLayout, printWidth } from './invo
 import { downloadReceiptPdf } from './receiptPdf';
 import { PAYMENT_METHOD_LABELS } from './paymentMethods';
 import ServiceProductsPanel from './ServiceProductsPanel';
+import InvoiceFullDetails from './InvoiceFullDetails';
 
 const PAYMENT_OPTIONS = Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }));
 
@@ -57,6 +60,7 @@ export default function SalesInvoiceDetails() {
   const [toasts, setToasts] = useState([]);
 
   // Modals
+  const [showFullDetails, setShowFullDetails] = useState(false);
   const [paymentModal, setPaymentModal] = useState(EMPTY_PAYMENT);
   const [voidModal, setVoidModal] = useState({ isOpen: false, reason: '' });
   const [deleteReceipt, setDeleteReceipt] = useState(null);
@@ -125,6 +129,9 @@ export default function SalesInvoiceDetails() {
   };
 
   const printDoc = useMemo(() => (currentInvoice ? docFromInvoice(currentInvoice) : null), [currentInvoice]);
+
+  // Back to the previous page; opened from a link with no history, go to the invoice list
+  const goBack = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/sales/invoices'));
 
   const handleEditClick = () => {
     if (!currentInvoice) return;
@@ -264,6 +271,7 @@ export default function SalesInvoiceDetails() {
           docNo: currentInvoice.invoiceNumber,
           actions: (
             <>
+              <Button variant="secondary" startIcon={<ArrowLeft />} onClick={goBack}>Back</Button>
               <StatusBadge status={currentInvoice.status} size="md" />
               {currentInvoice.invoiceType && <Badge tone="neutral" size="md">{currentInvoice.invoiceType}</Badge>}
               <Button variant="secondary" onClick={handlePrint} loading={printBusy} startIcon={<Printer />}>
@@ -313,9 +321,10 @@ export default function SalesInvoiceDetails() {
           </Alert>
         )}
 
-        {(currentInvoice.lineItems || []).some((l) => l.consumedItems?.length > 0) && (
+        {/* Older service lines (not split on the bill); newer ones show in "Products used in services" */}
+        {(currentInvoice.lineItems || []).some((l) => l.consumedItems?.length > 0 && !l.includedOnBill) && (
           <Alert tone="neutral" title="Goods used in services (not on the bill)">
-            {currentInvoice.lineItems.filter((l) => l.consumedItems?.length > 0).map((l, i) => (
+            {currentInvoice.lineItems.filter((l) => l.consumedItems?.length > 0 && !l.includedOnBill).map((l, i) => (
               <div key={i}>
                 <b>{l.productName}:</b>{' '}
                 {l.consumedItems.map((e) => `${e.productName} ${e.qty} ${e.unit}${e.shortQty > 0 ? ` (${e.shortQty} short)` : ''}`).join(', ')}
@@ -415,7 +424,11 @@ export default function SalesInvoiceDetails() {
         />
 
         {/* The invoice, in the design chosen in Sales → Invoice Layout */}
-        <Section title="Invoice" description="As your customer sees it">
+        <Section
+          title="Invoice"
+          description="As your customer sees it"
+          actions={<Button variant="secondary" size="sm" startIcon={<FileText />} onClick={() => setShowFullDetails(true)}>View Full Details</Button>}
+        >
           <div className="overflow-x-auto rounded-control bg-fill p-3 sm:p-6">
             <div className="mx-auto bg-white shadow-card" style={{ width: printWidth(currentInvoice.print?.layout?.theme) }}>
               {printDoc && <InvoiceDocument layout={currentInvoice.print?.layout || {}} doc={printDoc} />}
@@ -423,6 +436,8 @@ export default function SalesInvoiceDetails() {
           </div>
         </Section>
       </DocumentLayout>
+
+      <InvoiceFullDetails open={showFullDetails} onClose={() => setShowFullDetails(false)} invoice={currentInvoice} />
 
       {/* Receipt */}
       <Modal

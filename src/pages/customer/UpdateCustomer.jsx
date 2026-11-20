@@ -202,13 +202,12 @@ export default function UpdateCustomer() {
               />
             </Field>
 
-            <Field label="Email Address" required error={errors.email?.message}>
+            <Field label="Email Address" error={errors.email?.message}>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter email address"
+                placeholder="Enter email address (optional)"
                 {...register('email', {
-                  required: 'Email is required',
                   pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Invalid email address' }
                 })}
               />

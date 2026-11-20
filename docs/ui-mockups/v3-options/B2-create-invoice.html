@@ -1,0 +1,78 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Option B · Create invoice</title><link rel="stylesheet" href="B.css">
+<style>
+  .doc { padding: 0; }
+  .head { display: grid; grid-template-columns: 1fr 1fr 300px; border-bottom: 1px solid var(--line); }
+  .head > div { padding: 14px 16px; border-right: 1px solid var(--line); }
+  .head > div:last-child { border-right: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
+  .bt { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink2); font-weight: 600; margin-bottom: 6px; }
+  .bt a { color: var(--pri); }
+  td .inp { height: 32px; }
+  .add { margin: 10px 14px; height: 42px; }
+  .bottom { display: grid; grid-template-columns: 1fr 380px; border-top: 1px solid var(--line); }
+  .bottom > div { padding: 14px 16px; }
+  .sum { border-left: 1px solid var(--line); display: grid; gap: 9px; }
+  .sum .r { display: flex; justify-content: space-between; align-items: center; }
+  .sum .lnk { color: var(--pri); font-weight: 600; }
+  .sum .tot { font-size: 17px; font-weight: 700; padding-top: 8px; border-top: 1px solid var(--line); }
+  .sign { margin-top: 10px; height: 64px; border: 1px dashed var(--line2); border-radius: 8px; display: grid; place-items: center; color: var(--ink3); font-size: 12px; }
+</style></head>
+<body data-page="sales">
+<div class="main">
+  <div class="top"><span class="muted">←</span><h1>Create Sales Invoice</h1><span class="sp"></span><span class="btn">⚙ Settings</span><span class="btn">Save &amp; New</span><span class="btn pri">Save</span></div>
+  <div class="body">
+    <div class="card doc">
+      <div class="head">
+        <div>
+          <div class="bt"><span>Bill To</span><a>Change Party</a></div>
+          <b style="font-size:14.5px">Gupta Kirana &amp; General Stores</b>
+          <div class="muted">Shop 14, Market Yard, Gultekdi, Pune 411037</div>
+          <div class="muted">Phone 98110 22000 · GSTIN 27AAGFG4410P1Z3</div>
+          <div style="margin-top:8px"><span class="pill bad">Balance ₹ 2,230 to collect</span></div>
+        </div>
+        <div>
+          <div class="bt"><span>Ship To</span><a>Change Shipping Address</a></div>
+          <b>Gupta Kirana — Godown 2</b>
+          <div class="muted">Lane 4, Bibwewadi, Pune 411037</div>
+        </div>
+        <div>
+          <div><div class="lbl">Sales Invoice No.</div><div class="inp">413</div></div>
+          <div><div class="lbl">Sales Invoice Date</div><div class="inp">11 Nov 2026 ▾</div></div>
+          <div><div class="lbl">Payment Terms</div><div class="inp">15 days</div></div>
+          <div><div class="lbl">Due Date</div><div class="inp">26 Nov 2026</div></div>
+        </div>
+      </div>
+      <table>
+        <tr><th style="width:44px">NO</th><th>ITEMS / SERVICES</th><th>HSN / SAC</th><th class="num">QTY</th><th class="num">PRICE / ITEM (₹)</th><th class="num">DISCOUNT</th><th class="num">TAX</th><th class="num">AMOUNT (₹)</th><th style="width:30px"></th></tr>
+        <tr><td>1</td><td><b>India Gate Basmati Rice 25 kg</b><div class="muted" style="font-size:12px">18 bag in stock</div></td><td>1006</td><td class="num"><span class="inp" style="justify-content:flex-end">2 BAG</span></td><td class="num"><span class="inp" style="justify-content:flex-end">2,450</span></td><td class="num muted">0 %</td><td class="num">5%<div class="muted" style="font-size:12px">₹ 245</div></td><td class="num"><b>5,145</b></td><td class="muted">🗑</td></tr>
+        <tr><td>2</td><td><b>Fortune Sunflower Oil 15 L</b><div class="muted" style="font-size:12px">4 tin in stock</div></td><td>1512</td><td class="num"><span class="inp" style="justify-content:flex-end">1 TIN</span></td><td class="num"><span class="inp" style="justify-content:flex-end">2,590</span></td><td class="num">2 %<div class="muted" style="font-size:12px">₹ 51.80</div></td><td class="num">5%<div class="muted" style="font-size:12px">₹ 126.91</div></td><td class="num"><b>2,665.11</b></td><td class="muted">🗑</td></tr>
+        <tr><td>3</td><td><b>Amul Butter 500 g</b><div class="muted" style="font-size:12px">60 pcs in stock</div></td><td>0405</td><td class="num"><span class="inp" style="justify-content:flex-end">6 PCS</span></td><td class="num"><span class="inp" style="justify-content:flex-end">275</span></td><td class="num muted">0 %</td><td class="num">12%<div class="muted" style="font-size:12px">₹ 198</div></td><td class="num"><b>1,848</b></td><td class="muted">🗑</td></tr>
+      </table>
+      <div style="display:flex;gap:10px;margin:10px 14px"><div class="dash add" style="flex:1;margin:0">＋ Add Item</div><div class="dash add" style="width:200px;margin:0">▥ Scan Barcode</div></div>
+      <div style="display:flex;justify-content:flex-end;gap:40px;padding:8px 16px;background:var(--page);font-weight:600"><span>SUBTOTAL</span><span>₹ 51.80</span><span>₹ 569.91</span><span>₹ 9,658.11</span></div>
+      <div class="bottom">
+        <div>
+          <div style="color:var(--pri);font-weight:600;margin-bottom:10px">＋ Add Notes</div>
+          <div class="lbl">Terms and Conditions</div>
+          <div class="inp" style="height:64px;align-items:flex-start;padding-top:8px;color:var(--ink2)">1. Goods once sold will not be taken back.<br>2. Subject to Pune jurisdiction.</div>
+          <div style="margin-top:12px" class="lbl">Bank Details</div>
+          <div class="muted">HDFC Bank · A/c 5020 0041 8722 63 · IFSC HDFC0001234 · UPI sharmastore@hdfc</div>
+        </div>
+        <div class="sum">
+          <div class="r"><span class="lnk">＋ Add Additional Charges</span></div>
+          <div class="r"><span>Taxable Amount</span><span class="num">₹ 9,088.20</span></div>
+          <div class="r"><span>CGST</span><span class="num">₹ 284.96</span></div>
+          <div class="r"><span>SGST</span><span class="num">₹ 284.95</span></div>
+          <div class="r"><span class="lnk">＋ Add Discount</span><span class="muted">− ₹ 0</span></div>
+          <div class="r"><span class="chk on">Auto Round Off</span><span class="num">− ₹ 0.11</span></div>
+          <div class="r tot"><span>Total Amount</span><span class="num">₹ 9,658</span></div>
+          <div class="r"><span class="chk">Mark as fully paid</span></div>
+          <div class="r"><span>Amount Received</span><span style="display:flex;gap:6px"><span class="inp" style="width:120px;justify-content:flex-end">₹ 5,000</span><span class="inp" style="width:78px">UPI ▾</span></span></div>
+          <div class="r" style="color:var(--ok);font-weight:700"><span>Balance Amount</span><span class="num">₹ 4,658</span></div>
+          <div class="sign">Authorized signatory for Sharma General Store</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="B-side.js"></script>
+</body></html>

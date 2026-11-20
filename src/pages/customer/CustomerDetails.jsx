@@ -8,6 +8,7 @@ import {
 import { decryptData, encryptData } from '@/utility/crypto';
 import { can } from '@/utility/shopPermissions';
 import { getCustomerById, clearCurrentCustomer } from './services/customerSlice';
+import VisitHistory from './components/VisitHistory';
 
 
 export default function CustomerDetails() {
@@ -147,6 +148,8 @@ export default function CustomerDetails() {
           </div>
         )}
       </Section>
+
+      {canSeeLedger && <VisitHistory customerId={id} />}
     </div>
   );
 }

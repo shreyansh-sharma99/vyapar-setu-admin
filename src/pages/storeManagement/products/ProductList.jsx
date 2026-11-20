@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Search, Barcode, QrCode, FileSpreadsheet, Printer, ScanBarcode, FilterX, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { formatDateWithTiming } from '@/utility/dateTiming';
-import { Badge, Button, Card, Field, Input, PageHeader, Segmented, Select, StatusBadge } from '@/components/ui';
+import { Badge, Button, Card, Field, Input, PageHeader, Select, StatusBadge } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import Table from '@/components/table/Table';
 import {
@@ -20,11 +20,11 @@ import DeleteModal from '@/components/modal/DeleteModal';
 import BarcodeScannerModal from '@/components/modal/BarcodeScannerModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import ToastStack from './components/ToastStack';
-import { encodeId, formatINR, formatQty, getStockState, toNumberOr, useToasts } from './utils/productUtils';
+import { catalogPath, encodeId, formatINR, formatQty, getStockState, toNumberOr, useToasts } from './utils/productUtils';
 
 const STOCK_TEXT = { in: 'text-success', low: 'text-warning', out: 'text-danger' };
 const Dash = () => <span className="text-ink-subtle">—</span>;
-// Stock-side columns mean nothing on the Services tab.
+// Stock-side columns mean nothing on the Services list.
 const SERVICE_HIDDEN_COLUMNS = ['images', 'barcode', 'brandId', 'mrp', 'currentStock', 'stockState', 'damagedStock', 'openBatches'];
 
 const DEFAULT_SORT = { sort: 'createdAt', order: 'desc' };
@@ -45,9 +45,10 @@ const STOCK_OPTIONS = [
 ];
 
 const EMPTY_FILTERS = { categoryId: '', brandId: '', status: '', stockStatus: '' };
-const TYPE_TABS = [{ value: '', label: 'All' }, { value: 'goods', label: 'Goods' }, { value: 'service', label: 'Services' }];
-
-export default function ProductList() {
+/** Catalog → Products (goods) or Catalog → Services: the same list, one kind each. */
+export default function ProductList({ itemType = 'goods' }) {
+  const isService = itemType === 'service';
+  const base = catalogPath(itemType);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -69,7 +70,7 @@ export default function ProductList() {
     limit: 10,
     ...DEFAULT_SORT,
     search: '',
-    itemType: '',
+    itemType,
     ...EMPTY_FILTERS,
   });
 
@@ -120,8 +121,8 @@ export default function ProductList() {
   const refresh = () => dispatch(getProducts(queryParams));
 
   const handleDeleteClick = (item) => setDeleteModal({ isOpen: true, productId: item._id });
-  const handleEditClick = (item) => navigate(`/products/edit/${encodeId(item._id)}`);
-  const handleViewClick = (item) => navigate(`/products/view/${encodeId(item._id)}`);
+  const handleEditClick = (item) => navigate(`${base}/edit/${encodeId(item._id)}`);
+  const handleViewClick = (item) => navigate(`${base}/view/${encodeId(item._id)}`);
   const handleAuditClick = (item) => navigate(`/products/audit/${encodeId(item._id)}`);
 
   const handleConfirmDelete = async () => {
@@ -363,31 +364,33 @@ export default function ProductList() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Products"
+        title={isService ? 'Services' : 'Products'}
         actions={
-          <>
-            <Button variant="secondary" startIcon={<FileSpreadsheet />} onClick={() => navigate('/products/import-export')}>
-              Import / Export
-            </Button>
-            <Button variant="secondary" startIcon={<Printer />} onClick={() => navigate('/products/labels')}>
-              Print Labels
-            </Button>
-            <Button variant="secondary" startIcon={<ScanBarcode />} onClick={() => setBarcodeConfirmOpen(true)}>
-              Generate Barcodes
-            </Button>
-            <Button startIcon={<Plus />} onClick={() => navigate('/products/create')}>
-              Add New Product
-            </Button>
-            <Button startIcon={<Plus />} onClick={() => navigate('/products/create-service')}>
+          isService ? (
+            <Button startIcon={<Plus />} onClick={() => navigate('/services/create')}>
               Add New Service
             </Button>
-          </>
+          ) : (
+            <>
+              <Button variant="secondary" startIcon={<FileSpreadsheet />} onClick={() => navigate('/products/import-export')}>
+                Import / Export
+              </Button>
+              <Button variant="secondary" startIcon={<Printer />} onClick={() => navigate('/products/labels')}>
+                Print Labels
+              </Button>
+              <Button variant="secondary" startIcon={<ScanBarcode />} onClick={() => setBarcodeConfirmOpen(true)}>
+                Generate Barcodes
+              </Button>
+              <Button startIcon={<Plus />} onClick={() => navigate('/products/create')}>
+                Add New Product
+              </Button>
+            </>
+          )
         }
       />
 
-      <Segmented aria-label="Item type" value={params.itemType} onChange={(v) => setFilter('itemType', v)} options={TYPE_TABS} className="self-start" />
-
-      {/* Barcode finder */}
+      {/* Barcode finder (services have no barcode) */}
+      {!isService && (
       <Card padding="sm">
         <form onSubmit={handleBarcodeSearch} className="flex w-full max-w-xl items-center gap-2">
           <Input
@@ -411,6 +414,7 @@ export default function ProductList() {
           </Button>
         </form>
       </Card>
+      )}
 
       {/* Filters — hidden until the Filters button is clicked; slides open/closed */}
       <div
@@ -422,7 +426,7 @@ export default function ProductList() {
         inert={!showFilters}
       >
         <div className={showFilters ? 'overflow-visible' : 'overflow-hidden'}>
-          <Card padding="sm" className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+          <Card padding="sm" className={cn('grid grid-cols-1 items-end gap-3 sm:grid-cols-2', isService ? 'lg:grid-cols-[repeat(2,minmax(0,1fr))_auto]' : 'lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]')}>
             <Field label="Category">
               <Select
                 options={[{ value: '', label: 'All categories' }, ...filterOptions.categories.map((c) => ({ value: c._id, label: c.name }))]}
@@ -431,6 +435,7 @@ export default function ProductList() {
                 placeholder="All categories"
               />
             </Field>
+            {!isService && (
             <Field label="Brand">
               <Select
                 options={[{ value: '', label: 'All brands' }, ...filterOptions.brands.map((b) => ({ value: b._id, label: b.name }))]}
@@ -439,9 +444,11 @@ export default function ProductList() {
                 placeholder="All brands"
               />
             </Field>
+            )}
             <Field label="Status">
               <Select options={STATUS_OPTIONS} value={params.status} onChange={(v) => setFilter('status', v)} placeholder="All statuses" searchable={false} />
             </Field>
+            {!isService && (
             <Field label="Stock">
               <Select
                 options={STOCK_OPTIONS}
@@ -451,6 +458,7 @@ export default function ProductList() {
                 searchable={false}
               />
             </Field>
+            )}
             <Button
               variant="secondary"
               className="h-11"
@@ -482,11 +490,13 @@ export default function ProductList() {
             <ChevronDown className={cn('transition-transform duration-300', showFilters && 'rotate-180')} />
           </Button>
         }
-        headers={params.itemType === 'service' ? headers.filter((h) => !SERVICE_HIDDEN_COLUMNS.includes(h.key)) : headers}
+        headers={isService ? headers.filter((h) => !SERVICE_HIDDEN_COLUMNS.includes(h.key)) : headers}
         data={products}
         loading={loading}
-        searchPlaceholder="Search by name, SKU, barcode or HSN..."
-        emptyMessage={hasFilters || params.search ? 'No products match your filters.' : "No products found. Click 'Add New Product' to create one."}
+        searchPlaceholder={isService ? 'Search by name, SKU or SAC...' : 'Search by name, SKU, barcode or HSN...'}
+        emptyMessage={isService
+          ? (hasFilters || params.search ? 'No services match your filters.' : "No services found. Click 'Add New Service' to create one.")
+          : (hasFilters || params.search ? 'No products match your filters.' : "No products found. Click 'Add New Product' to create one.")}
         onEdit={handleEditClick}
         onDelete={handleDeleteClick}
         onToggle={handleStatusToggle}
