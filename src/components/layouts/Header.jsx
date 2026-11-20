@@ -98,22 +98,27 @@ export default function Header({
           </Button>
         </div>
 
-        {/* ── Wordmark: next to the menu on phones (the right side is full), centre from md ── */}
+        {/* Business switcher: next to the menu on phones (the centre holds the wordmark), right side from md */}
+        <div className="mr-auto flex items-center md:mr-0">
+          <BusinessSwitcher />
+        </div>
+
+        {/* ── Centre: wordmark, always ── */}
         <a
           href="/"
           aria-label="ecnbiz home"
-          className="mr-auto flex select-none items-baseline leading-none md:absolute md:left-1/2 md:top-1/2 md:z-10 md:mr-0 md:-translate-x-1/2 md:-translate-y-1/2"
+          className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 select-none items-baseline leading-none"
         >
           <span className="text-2xl font-extrabold tracking-tight text-brand-ink md:text-[28px]">ecn</span>
           <span className="text-2xl font-extrabold tracking-tight text-highlight md:text-[28px]">biz</span>
         </a>
 
-        {/* ── Right: theme, business, user ── */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        {/* ── Right: actions ── */}
+        <div className="flex items-center gap-2">
+
           <Button variant="ghost" size="icon" onClick={handleToggleTheme} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
             {isDark ? <Sun /> : <Moon />}
           </Button>
-          <BusinessSwitcher />
           <DropdownMenu
             header={menuHeader}
             items={menuItems}
